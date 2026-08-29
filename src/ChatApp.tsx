@@ -30,7 +30,8 @@ type Profile = {
   language: Language;
 };
 
-type Message = { role: "user" | "assistant"; content: string };
+type Source = { work: string; section: string; snippet: string };
+type Message = { role: "user" | "assistant"; content: string; sources?: Source[] };
 
 type Thread = {
   id: string;
@@ -372,6 +373,9 @@ const STRINGS = {
     dashaSystem: "System",
     rename: "Rename",
     renamePrompt: "Chat name:",
+    gochara: "Gochara (transits now)",
+    fromMoon: "From Moon",
+    fromLagna: "From Lagna",
     library: "📚 Classical library",
     librarySearch: "Search the classical texts…",
     libraryNotice: "Short excerpts from: Vedic Remedies in Astrology (Sanjay Rath), Sarvarth Chintamani (J.N. Bhasin), Jyotisha Fundamentals (Visti Larsen). Reference only.",
@@ -553,6 +557,9 @@ const STRINGS = {
     dashaSystem: "పద్ధతి",
     rename: "పేరు మార్చండి",
     renamePrompt: "సంభాషణ పేరు:",
+    gochara: "గోచారం (ప్రస్తుత సంచారం)",
+    fromMoon: "చంద్రుడి నుండి",
+    fromLagna: "లగ్నం నుండి",
     library: "📚 శాస్త్ర గ్రంథాలయం",
     librarySearch: "శాస్త్ర గ్రంథాల్లో వెతకండి…",
     libraryNotice: "మూలాలు: Vedic Remedies in Astrology (సంజయ్ రాథ్), Sarvarth Chintamani (జె.ఎన్. భసీన్), Jyotisha Fundamentals (విష్టి లార్సెన్). సూచన కోసమే.",
@@ -960,7 +967,9 @@ export default function ChatApp() {
   const modeRef = useRef<
     { prashna?: boolean; muhurta?: { activity?: string } } | undefined
   >(undefined);
+  const sourcesRef = useRef<Source[]>([]);
   const [today, setToday] = useState<TodayPanchanga | null>(null);
+  const [transit, setTransit] = useState<FullChart>(null);
   const [meLoaded, setMeLoaded] = useState(false);
   const [threads, setThreads] = useState<Thread[]>(
     () => loadThreadsLocal().threads,
@@ -1067,7 +1076,10 @@ export default function ChatApp() {
       try {
         const reply = await callChat(profile, next, setDraft);
         modeRef.current = undefined;
-        commitMessages([...next, { role: "assistant", content: reply }]);
+        commitMessages([
+          ...next,
+          { role: "assistant", content: reply, sources: sourcesRef.current },
+        ]);
       } catch (err) {
         modeRef.current = undefined;
         setError(err instanceof Error ? err.message : t.genericError);
@@ -1115,6 +1127,11 @@ export default function ChatApp() {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, busy, draft]);
 
+  useEffect(() => {
+    if ("serviceWorker" in navigator)
+      void navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
+
   // Restore account/profile/conversation from the server once.
   useEffect(() => {
     void (async () => {
@@ -1153,6 +1170,20 @@ export default function ChatApp() {
     )
       .then(async (r) => (r.ok ? ((await r.json()) as TodayPanchanga) : null))
       .then((data) => setToday(data))
+      .catch(() => {});
+    const now = new Date(Date.now() + activeProfile.timezoneOffset * 3600000);
+    void fetch("/api/chart", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...activeProfile,
+        name: "Transit",
+        date: now.toISOString().slice(0, 10),
+        time: now.toISOString().slice(11, 16),
+      }),
+    })
+      .then(async (r) => (r.ok ? ((await r.json()) as FullChart) : null))
+      .then((data) => setTransit(data))
       .catch(() => {});
     try {
       const response = await fetch("/api/chart", {
@@ -1220,8 +1251,12 @@ export default function ChatApp() {
         try {
           const parsed = JSON.parse(buffer.slice(0, split)) as {
             summary?: ChatSummary;
+            sources?: Source[];
           };
           if (parsed.summary) setSummary(parsed.summary);
+          sourcesRef.current = Array.isArray(parsed.sources)
+            ? parsed.sources.slice(0, 3)
+            : [];
         } catch {
           /* head was not JSON; ignore */
         }
@@ -1270,7 +1305,10 @@ export default function ChatApp() {
     try {
       const reply = await callChat(profile, next, setDraft);
       modeRef.current = undefined;
-      commitMessages([...next, { role: "assistant", content: reply }]);
+      commitMessages([
+        ...next,
+        { role: "assistant", content: reply, sources: sourcesRef.current },
+      ]);
     } catch (err) {
       modeRef.current = undefined;
       setError(err instanceof Error ? err.message : t.genericError);
@@ -1523,6 +1561,18 @@ export default function ChatApp() {
             ) : (
               <div key={index} className="bubble-assistant">
                 {renderAssistantText(message.content)}
+                {(message.sources?.length ?? 0) > 0 && (
+                  <div className="source-chips">
+                    {message.sources!.map((source, sourceIndex) => (
+                      <details key={sourceIndex} className="source-chip">
+                        <summary>
+                          📖 {source.work} · {source.section.slice(0, 36)}
+                        </summary>
+                        <p>{source.snippet}</p>
+                      </details>
+                    ))}
+                  </div>
+                )}
               </div>
             ),
           )}
@@ -1734,6 +1784,7 @@ export default function ChatApp() {
           profile={profile}
           summary={summary}
           chart={chart}
+          transit={transit}
           today={today}
           t={t}
           language={language}
@@ -2030,6 +2081,7 @@ function DetailsSheet({
   profile,
   summary,
   chart,
+  transit = null,
   today,
   t,
   language,
@@ -2044,6 +2096,7 @@ function DetailsSheet({
   profile: Profile;
   summary: ChatSummary | null;
   chart: FullChart;
+  transit?: FullChart;
   today: TodayPanchanga | null;
   t: Strings;
   language: Language;
@@ -2985,6 +3038,62 @@ function DetailsSheet({
                   </table>
                 </div>
               </section>
+
+              {transit && (
+                <section hidden={tab === "overview"}>
+                  <h3>{t.gochara}</h3>
+                  <div className="table-wrap">
+                    <table className="pro-table">
+                      <thead>
+                        <tr>
+                          <th>{t.planet}</th>
+                          <th>{t.signCol}</th>
+                          <th>{t.degreeCol}</th>
+                          <th>{t.fromLagna}</th>
+                          <th>{t.fromMoon}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const natalLagna = chart.placements.find(
+                            (p) => p.name === "Lagna",
+                          );
+                          const natalMoon = chart.placements.find(
+                            (p) => p.name === "Moon",
+                          );
+                          if (!natalLagna || !natalMoon) return null;
+                          return transit.placements
+                            .filter((p) => p.name !== "Lagna")
+                            .map((p) => (
+                              <tr key={p.name}>
+                                <td>
+                                  {localize(p.name, language, TELUGU_GRAHAS)}
+                                  {p.retrograde && (
+                                    <em className="retro-tag"> {t.retro}</em>
+                                  )}
+                                </td>
+                                <td>
+                                  {localize(
+                                    p.signName || SIGNS[p.sign],
+                                    language,
+                                    SIGN_TE,
+                                  )}
+                                </td>
+                                <td>{p.degree.toFixed(1)}°</td>
+                                <td>
+                                  {((p.sign - natalLagna.sign + 12) % 12) + 1}
+                                </td>
+                                <td>
+                                  {((p.sign - natalMoon.sign + 12) % 12) + 1}
+                                </td>
+                              </tr>
+                            ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
 
               {chart.advanced.aspects.length > 0 && (
                 <section hidden={tab === "overview"}>

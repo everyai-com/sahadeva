@@ -69,6 +69,7 @@ type RateLimiter = {
 type Env = {
   AI: Ai;
   DB: D1Database;
+  VECTORIZE?: VectorizeIndex;
   ENGINE_VERSION: string;
   CALC_RATE_LIMITER: RateLimiter;
   AI_RATE_LIMITER: RateLimiter;
@@ -1047,6 +1048,25 @@ const mcpTools = [
     inputSchema: { type: "object", properties: {} },
   },
   {
+    name: "search_classics",
+    title: "Search the classical Jyotish text corpus",
+    description:
+      "Semantic + keyword search over indexed classical works (Vedic Remedies in Astrology, Sarvarth Chintamani, Jyotisha Fundamentals). Returns short reference excerpts with work/author/section attribution for grounding; the corpus is copyrighted and must be paraphrased, never republished verbatim.",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      properties: {
+        query: {
+          type: "string",
+          minLength: 3,
+          maxLength: 200,
+          description: "Topic, planet, house, yoga or question to search for",
+        },
+        limit: { type: "integer", minimum: 1, maximum: 10 },
+      },
+    },
+  },
+  {
     name: "list_rule_review_queue",
     title: "List source-linked rule review work",
     description:
@@ -1958,6 +1978,15 @@ const mcpOutputSchemas: Record<string, unknown> = {
     properties: {
       readiness: { type: "string" },
       publicationRule: { type: "string" },
+    },
+  },
+  search_classics: {
+    type: "object",
+    required: ["query", "results", "notice"],
+    properties: {
+      query: { type: "string" },
+      results: { type: "array" },
+      notice: { type: "string" },
     },
   },
   list_rule_review_queue: {
@@ -4511,6 +4540,34 @@ async function handleMcp(
         isError: false,
       });
     }
+    if (name === "search_classics") {
+      if (!env?.DB)
+        return rpcError(request.id, -32001, "Knowledge database is unavailable");
+      const args = request.params?.arguments as
+        | { query?: unknown; limit?: unknown }
+        | undefined;
+      const query = String(args?.query || "").slice(0, 200);
+      if (query.trim().length < 3)
+        return rpcError(request.id, -32602, "query must be at least 3 characters");
+      const limit = Math.min(10, Math.max(1, Number(args?.limit) || 5));
+      const rows = await searchKnowledge(env, query, limit);
+      const structuredContent = {
+        query,
+        results: rows.map((row) => ({
+          work: row.work,
+          author: row.author,
+          section: row.section,
+          excerpt: row.passage.slice(0, 700),
+        })),
+        notice:
+          "Short reference excerpts from copyrighted works. Paraphrase with attribution; do not republish verbatim.",
+      };
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
     if (name === "knowledge_status") {
       if (!env?.DB)
         return rpcError(
@@ -4650,6 +4707,15 @@ app.put("/api/me/conversation", async (c) => {
       .map((item) => ({
         role: item.role,
         content: item.content!.slice(0, 8000),
+        sources: Array.isArray((item as { sources?: unknown }).sources)
+          ? ((item as { sources: Array<Record<string, unknown>> }).sources || [])
+              .slice(0, 3)
+              .map((source) => ({
+                work: String(source.work || "").slice(0, 80),
+                section: String(source.section || "").slice(0, 120),
+                snippet: String(source.snippet || "").slice(0, 400),
+              }))
+          : undefined,
       }));
   // New thread-aware shape: { threads: [...], activeThreadId } — falls back
   // to a plain message array for older clients.
@@ -4956,10 +5022,56 @@ const TE_TERM_MAP: Array<[RegExp, string]> = [
   [/దశ/g, " dasha "],
   [/యోగ/g, " yoga "],
 ];
+async function embedTexts(env: Env, texts: string[]) {
+  const result = (await env.AI.run("@cf/baai/bge-m3" as Parameters<Ai["run"]>[0], {
+    text: texts,
+  } as never)) as { data?: number[][] };
+  return result.data ?? [];
+}
+
 async function searchKnowledge(env: Env, query: string, limit: number) {
   let expanded = query;
   for (const [pattern, replacement] of TE_TERM_MAP)
     expanded = expanded.replace(pattern, replacement);
+  // Semantic pass first: meaning-based retrieval over the corpus.
+  if (env.VECTORIZE) {
+    try {
+      const [vector] = await embedTexts(env, [expanded.slice(0, 1500)]);
+      if (vector) {
+        const matches = await env.VECTORIZE.query(vector, {
+          topK: limit,
+          returnMetadata: "all",
+        });
+        const ids = matches.matches
+          .filter((m) => m.score > 0.35)
+          .map((m) => Number(m.id))
+          .filter(Number.isFinite);
+        if (ids.length) {
+          const rows = await env.DB.prepare(
+            `SELECT rowid, work, author, section, substr(body, 1, 900) AS passage, substr(body, 1, 320) AS excerpt FROM knowledge_fts WHERE rowid IN (${ids.map(() => "?").join(",")})`,
+          )
+            .bind(...ids)
+            .all<{
+              rowid: number;
+              work: string;
+              author: string;
+              section: string;
+              passage: string;
+              excerpt: string;
+            }>();
+          const byId = new Map(
+            (rows.results || []).map((row) => [row.rowid, row]),
+          );
+          const ordered = ids
+            .map((id) => byId.get(id))
+            .filter((row): row is NonNullable<typeof row> => Boolean(row));
+          if (ordered.length) return ordered;
+        }
+      }
+    } catch {
+      /* fall through to keyword search */
+    }
+  }
   const terms = [
     ...new Set(
       expanded
@@ -5007,6 +5119,40 @@ app.get("/api/knowledge/search", async (c) => {
     notice:
       "Short reference excerpts from copyrighted works, for grounding only.",
   });
+});
+
+app.post("/api/admin/reindex-knowledge", async (c) => {
+  if (
+    !c.env.BETTER_AUTH_SECRET ||
+    c.req.header("x-admin-secret") !== c.env.BETTER_AUTH_SECRET
+  )
+    return c.json({ error: "Forbidden" }, 403);
+  if (!c.env.VECTORIZE) return c.json({ error: "Vectorize not bound" }, 500);
+  const offset = Math.max(0, Number(c.req.query("offset") || 0));
+  const limit = Math.min(300, Math.max(1, Number(c.req.query("limit") || 200)));
+  const rows = await c.env.DB.prepare(
+    "SELECT rowid, work, section, substr(body, 1, 2500) AS body FROM knowledge_fts ORDER BY rowid LIMIT ? OFFSET ?",
+  )
+    .bind(limit, offset)
+    .all<{ rowid: number; work: string; section: string; body: string }>();
+  const chunks = rows.results || [];
+  let upserted = 0;
+  for (let i = 0; i < chunks.length; i += 25) {
+    const batch = chunks.slice(i, i + 25);
+    const vectors = await embedTexts(
+      c.env,
+      batch.map((row) => `${row.work} — ${row.section}\n${row.body}`),
+    );
+    await c.env.VECTORIZE.upsert(
+      batch.map((row, index) => ({
+        id: String(row.rowid),
+        values: vectors[index],
+        metadata: { work: row.work, section: row.section },
+      })),
+    );
+    upserted += batch.length;
+  }
+  return c.json({ ok: true, offset, upserted, done: chunks.length < limit });
 });
 
 app.get("/api/panchanga/today", async (c) => {
@@ -6280,6 +6426,19 @@ app.post("/api/chat", async (c) => {
             Number(b.requiredStrengthRatio) - Number(a.requiredStrengthRatio),
         )
         .slice(0, 5),
+      retrievedSources = await (async () => {
+        const lastUser = [...history]
+          .reverse()
+          .find((m) => m.role === "user")?.content;
+        if (!lastUser) return [];
+        const rows = await searchKnowledge(c.env, lastUser, 3);
+        return rows.map((row) => ({
+          work: row.work,
+          author: row.author,
+          section: row.section,
+          excerpt: row.passage,
+        }));
+      })(),
       evidence = {
         subject: { name: parsed.data.name, place: parsed.data.place },
         placements: chart.placements.map((item) => ({
@@ -6374,18 +6533,39 @@ app.post("/api/chat", async (c) => {
           avastha: item.balaadiAvastha,
         })),
         confidence: chart.advanced.guidance.confidence,
-        classicalSources: await (async () => {
-          const lastUser = [...history]
-            .reverse()
-            .find((m) => m.role === "user")?.content;
-          if (!lastUser) return [];
-          const rows = await searchKnowledge(c.env, lastUser, 3);
-          return rows.map((row) => ({
-            work: row.work,
-            author: row.author,
-            section: row.section,
-            excerpt: row.passage,
-          }));
+        classicalSources: retrievedSources,
+        transits: (() => {
+          try {
+            const now = new Date(
+              Math.floor(Date.now() / 1_800_000) * 1_800_000 +
+                parsed.data.timezoneOffset * 3_600_000,
+            );
+            const transit = calculateChart(
+              birthInputSchema.parse({
+                ...parsed.data,
+                name: "Transit",
+                date: now.toISOString().slice(0, 10),
+                time: now.toISOString().slice(11, 16),
+                birthTimeAccuracyMinutes: 0,
+              }),
+            );
+            const natalLagna = chart.placements.find(
+              (p) => p.name === "Lagna",
+            )!;
+            const natalMoon = chart.placements.find((p) => p.name === "Moon")!;
+            return transit.placements
+              .filter((p) => p.name !== "Lagna")
+              .map((p) => ({
+                name: p.name,
+                sign: p.signName,
+                degree: Number(p.degree.toFixed(2)),
+                retrograde: p.retrograde || false,
+                houseFromLagna: ((p.sign - natalLagna.sign + 12) % 12) + 1,
+                houseFromMoon: ((p.sign - natalMoon.sign + 12) % 12) + 1,
+              }));
+          } catch {
+            return [];
+          }
         })(),
         ...(body.mode?.prashna
           ? (() => {
@@ -6560,6 +6740,7 @@ app.post("/api/chat", async (c) => {
         "If a `muhurta` object is supplied, the user asked for auspicious timing: present the topWindows with their local times and scores, explain the strongest reasons, and note these are traditional quality windows, not guarantees.",
         "classicalSources are short reference excerpts retrieved from copyrighted classical works. When one is relevant, paraphrase it and cite the work and section naturally (e.g. 'Sarvarth Chintamani, on the 10th house, notes…'). Never reproduce long passages verbatim, never invent a citation, and if none are relevant simply ignore them.",
         "Remedies: only ever describe remedies that appear in classicalSources, framed as traditional practice with the source named — never as guaranteed fixes, and never prescribe expensive items.",
+        "`transits` holds the current calculated transit positions with houses counted from the natal lagna and natal Moon — use them for any 'right now'/gochara question (e.g. Sade Sati means Saturn in 12th/1st/2nd from natal Moon). Never guess transit positions.",
         "The `today` object holds today's calculated panchanga at the user's birth location, with personalized taraBala and chandraBala. Use it for any question about today, this week, timing an activity, or a daily check-in — cite tara/chandra bala and rahu kaal times naturally. It is a daily rhythm lens, not a verdict.",
         "Separate observation from traditional interpretation. Astrology is a cultural practice, not scientific fact; say so briefly when relevant, not in every message.",
         "Use Parashari methodology only. Never blend KP, Western, Nadi, or other systems.",
@@ -6655,7 +6836,7 @@ app.post("/api/chat", async (c) => {
     // Stream protocol: one JSON line with the summary, then a record
     // separator (U+001E), then plain reply text as it is generated.
     const encoder = new TextEncoder();
-    const head = encoder.encode(`${JSON.stringify({ summary, model })}`);
+    const head = encoder.encode(`${JSON.stringify({ summary, model, sources: retrievedSources.map((row) => ({ work: row.work, section: row.section, snippet: row.excerpt.slice(0, 360) })) })}`);
     if (!(aiStream instanceof ReadableStream)) {
       const response = narrationText(aiStream).trim();
       if (!response) throw new Error("Workers AI returned no chat text");

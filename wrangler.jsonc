@@ -22,6 +22,12 @@
       "simple": { "limit": 10, "period": 60 },
     },
   ],
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "sahadeva-knowledge",
+    },
+  ],
   "d1_databases": [
     {
       "binding": "DB",

@@ -1960,3 +1960,43 @@ body:has(.onboard) {
   line-height: 1.55;
   color: var(--ink-soft);
 }
+
+/* ── Source chips ───────────────────────────────────── */
+.source-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.source-chip {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.source-chip summary {
+  display: inline-block;
+  list-style: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--shadow-hairline);
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+
+.source-chip summary::-webkit-details-marker {
+  display: none;
+}
+
+.source-chip p {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  background: var(--surface);
+  box-shadow: var(--shadow-hairline);
+  border-radius: 12px;
+  padding: 9px 12px;
+}
