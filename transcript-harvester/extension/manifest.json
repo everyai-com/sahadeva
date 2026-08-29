@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Transcript Harvester Bridge",
+  "version": "0.1.0",
+  "description": "Reads public YouTube playlist captions and streams them to Transcript Harvester.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.youtube.com/*", "https://*.googlevideo.com/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost/*", "http://127.0.0.1/*", "https://*.workers.dev/*", "https://*.pages.dev/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

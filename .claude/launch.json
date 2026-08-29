@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "rork-local",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "node /Users/satyaphanindra/Documents/ChatGPT/rork-local/dist/cli.js /Users/satyaphanindra/Documents/ChatGPT/sahadeva/ios-app"],
+      "port": 3131
+    },
+    {
+      "name": "expo",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd ios-app && npx expo start --web --port 8081"],
+      "port": 8081
+    }
+  ]
+}

@@ -1,0 +1,1088 @@
+{
+  "schemaVersion": "sahadeva-de441-lunar-boundaries-1",
+  "generatedAt": "2026-08-28T15:41:34.743Z",
+  "source": "NASA/JPL Horizons API, Moon 301 relative to Earth 399, DE441, J2000 ecliptic vectors, km",
+  "boundaryConvention": "ELP/MPP02 candidate sidereal longitude using Sahadeva Lahiri preview; vector values remain independent DE441 references",
+  "fixtures": [
+    {
+      "boundaryIndex": 0,
+      "nakshatraIndex": 0,
+      "pada": 1,
+      "jd": 2460683.014728252,
+      "modelSiderealLongitude": 3.941522663808428e-10,
+      "x": 338380.625494369,
+      "y": 149644.9112007998,
+      "z": 13184.9940231189
+    },
+    {
+      "boundaryIndex": 1,
+      "nakshatraIndex": 0,
+      "pada": 2,
+      "jd": 2460683.250990963,
+      "modelSiderealLongitude": 3.3333333355833474,
+      "x": 329011.7030400941,
+      "y": 169017.8994060348,
+      "z": 14899.05512208681
+    },
+    {
+      "boundaryIndex": 2,
+      "nakshatraIndex": 0,
+      "pada": 3,
+      "jd": 2460683.487094186,
+      "modelSiderealLongitude": 6.666666669365441,
+      "x": 318553.3606131478,
+      "y": 187818.5915920625,
+      "z": 16562.38479817477
+    },
+    {
+      "boundaryIndex": 3,
+      "nakshatraIndex": 0,
+      "pada": 4,
+      "jd": 2460683.723055611,
+      "modelSiderealLongitude": 10.000000006508515,
+      "x": 307041.2182865532,
+      "y": 205987.8731836081,
+      "z": 18169.66810850738
+    },
+    {
+      "boundaryIndex": 4,
+      "nakshatraIndex": 1,
+      "pada": 1,
+      "jd": 2460683.95889588,
+      "modelSiderealLongitude": 13.333333338987586,
+      "x": 294514.0411019421,
+      "y": 223469.0607080845,
+      "z": 19715.80731043627
+    },
+    {
+      "boundaryIndex": 5,
+      "nakshatraIndex": 1,
+      "pada": 2,
+      "jd": 2460684.194638895,
+      "modelSiderealLongitude": 16.666666670554662,
+      "x": 281013.5251956185,
+      "y": 240208.0580140192,
+      "z": 21195.93609120807
+    },
+    {
+      "boundaryIndex": 6,
+      "nakshatraIndex": 1,
+      "pada": 3,
+      "jd": 2460684.43031208,
+      "modelSiderealLongitude": 20.000000001574506,
+      "x": 266584.0777965306,
+      "y": 256153.4860952438,
+      "z": 22605.43142931411
+    },
+    {
+      "boundaryIndex": 7,
+      "nakshatraIndex": 1,
+      "pada": 4,
+      "jd": 2460684.665946594,
+      "modelSiderealLongitude": 23.33333333626814,
+      "x": 251272.5949934497,
+      "y": 271256.7869995144,
+      "z": 23939.92312850527
+    },
+    {
+      "boundaryIndex": 8,
+      "nakshatraIndex": 2,
+      "pada": 1,
+      "jd": 2460684.901577498,
+      "modelSiderealLongitude": 26.666666668278083,
+      "x": 235128.2413793251,
+      "y": 285472.3024636697,
+      "z": 25195.30108101922
+    },
+    {
+      "boundaryIndex": 9,
+      "nakshatraIndex": 2,
+      "pada": 2,
+      "jd": 2460685.137243864,
+      "modelSiderealLongitude": 30.000000003154128,
+      "x": 218202.2349700422,
+      "y": 298757.3290241142,
+      "z": 26367.72041549667
+    },
+    {
+      "boundaryIndex": 10,
+      "nakshatraIndex": 2,
+      "pada": 3,
+      "jd": 2460685.37298884,
+      "modelSiderealLongitude": 33.33333333391363,
+      "x": 200547.6410907881,
+      "y": 311072.1512684548,
+      "z": 27453.60467879666
+    },
+    {
+      "boundaryIndex": 11,
+      "nakshatraIndex": 2,
+      "pada": 4,
+      "jd": 2460685.608859662,
+      "modelSiderealLongitude": 36.66666666839916,
+      "x": 182219.1775988864,
+      "y": 322380.0561564044,
+      "z": 28449.64731337399
+    },
+    {
+      "boundaryIndex": 12,
+      "nakshatraIndex": 3,
+      "pada": 1,
+      "jd": 2460685.844907608,
+      "modelSiderealLongitude": 40.00000000291101,
+      "x": 163273.0343314335,
+      "y": 332647.3308808996,
+      "z": 29352.81165238516
+    },
+    {
+      "boundaryIndex": 13,
+      "nakshatraIndex": 3,
+      "pada": 2,
+      "jd": 2460686.08118791,
+      "modelSiderealLongitude": 43.33333333393176,
+      "x": 143766.7080926184,
+      "y": 341843.247810421,
+      "z": 30160.32974981205
+    },
+    {
+      "boundaryIndex": 14,
+      "nakshatraIndex": 3,
+      "pada": 3,
+      "jd": 2460686.317759614,
+      "modelSiderealLongitude": 46.666666672091935,
+      "x": 123758.8545821422,
+      "y": 349940.0397148442,
+      "z": 30869.70033353099
+    },
+    {
+      "boundaryIndex": 15,
+      "nakshatraIndex": 3,
+      "pada": 4,
+      "jd": 2460686.554685391,
+      "modelSiderealLongitude": 50.000000005771085,
+      "x": 103309.1582281139,
+      "y": 356912.8686407068,
+      "z": 31478.68618417262
+    },
+    {
+      "boundaryIndex": 16,
+      "nakshatraIndex": 4,
+      "pada": 1,
+      "jd": 2460686.792031304,
+      "modelSiderealLongitude": 53.33333333947684,
+      "x": 82478.21925122534,
+      "y": 362739.7922306735,
+      "z": 31985.31128037837
+    },
+    {
+      "boundaryIndex": 17,
+      "nakshatraIndex": 4,
+      "pada": 2,
+      "jd": 2460687.029866525,
+      "modelSiderealLongitude": 56.66666666844117,
+      "x": 61327.45828693846,
+      "y": 367401.7305495582,
+      "z": 32387.85798682005
+    },
+    {
+      "boundaryIndex": 18,
+      "nakshatraIndex": 4,
+      "pada": 3,
+      "jd": 2460687.268263019,
+      "modelSiderealLongitude": 60.00000000306011,
+      "x": 39919.03685811,
+      "y": 370882.4369313911,
+      "z": 32684.86460070639
+    },
+    {
+      "boundaryIndex": 19,
+      "nakshatraIndex": 4,
+      "pada": 4,
+      "jd": 2460687.507295176,
+      "modelSiderealLongitude": 63.333333334996155,
+      "x": 18315.79280432305,
+      "y": 373168.4757253829,
+      "z": 32875.12351645174
+    },
+    {
+      "boundaryIndex": 20,
+      "nakshatraIndex": 5,
+      "pada": 1,
+      "jd": 2460687.747039401,
+      "modelSiderealLongitude": 66.66666666992944,
+      "x": -3418.811798311815,
+      "y": 374249.2098614451,
+      "z": 32957.68027111303
+    },
+    {
+      "boundaryIndex": 21,
+      "nakshatraIndex": 5,
+      "pada": 2,
+      "jd": 2460687.987573672,
+      "modelSiderealLongitude": 70.00000000423825,
+      "x": -25220.73278036631,
+      "y": 374116.8006254429,
+      "z": 32931.83368580666
+    },
+    {
+      "boundaryIndex": 22,
+      "nakshatraIndex": 5,
+      "pada": 3,
+      "jd": 2460688.22897705,
+      "modelSiderealLongitude": 73.33333333651592,
+      "x": -47025.37786532931,
+      "y": 372766.2217048384,
+      "z": 32797.13728929593
+    },
+    {
+      "boundaryIndex": 23,
+      "nakshatraIndex": 5,
+      "pada": 4,
+      "jd": 2460688.471329152,
+      "modelSiderealLongitude": 76.66666666780452,
+      "x": -68767.63695188012,
+      "y": 370195.2892604535,
+      "z": 32553.40218079311
+    },
+    {
+      "boundaryIndex": 24,
+      "nakshatraIndex": 6,
+      "pada": 1,
+      "jd": 2460688.714709586,
+      "modelSiderealLongitude": 80.00000000490473,
+      "x": -90381.91115635789,
+      "y": 366404.7091911961,
+      "z": 32200.70143739258
+    },
+    {
+      "boundaryIndex": 25,
+      "nakshatraIndex": 6,
+      "pada": 2,
+      "jd": 2460688.959197343,
+      "modelSiderealLongitude": 83.33333333572693,
+      "x": -111802.1444412437,
+      "y": 361398.142404805,
+      "z": 31739.37613865334
+    },
+    {
+      "boundaryIndex": 26,
+      "nakshatraIndex": 6,
+      "pada": 3,
+      "jd": 2460689.204870156,
+      "modelSiderealLongitude": 86.66666666941666,
+      "x": -132961.8622132609,
+      "y": 355182.288186433,
+      "z": 31170.04301551321
+    },
+    {
+      "boundaryIndex": 27,
+      "nakshatraIndex": 6,
+      "pada": 4,
+      "jd": 2460689.451803815,
+      "modelSiderealLongitude": 90.0000000030036,
+      "x": -153794.2199728244,
+      "y": 347766.985489033,
+      "z": 30493.60370697458
+    },
+    {
+      "boundaryIndex": 28,
+      "nakshatraIndex": 7,
+      "pada": 1,
+      "jd": 2460689.700071455,
+      "modelSiderealLongitude": 93.33333333427328,
+      "x": -174232.0668689691,
+      "y": 339165.3310502066,
+      "z": 29711.25552392847
+    },
+    {
+      "boundaryIndex": 29,
+      "nakshatraIndex": 7,
+      "pada": 2,
+      "jd": 2460689.949742801,
+      "modelSiderealLongitude": 96.66666666900994,
+      "x": -194208.027885116,
+      "y": 329393.812801019,
+      "z": 28824.50358006406
+    },
+    {
+      "boundaryIndex": 30,
+      "nakshatraIndex": 7,
+      "pada": 3,
+      "jd": 2460690.200883388,
+      "modelSiderealLongitude": 100.0000000023935,
+      "x": -213654.6085633049,
+      "y": 318472.4563955423,
+      "z": 27835.17409176534
+    },
+    {
+      "boundaryIndex": 31,
+      "nakshatraIndex": 7,
+      "pada": 4,
+      "jd": 2460690.453553749,
+      "modelSiderealLongitude": 103.33333333544016,
+      "x": -232504.3264828545,
+      "y": 306424.9817471967,
+      "z": 26745.42856328261
+    },
+    {
+      "boundaryIndex": 32,
+      "nakshatraIndex": 8,
+      "pada": 1,
+      "jd": 2460690.707808586,
+      "modelSiderealLongitude": 106.66666667028653,
+      "x": -250689.8727469009,
+      "y": 293278.9660541973,
+      "z": 25557.77853675291
+    },
+    {
+      "boundaryIndex": 33,
+      "nakshatraIndex": 8,
+      "pada": 2,
+      "jd": 2460690.963695919,
+      "modelSiderealLongitude": 110.00000000318062,
+      "x": -268144.306813917,
+      "y": 279066.0088936541,
+      "z": 24275.10050454081
+    },
+    {
+      "boundaryIndex": 34,
+      "nakshatraIndex": 8,
+      "pada": 3,
+      "jd": 2460691.221256234,
+      "modelSiderealLongitude": 113.33333333696265,
+      "x": -284801.2874891393,
+      "y": 263821.8941855942,
+      "z": 22900.65051071612
+    },
+    {
+      "boundaryIndex": 35,
+      "nakshatraIndex": 8,
+      "pada": 4,
+      "jd": 2460691.480521631,
+      "modelSiderealLongitude": 116.66666666967842,
+      "x": -300595.3418908715,
+      "y": 247586.7434210187,
+      "z": 21438.07793130806
+    },
+    {
+      "boundaryIndex": 36,
+      "nakshatraIndex": 9,
+      "pada": 1,
+      "jd": 2460691.741514981,
+      "modelSiderealLongitude": 120.00000000101534,
+      "x": -315462.173860392,
+      "y": 230405.1535703984,
+      "z": 19891.43783435883
+    },
+    {
+      "boundaryIndex": 37,
+      "nakshatraIndex": 9,
+      "pada": 2,
+      "jd": 2460692.004249121,
+      "modelSiderealLongitude": 123.33333333746111,
+      "x": -329339.0119775716,
+      "y": 212326.3127989888,
+      "z": 18265.20129439974
+    },
+    {
+      "boundaryIndex": 38,
+      "nakshatraIndex": 9,
+      "pada": 3,
+      "jd": 2460692.268726078,
+      "modelSiderealLongitude": 126.66666667224149,
+      "x": -342164.9962472809,
+      "y": 193404.086772699,
+      "z": 16564.26300489018
+    },
+    {
+      "boundaryIndex": 39,
+      "nakshatraIndex": 9,
+      "pada": 4,
+      "jd": 2460692.534936369,
+      "modelSiderealLongitude": 130.0000000049916,
+      "x": -353881.6016260353,
+      "y": 173697.067572903,
+      "z": 14793.94546337775
+    },
+    {
+      "boundaryIndex": 40,
+      "nakshatraIndex": 10,
+      "pada": 1,
+      "jd": 2460692.802858367,
+      "modelSiderealLongitude": 133.33333333560722,
+      "x": -364433.0944839512,
+      "y": 153268.5780830994,
+      "z": 12959.99908047468
+    },
+    {
+      "boundaryIndex": 41,
+      "nakshatraIndex": 10,
+      "pada": 2,
+      "jd": 2460693.072457773,
+      "modelSiderealLongitude": 136.66666667015915,
+      "x": -373767.0174323554,
+      "y": 132186.6236563208,
+      "z": 11068.59746979017
+    },
+    {
+      "boundaryIndex": 42,
+      "nakshatraIndex": 10,
+      "pada": 3,
+      "jd": 2460693.343687203,
+      "modelSiderealLongitude": 140.00000000380112,
+      "x": -381834.6952553586,
+      "y": 110523.7854034263,
+      "z": 9126.327404544703
+    },
+    {
+      "boundaryIndex": 43,
+      "nakshatraIndex": 10,
+      "pada": 4,
+      "jd": 2460693.616485916,
+      "modelSiderealLongitude": 143.33333333371905,
+      "x": -388591.7546230284,
+      "y": 88357.04738907899,
+      "z": 7140.172744066203
+    },
+    {
+      "boundaryIndex": 44,
+      "nakshatraIndex": 11,
+      "pada": 1,
+      "jd": 2460693.890779706,
+      "modelSiderealLongitude": 146.66666667140322,
+      "x": -393998.6473241714,
+      "y": 65767.55395213532,
+      "z": 5117.491988563193
+    },
+    {
+      "boundaryIndex": 45,
+      "nakshatraIndex": 11,
+      "pada": 2,
+      "jd": 2460694.166480961,
+      "modelSiderealLongitude": 150.00000000132462,
+      "x": -398021.1662337361,
+      "y": 42840.29364284484,
+      "z": 3065.989148070723
+    },
+    {
+      "boundaryIndex": 46,
+      "nakshatraIndex": 11,
+      "pada": 3,
+      "jd": 2460694.443488924,
+      "modelSiderealLongitude": 153.33333333492135,
+      "x": -400630.9421441413,
+      "y": 19663.70733611513,
+      "z": 993.6777109445329
+    },
+    {
+      "boundaryIndex": 47,
+      "nakshatraIndex": 11,
+      "pada": 4,
+      "jd": 2460694.721690153,
+      "modelSiderealLongitude": 156.66666666953574,
+      "x": -401805.9083586006,
+      "y": -3670.777605016861,
+      "z": -1091.162112168293
+    },
+    {
+      "boundaryIndex": 48,
+      "nakshatraIndex": 12,
+      "pada": 1,
+      "jd": 2460695.000959194,
+      "modelSiderealLongitude": 160.00000000102477,
+      "x": -401530.7201640983,
+      "y": -27069.28514873697,
+      "z": -3180.032680147893
+    },
+    {
+      "boundaryIndex": 49,
+      "nakshatraIndex": 12,
+      "pada": 2,
+      "jd": 2460695.281159462,
+      "modelSiderealLongitude": 163.33333333392193,
+      "x": -399797.1161155383,
+      "y": -50436.09452392974,
+      "z": -5264.274205982096
+    },
+    {
+      "boundaryIndex": 50,
+      "nakshatraIndex": 12,
+      "pada": 3,
+      "jd": 2460695.562144336,
+      "modelSiderealLongitude": 166.66666666913886,
+      "x": -396604.2089348821,
+      "y": -73674.30208467887,
+      "z": -7335.125280686447
+    },
+    {
+      "boundaryIndex": 51,
+      "nakshatraIndex": 12,
+      "pada": 4,
+      "jd": 2460695.843758442,
+      "modelSiderealLongitude": 170.00000000349678,
+      "x": -391958.6951025167,
+      "y": -96686.53089564343,
+      "z": -9383.787696594532
+    },
+    {
+      "boundaryIndex": 52,
+      "nakshatraIndex": 13,
+      "pada": 1,
+      "jd": 2460696.125839123,
+      "modelSiderealLongitude": 173.3333333334781,
+      "x": -385874.9740285866,
+      "y": -119375.6753505229,
+      "z": -11401.49440549289
+    },
+    {
+      "boundaryIndex": 53,
+      "nakshatraIndex": 13,
+      "pada": 2,
+      "jd": 2460696.408218053,
+      "modelSiderealLongitude": 176.66666666794117,
+      "x": -378375.1700333462,
+      "y": -141645.6664277877,
+      "z": -13379.57929202104
+    },
+    {
+      "boundaryIndex": 54,
+      "nakshatraIndex": 13,
+      "pada": 3,
+      "jd": 2460696.690722983,
+      "modelSiderealLongitude": 180.00000000250873,
+      "x": -369489.0532565285,
+      "y": -163402.2415547839,
+      "z": -15309.54729595405
+    },
+    {
+      "boundaryIndex": 55,
+      "nakshatraIndex": 13,
+      "pada": 4,
+      "jd": 2460696.973179572,
+      "modelSiderealLongitude": 183.33333333718042,
+      "x": -359253.8583968366,
+      "y": -184553.7032298413,
+      "z": -17183.14343291931
+    },
+    {
+      "boundaryIndex": 56,
+      "nakshatraIndex": 14,
+      "pada": 1,
+      "jd": 2460697.255413269,
+      "modelSiderealLongitude": 186.66666666721426,
+      "x": -347714.0036552735,
+      "y": -205011.6495079872,
+      "z": -18992.41917222251
+    },
+    {
+      "boundaryIndex": 57,
+      "nakshatraIndex": 14,
+      "pada": 2,
+      "jd": 2460697.537251206,
+      "modelSiderealLongitude": 190.0000000033965,
+      "x": -334920.7151365179,
+      "y": -224691.6609440794,
+      "z": -20729.79476645925
+    },
+    {
+      "boundaryIndex": 58,
+      "nakshatraIndex": 14,
+      "pada": 3,
+      "jd": 2460697.818524059,
+      "modelSiderealLongitude": 193.3333333364776,
+      "x": -320931.565386189,
+      "y": -243513.9290292453,
+      "z": -22388.11617267989
+    },
+    {
+      "boundaryIndex": 59,
+      "nakshatraIndex": 14,
+      "pada": 4,
+      "jd": 2460698.09906784,
+      "modelSiderealLongitude": 196.66666666747346,
+      "x": -305809.936603901,
+      "y": -261403.8143747952,
+      "z": -23960.70549718304
+    },
+    {
+      "boundaryIndex": 60,
+      "nakshatraIndex": 15,
+      "pada": 1,
+      "jd": 2460698.378725576,
+      "modelSiderealLongitude": 200.00000000274133,
+      "x": -289624.4221998429,
+      "y": -278292.3237233281,
+      "z": -25441.40397818484
+    },
+    {
+      "boundaryIndex": 61,
+      "nakshatraIndex": 15,
+      "pada": 2,
+      "jd": 2460698.65734885,
+      "modelSiderealLongitude": 203.33333333571522,
+      "x": -272448.1808609132,
+      "y": -294116.4991951978,
+      "z": -26824.60691281025
+    },
+    {
+      "boundaryIndex": 62,
+      "nakshatraIndex": 15,
+      "pada": 3,
+      "jd": 2460698.934799169,
+      "modelSiderealLongitude": 206.66666666725473,
+      "x": -254358.2591649066,
+      "y": -308819.7148692142,
+      "z": -28105.29009475188
+    },
+    {
+      "boundaryIndex": 63,
+      "nakshatraIndex": 15,
+      "pada": 4,
+      "jd": 2460699.210949139,
+      "modelSiderealLongitude": 210.00000000043428,
+      "x": -235434.8982592939,
+      "y": -322351.879758866,
+      "z": -29279.02768850244
+    },
+    {
+      "boundaryIndex": 64,
+      "nakshatraIndex": 16,
+      "pada": 1,
+      "jd": 2460699.485683436,
+      "modelSiderealLongitude": 213.33333333585279,
+      "x": -215760.8400591002,
+      "y": -334669.5486961527,
+      "z": -30342.00169167199
+    },
+    {
+      "boundaryIndex": 65,
+      "nakshatraIndex": 16,
+      "pada": 2,
+      "jd": 2460699.758899557,
+      "modelSiderealLongitude": 216.66666666814308,
+      "x": -195420.6473333791,
+      "y": -345735.9454124313,
+      "z": -31291.00338990176
+    },
+    {
+      "boundaryIndex": 66,
+      "nakshatraIndex": 16,
+      "pada": 3,
+      "jd": 2460700.030508354,
+      "modelSiderealLongitude": 220.00000000347984,
+      "x": -174500.0503258454,
+      "y": -355520.9045061669,
+      "z": -32123.4274266409
+    },
+    {
+      "boundaryIndex": 67,
+      "nakshatraIndex": 16,
+      "pada": 4,
+      "jd": 2460700.300434357,
+      "modelSiderealLongitude": 223.33333333342136,
+      "x": -153085.3312766087,
+      "y": -364000.7405053589,
+      "z": -32837.25924921362
+    },
+    {
+      "boundaryIndex": 68,
+      "nakshatraIndex": 17,
+      "pada": 1,
+      "jd": 2460700.568615888,
+      "modelSiderealLongitude": 226.66666667094273,
+      "x": -131262.7550054491,
+      "y": -371158.0541380344,
+      "z": -33431.05686174556
+    },
+    {
+      "boundaryIndex": 69,
+      "nakshatraIndex": 17,
+      "pada": 2,
+      "jd": 2460700.835004995,
+      "modelSiderealLongitude": 230.00000000173998,
+      "x": -109118.0530773799,
+      "y": -376981.4860348136,
+      "z": -33903.92782838611
+    },
+    {
+      "boundaryIndex": 70,
+      "nakshatraIndex": 17,
+      "pada": 3,
+      "jd": 2460701.099567203,
+      "modelSiderealLongitude": 233.33333333407245,
+      "x": -86735.96471517089,
+      "y": -381465.4292984892,
+      "z": -34255.5025727803
+    },
+    {
+      "boundaryIndex": 71,
+      "nakshatraIndex": 17,
+      "pada": 4,
+      "jd": 2460701.362281125,
+      "modelSiderealLongitude": 236.66666666780952,
+      "x": -64199.83784430683,
+      "y": -384609.7114409572,
+      "z": -34485.90493887258
+    },
+    {
+      "boundaryIndex": 72,
+      "nakshatraIndex": 18,
+      "pada": 1,
+      "jd": 2460701.623137935,
+      "modelSiderealLongitude": 240.00000000310786,
+      "x": -41591.2897458248,
+      "y": -386419.2564170833,
+      "z": -34595.72099160243
+    },
+    {
+      "boundaryIndex": 73,
+      "nakshatraIndex": 18,
+      "pada": 2,
+      "jd": 2460701.882140736,
+      "modelSiderealLongitude": 243.33333333733583,
+      "x": -18989.92621301361,
+      "y": -386903.7363548467,
+      "z": -34585.96693404744
+    },
+    {
+      "boundaryIndex": 74,
+      "nakshatraIndex": 18,
+      "pada": 3,
+      "jd": 2460702.139303843,
+      "modelSiderealLongitude": 246.66666667122286,
+      "x": 3526.883817618132,
+      "y": -386077.2217379877,
+      "z": -34458.05693756224
+    },
+    {
+      "boundaryIndex": 75,
+      "nakshatraIndex": 18,
+      "pada": 4,
+      "jd": 2460702.394651996,
+      "modelSiderealLongitude": 250.00000000513387,
+      "x": 25884.18206337938,
+      "y": -383957.8376334139,
+      "z": -34213.77157440229
+    },
+    {
+      "boundaryIndex": 76,
+      "nakshatraIndex": 19,
+      "pada": 1,
+      "jd": 2460702.648219531,
+      "modelSiderealLongitude": 253.3333333363331,
+      "x": 48009.54809238242,
+      "y": -380567.4323657764,
+      "z": -33855.22743195956
+    },
+    {
+      "boundaryIndex": 77,
+      "nakshatraIndex": 19,
+      "pada": 2,
+      "jd": 2460702.900049523,
+      "modelSiderealLongitude": 256.66666666685285,
+      "x": 69833.18547665502,
+      "y": -375931.2637689959,
+      "z": -33384.84837066746
+    },
+    {
+      "boundaryIndex": 78,
+      "nakshatraIndex": 19,
+      "pada": 3,
+      "jd": 2460703.150192903,
+      "modelSiderealLongitude": 260.0000000027901,
+      "x": 91287.97261001587,
+      "y": -370077.7069525774,
+      "z": -32805.33877858803
+    },
+    {
+      "boundaryIndex": 79,
+      "nakshatraIndex": 19,
+      "pada": 4,
+      "jd": 2460703.398707592,
+      "modelSiderealLongitude": 263.3333333340356,
+      "x": 112309.4841044446,
+      "y": -363037.9863933099,
+      "z": -32119.65907218569
+    },
+    {
+      "boundaryIndex": 80,
+      "nakshatraIndex": 20,
+      "pada": 1,
+      "jd": 2460676.522535672,
+      "modelSiderealLongitude": 266.6666666675201,
+      "x": 153866.1596393201,
+      "y": -347929.5751930944,
+      "z": -30589.02580766699
+    },
+    {
+      "boundaryIndex": 81,
+      "nakshatraIndex": 20,
+      "pada": 2,
+      "jd": 2460676.769922531,
+      "modelSiderealLongitude": 270.0000000013873,
+      "x": 173487.9497391725,
+      "y": -337716.7329145609,
+      "z": -29709.67590834324
+    },
+    {
+      "boundaryIndex": 82,
+      "nakshatraIndex": 20,
+      "pada": 3,
+      "jd": 2460677.016409002,
+      "modelSiderealLongitude": 273.3333333375008,
+      "x": 192463.2070476835,
+      "y": -326434.3724964193,
+      "z": -28734.37092972321
+    },
+    {
+      "boundaryIndex": 83,
+      "nakshatraIndex": 20,
+      "pada": 4,
+      "jd": 2460677.262055663,
+      "modelSiderealLongitude": 276.6666666725969,
+      "x": 210735.7983977444,
+      "y": -314121.6278979793,
+      "z": -27666.555307216
+    },
+    {
+      "boundaryIndex": 84,
+      "nakshatraIndex": 21,
+      "pada": 1,
+      "jd": 2460677.506921369,
+      "modelSiderealLongitude": 280.00000000542536,
+      "x": 228251.6538175934,
+      "y": -300820.1882655805,
+      "z": -26509.90696486119
+    },
+    {
+      "boundaryIndex": 85,
+      "nakshatraIndex": 21,
+      "pada": 2,
+      "jd": 2460677.751062814,
+      "modelSiderealLongitude": 283.33333333747146,
+      "x": 244958.8480416252,
+      "y": -286574.2601030751,
+      "z": -25268.33375982614
+    },
+    {
+      "boundaryIndex": 86,
+      "nakshatraIndex": 21,
+      "pada": 3,
+      "jd": 2460677.994534153,
+      "modelSiderealLongitude": 286.6666666703503,
+      "x": 260807.696472102,
+      "y": -271430.5292689384,
+      "z": -23945.96992707922
+    },
+    {
+      "boundaryIndex": 87,
+      "nakshatraIndex": 21,
+      "pada": 4,
+      "jd": 2460678.23738668,
+      "modelSiderealLongitude": 290.00000000328055,
+      "x": 275750.8656004152,
+      "y": -255438.119159847,
+      "z": -22547.17219799555
+    },
+    {
+      "boundaryIndex": 88,
+      "nakshatraIndex": 22,
+      "pada": 1,
+      "jd": 2460678.47966856,
+      "modelSiderealLongitude": 293.33333333738267,
+      "x": 289743.497156273,
+      "y": -238648.5416360193,
+      "z": -21076.5152831991
+    },
+    {
+      "boundaryIndex": 89,
+      "nakshatraIndex": 22,
+      "pada": 2,
+      "jd": 2460678.721424629,
+      "modelSiderealLongitude": 296.6666666679927,
+      "x": 302743.3448851355,
+      "y": -221115.6371633179,
+      "z": -19538.78640267976
+    },
+    {
+      "boundaryIndex": 90,
+      "nakshatraIndex": 22,
+      "pada": 3,
+      "jd": 2460678.962696242,
+      "modelSiderealLongitude": 300.00000000055616,
+      "x": 314710.9218891438,
+      "y": -202895.5013341589,
+      "z": -17938.97860638156
+    },
+    {
+      "boundaryIndex": 91,
+      "nakshatraIndex": 22,
+      "pada": 4,
+      "jd": 2460679.203521191,
+      "modelSiderealLongitude": 303.33333333648034,
+      "x": 325609.656346394,
+      "y": -184046.3948326565,
+      "z": -16282.2826203433
+    },
+    {
+      "boundaryIndex": 92,
+      "nakshatraIndex": 23,
+      "pada": 1,
+      "jd": 2460679.443933676,
+      "modelSiderealLongitude": 306.6666666697985,
+      "x": 335406.0527485662,
+      "y": -164628.6344766382,
+      "z": -14574.07700363265
+    },
+    {
+      "boundaryIndex": 93,
+      "nakshatraIndex": 23,
+      "pada": 2,
+      "jd": 2460679.683964341,
+      "modelSiderealLongitude": 310.0000000003283,
+      "x": 344069.8552845432,
+      "y": -144704.4636804023,
+      "z": -12819.91646453243
+    },
+    {
+      "boundaryIndex": 94,
+      "nakshatraIndex": 23,
+      "pada": 3,
+      "jd": 2460679.923640359,
+      "modelSiderealLongitude": 313.3333333373454,
+      "x": 351574.2097433054,
+      "y": -124337.9013014323,
+      "z": -11025.51823988715
+    },
+    {
+      "boundaryIndex": 95,
+      "nakshatraIndex": 23,
+      "pada": 4,
+      "jd": 2460680.162985587,
+      "modelSiderealLongitude": 316.6666666670926,
+      "x": 357895.8204123434,
+      "y": -103594.5675824247,
+      "z": -9196.746420304924
+    },
+    {
+      "boundaryIndex": 96,
+      "nakshatraIndex": 24,
+      "pada": 1,
+      "jd": 2460680.402020765,
+      "modelSiderealLongitude": 320.0000000026239,
+      "x": 363015.0975888432,
+      "y": -82541.4884017243,
+      "z": -7339.594325405789
+    },
+    {
+      "boundaryIndex": 97,
+      "nakshatraIndex": 24,
+      "pada": 2,
+      "jd": 2460680.640763774,
+      "modelSiderealLongitude": 323.3333333337514,
+      "x": 366916.292234686,
+      "y": -61246.87744668517,
+      "z": -5460.164893804667
+    },
+    {
+      "boundaryIndex": 98,
+      "nakshatraIndex": 24,
+      "pada": 3,
+      "jd": 2460680.879229932,
+      "modelSiderealLongitude": 326.6666666730339,
+      "x": 369587.6136343999,
+      "y": -39779.89902795059,
+      "z": -3564.649327376004
+    },
+    {
+      "boundaryIndex": 99,
+      "nakshatraIndex": 24,
+      "pada": 4,
+      "jd": 2460703.645657635,
+      "modelSiderealLongitude": 330.00000000476007,
+      "x": 132835.9889920238,
+      "y": -354845.9339578117,
+      "z": -31331.00358188582
+    },
+    {
+      "boundaryIndex": 100,
+      "nakshatraIndex": 25,
+      "pada": 1,
+      "jd": 2460681.117432348,
+      "modelSiderealLongitude": 333.333333335965,
+      "x": 371021.3268535351,
+      "y": -18210.41242602977,
+      "z": -1659.304069612033
+    },
+    {
+      "boundaryIndex": 101,
+      "nakshatraIndex": 25,
+      "pada": 2,
+      "jd": 2460681.355382301,
+      "modelSiderealLongitude": 336.66666667047855,
+      "x": 371213.8266390047,
+      "y": 3391.298022554574,
+      "z": 249.5735082121141
+    },
+    {
+      "boundaryIndex": 102,
+      "nakshatraIndex": 25,
+      "pada": 3,
+      "jd": 2460681.593089659,
+      "modelSiderealLongitude": 340.00000000282927,
+      "x": 370165.6853474381,
+      "y": 24954.80515078938,
+      "z": 2155.670537497555
+    },
+    {
+      "boundaryIndex": 103,
+      "nakshatraIndex": 25,
+      "pada": 4,
+      "jd": 2460681.830563319,
+      "modelSiderealLongitude": 343.33333333921826,
+      "x": 367881.6728104798,
+      "y": 46409.82844952198,
+      "z": 4052.684748975107
+    },
+    {
+      "boundaryIndex": 104,
+      "nakshatraIndex": 26,
+      "pada": 1,
+      "jd": 2460682.067811667,
+      "modelSiderealLongitude": 346.66666666935384,
+      "x": 364370.7469159385,
+      "y": 67686.52752271871,
+      "z": 5934.350939005006
+    },
+    {
+      "boundaryIndex": 105,
+      "nakshatraIndex": 26,
+      "pada": 2,
+      "jd": 2460682.304843051,
+      "modelSiderealLongitude": 350.00000000519526,
+      "x": 359646.0142631021,
+      "y": 88715.7951720569,
+      "z": 7794.467416260246
+    },
+    {
+      "boundaryIndex": 106,
+      "nakshatraIndex": 26,
+      "pada": 3,
+      "jd": 2460682.541666255,
+      "modelSiderealLongitude": 353.3333333385612,
+      "x": 353724.6612361385,
+      "y": 109429.5450782926,
+      "z": 9626.921977501115
+    },
+    {
+      "boundaryIndex": 107,
+      "nakshatraIndex": 26,
+      "pada": 4,
+      "jd": 2460682.77829097,
+      "modelSiderealLongitude": 356.6666666695559,
+      "x": 346627.8563373418,
+      "y": 129760.9907348155,
+      "z": 11425.71711014894
+    }
+  ]
+}

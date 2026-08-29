@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&amp;family=Figtree:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; font-family: 'Figtree', system-ui, sans-serif; }
+    a { color: #D9B36A; } a:hover { color: #E8C989; }
+    .cell { border: 1px solid #2E2B3E; position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; padding: 6px 4px; }
+    .sign { position: absolute; top: 5px; left: 6px; font-size: 9px; letter-spacing: 0.5px; color: #6B6580; text-transform: uppercase; }
+    .gr { font-size: 12px; font-weight: 600; color: #F2EFE9; }
+    .gold { color: #D9B36A; }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #0B0A14; color: #F2EFE9; display: flex; flex-direction: column; box-sizing: border-box;">
+  <div style="display: flex; flex-direction: column; gap: 18px; padding: 68px 24px 20px 24px; flex: 1; overflow: hidden;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div style="font-family: 'Cormorant Garamond', ui-serif, Georgia, serif; font-size: 28px; font-weight: 500;">Your birth chart</div>
+        <div style="font-size: 13px; color: #9A94A8;">14 Aug 1996 · 06:42 · Hyderabad · Lahiri</div>
+      </div>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9A94A8" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path><circle cx="12" cy="12" r="10" stroke-dasharray="2 4"></circle></svg>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <div style="padding: 8px 14px; border-radius: 18px; background: #D9B36A; color: #171204; font-size: 13px; font-weight: 600; white-space: nowrap;">Rashi D1</div>
+      <div style="padding: 8px 14px; border-radius: 18px; border: 1px solid #2E2B3E; font-size: 13px; color: #9A94A8; white-space: nowrap;">Navamsa D9</div>
+      <div style="padding: 8px 14px; border-radius: 18px; border: 1px solid #2E2B3E; font-size: 13px; color: #9A94A8; white-space: nowrap;">D10</div>
+      <div style="padding: 8px 14px; border-radius: 18px; border: 1px solid #2E2B3E; font-size: 13px; color: #9A94A8; white-space: nowrap;">KP</div>
+    </div>
+    <div style="border-radius: 20px; background: #121120; border: 1px solid #2E2B3E; padding: 14px;">
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, 78px);">
+        <div class="cell"><div class="sign">Mee</div></div>
+        <div class="cell"><div class="sign">Mes</div><div class="gr">Ke</div></div>
+        <div class="cell"><div class="sign">Vri</div><div class="gr gold">Mo</div></div>
+        <div class="cell"><div class="sign">Mit</div></div>
+        <div class="cell"><div class="sign">Kum</div></div>
+        <div style="grid-column: 2 / 4; grid-row: 2 / 4; border: 1px solid #2E2B3E; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+          <div style="font-family: 'Cormorant Garamond', ui-serif, Georgia, serif; font-size: 20px; color: #D9B36A;">Rashi</div>
+          <div style="font-size: 11px; color: #6B6580; letter-spacing: 1px;">SIMHA LAGNA</div>
+        </div>
+        <div class="cell"><div class="sign">Kar</div><div class="gr">Su · Bu</div></div>
+        <div class="cell"><div class="sign">Mak</div></div>
+        <div class="cell"><div class="sign">Sim</div><div class="gr gold">La · Ma</div></div>
+        <div class="cell"><div class="sign">Dha</div><div class="gr">Ju</div></div>
+        <div class="cell"><div class="sign">Vrs</div></div>
+        <div class="cell"><div class="sign">Tul</div><div class="gr">Ra · Sa</div></div>
+        <div class="cell"><div class="sign">Kan</div><div class="gr">Ve</div></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #9A94A8; font-weight: 600;">Dasha timeline</div>
+      <div style="border-radius: 16px; background: #16152A; border: 1px solid #2E2B3E; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; font-size: 13px;">
+          <div style="font-weight: 600;">Shani mahadasha</div>
+          <div style="color: #9A94A8;">2023 – 2042</div>
+        </div>
+        <div style="height: 6px; border-radius: 3px; background: #24223A; position: relative;">
+          <div style="position: absolute; left: 0; top: 0; height: 6px; width: 14%; border-radius: 3px; background: #D9B36A;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #9A94A8;">
+          <div>Budha antardasha until Jan 2027</div>
+          <div style="color: #D9B36A;">Explore</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="border-top: 1px solid #1E1C30; background: #0E0D1A; display: flex; padding: 12px 10px 26px 10px;">
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B6580" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg>
+      <div style="font-size: 11px; color: #6B6580;">Today</div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D9B36A" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 3v18M3 12h18"></path></svg>
+      <div style="font-size: 11px; color: #D9B36A; font-weight: 500;">Chart</div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B6580" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"></path></svg>
+      <div style="font-size: 11px; color: #6B6580;">Ask</div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B6580" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path></svg>
+      <div style="font-size: 11px; color: #6B6580;">You</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,2 @@
+INSERT OR IGNORE INTO life_theme_validation_cases(id,cohort,chart_input_json,range_start,range_end,expected_patterns_json,outcome_blinded,source_locator,review_status)
+VALUES('jail-chart-regression-001','known-outcome-regression','{"name":"Jail chart seed","date":"1978-01-01","time":"12:00","place":"Ravulapalem","latitude":16.7607,"longitude":81.833,"timezoneOffset":5.5,"timezone":"Asia/Kolkata"}','2004-01-01','2012-01-01','["synthesis:restriction-cluster"]',0,'User-provided known-outcome regression seed; not eligible as a held-out blind case','reviewed');

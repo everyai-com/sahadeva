@@ -1,0 +1,17 @@
+import { SIGNS } from "./constants";
+import type { ChartResult, GrahaName } from "./schema";
+
+const SEVEN_LABELS=["Atmakaraka","Amatyakaraka","Bhratrikaraka","Matrikaraka","Putrakaraka","Gnatikaraka","Darakaraka"];
+const EIGHT_LABELS=["Atmakaraka","Amatyakaraka","Bhratrikaraka","Matrikaraka","Pitrikaraka","Putrakaraka","Gnatikaraka","Darakaraka"];
+const CLASSICAL:Set<GrahaName>=new Set(["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"]),MOVABLE=new Set([0,3,6,9]),FIXED=new Set([1,4,7,10]),DUAL=new Set([2,5,8,11]);
+const aspects=(from:number,to:number)=>MOVABLE.has(from)?FIXED.has(to)&&to!==(from+1)%12:FIXED.has(from)?MOVABLE.has(to)&&to!==(from+11)%12:DUAL.has(from)&&DUAL.has(to)&&from!==to;
+
+function rank(chart:ChartResult,includeRahu:boolean){
+  const rows=chart.placements.filter((item)=>CLASSICAL.has(item.name)||(includeRahu&&item.name==="Rahu")).map((item)=>({name:item.name,sign:item.sign,signName:SIGNS[item.sign],degreeInSign:item.degree,rankingDegree:item.name==="Rahu"?30-item.degree:item.degree,rahuReversed:item.name==="Rahu"})).sort((a,b)=>b.rankingDegree-a.rankingDegree||a.name.localeCompare(b.name)),labels=includeRahu?EIGHT_LABELS:SEVEN_LABELS;return rows.map((item,index)=>({...item,karaka:labels[index],rank:index+1}));
+}
+
+export function calculateJaimini(chart:ChartResult){
+  const arudhas=chart.advanced.houses.arudhas.values.map((item)=>({...item,houseSignName:SIGNS[item.houseSign],lordSignName:SIGNS[item.lordSign],padaSignName:SIGNS[item.padaSign]})),signAspects=Array.from({length:12},(_,from)=>({fromSign:from,fromSignName:SIGNS[from],toSigns:Array.from({length:12},(_,to)=>to).filter((to)=>aspects(from,to)).map((to)=>({sign:to,signName:SIGNS[to]}))})),planetAspects=chart.placements.filter((item)=>item.name!=="Lagna").flatMap((from)=>chart.placements.filter((to)=>to!==from&&aspects(from.sign,to.sign)).map((to)=>({from:from.name,fromSign:from.sign,fromSignName:SIGNS[from.sign],to:to.name,toSign:to.sign,toSignName:SIGNS[to.sign],kind:"Jaimini Rashi Drishti"})));
+  const seven=rank(chart,false),eight=rank(chart,true),atmakaraka=seven[0],navamsa=chart.advanced.vargas.D9.find((item)=>item.name===atmakaraka.name)!,karakamsha={atmakaraka:atmakaraka.name,d1Sign:atmakaraka.sign,d1SignName:SIGNS[atmakaraka.sign],d9Sign:navamsa.sign,d9SignName:SIGNS[navamsa.sign],notice:"Karakamsha reported as the Atmakaraka's Navamsa sign."};
+  return{schemaVersion:"sahadeva-jaimini-1",status:"structural-research-preview",subject:{name:chart.input.name,place:chart.input.place},charaKarakas:{selectedConvention:"seven-karaka",sevenKaraka:seven,eightKarakaWithReversedRahu:eight,notice:"Both common conventions are returned; no silent mixing occurs."},arudhaPadas:{status:chart.advanced.houses.arudhas.status,exceptionRule:chart.advanced.houses.arudhas.exceptionRule,values:arudhas,arudhaLagna:arudhas.find((item)=>item.house===1),upapadaLagna:arudhas.find((item)=>item.house===12)},karakamsha,rashiDrishti:{convention:"Movable signs aspect non-adjacent fixed signs; fixed signs aspect non-adjacent movable signs; dual signs aspect other dual signs.",signMatrix:signAspects,planetToPlanet:planetAspects},charaDasha:{status:"unavailable-unreviewed",notice:"Sequence direction, exceptions, and duration variants require a selected lineage and golden-chart validation before publication."},rulebook:{id:"sahadeva-jaimini-structural",version:"0.1.0",reviewStatus:"draft-unreviewed",sourceKeys:[]},safety:{status:"research-preview",notice:"These are structural Jaimini calculations, not deterministic life predictions."}};
+}

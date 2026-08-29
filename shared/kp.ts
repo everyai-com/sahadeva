@@ -1,0 +1,23 @@
+import { NAKSHATRAS, SIGNS } from "./constants";
+import type { ChartResult, GrahaName } from "./schema";
+
+const LORD_SEQUENCE=["Ketu","Venus","Sun","Moon","Mars","Rahu","Jupiter","Saturn","Mercury"] as const;
+const YEARS:Record<typeof LORD_SEQUENCE[number],number>={Ketu:7,Venus:20,Sun:6,Moon:10,Mars:7,Rahu:18,Jupiter:16,Saturn:19,Mercury:17};
+const SIGN_LORDS:GrahaName[]=["Mars","Venus","Mercury","Moon","Sun","Mercury","Venus","Mars","Jupiter","Saturn","Saturn","Jupiter"];
+const DAY_LORD:Record<string,GrahaName>={Sunday:"Sun",Monday:"Moon",Tuesday:"Mars",Wednesday:"Mercury",Thursday:"Jupiter",Friday:"Venus",Saturday:"Saturn"};
+const NAK_LENGTH=360/27,norm=(value:number)=>((value%360)+360)%360;
+
+function subdivision(longitude:number){
+  const value=norm(longitude),nakshatraIndex=Math.floor(value/NAK_LENGTH),starLord=LORD_SEQUENCE[nakshatraIndex%9],offset=value-nakshatraIndex*NAK_LENGTH,startIndex=LORD_SEQUENCE.indexOf(starLord);let cursor=0,subLord=starLord,subStart=0,subEnd=0;
+  for(let order=0;order<9;order++){const lord=LORD_SEQUENCE[(startIndex+order)%9],length=NAK_LENGTH*YEARS[lord]/120;if(offset<=cursor+length+1e-10){subLord=lord;subStart=cursor;subEnd=cursor+length;break;}cursor+=length;}
+  const subOffset=offset-subStart,subLength=subEnd-subStart,subIndex=LORD_SEQUENCE.indexOf(subLord);cursor=0;let subSubLord=subLord,subSubStart=0,subSubEnd=0;
+  for(let order=0;order<9;order++){const lord=LORD_SEQUENCE[(subIndex+order)%9],length=subLength*YEARS[lord]/120;if(subOffset<=cursor+length+1e-10){subSubLord=lord;subSubStart=cursor;subSubEnd=cursor+length;break;}cursor+=length;}
+  const base=nakshatraIndex*NAK_LENGTH;return{nakshatra:NAKSHATRAS[nakshatraIndex],nakshatraIndex,starLord,subLord,subSubLord,boundaries:{sub:{startLongitude:base+subStart,endLongitude:base+subEnd},subSub:{startLongitude:base+subStart+subSubStart,endLongitude:base+subStart+subSubEnd}}};
+}
+
+export function calculateKpPreview(chart:ChartResult){
+  const lagna=chart.placements.find((item)=>item.name==="Lagna")!,moon=chart.placements.find((item)=>item.name==="Moon")!,planetRows=chart.placements.map((item)=>{const levels=subdivision(item.longitude);return{name:item.name,longitude:item.longitude,sign:item.sign,signName:SIGNS[item.sign],degree:item.degree,retrograde:Boolean(item.retrograde),...levels};}),byName=new Map(planetRows.map((item)=>[item.name,item])),houseOf=(name:string)=>{const p=chart.placements.find((item)=>item.name===name)!;return((p.sign-lagna.sign+12)%12)+1;},ownedHouses=(name:string)=>SIGN_LORDS.flatMap((lord,index)=>lord===name?[((index-lagna.sign+12)%12)+1]:[]);
+  const significators=planetRows.filter((item)=>item.name!=="Lagna").map((item)=>{const star=byName.get(item.starLord)!;return{planet:item.name,occupiedHouse:houseOf(item.name),ownedHouses:ownedHouses(item.name),starLord:item.starLord,starLordOccupiedHouse:houseOf(item.starLord),starLordOwnedHouses:ownedHouses(item.starLord),subLord:item.subLord,evidenceOrder:[`Star lord ${item.starLord}: occupies ${houseOf(item.starLord)}, owns ${ownedHouses(item.starLord).join(",")||"none"}`,`${item.name}: occupies ${houseOf(item.name)}, owns ${ownedHouses(item.name).join(",")||"none"}`,`Sub lord ${item.subLord} qualifies delivery`],starLongitude:star.longitude};});
+  const lagnaLevels=subdivision(lagna.longitude),moonLevels=subdivision(moon.longitude),rulingPlanets=[{role:"Lagna sign lord",planet:SIGN_LORDS[lagna.sign]},{role:"Lagna star lord",planet:lagnaLevels.starLord},{role:"Lagna sub lord",planet:lagnaLevels.subLord},{role:"Moon sign lord",planet:SIGN_LORDS[moon.sign]},{role:"Moon star lord",planet:moonLevels.starLord},{role:"Moon sub lord",planet:moonLevels.subLord},{role:"Day lord",planet:DAY_LORD[chart.panchanga.vara]}];
+  return{schemaVersion:"sahadeva-kp-preview-1",status:"partial-research-preview",subject:{name:chart.input.name,place:chart.input.place},zodiac:{positions:"Lahiri sidereal positions used as temporary subdivision input",requestedConvention:"KP New Ayanamsa",kpAyanamsa:{status:"unavailable-unvalidated",notice:"A certified KP ayanamsa implementation is required before this may be called a production KP chart."}},cusps:{status:"unavailable",requiredSystem:"Placidus",notice:"Sripati and whole-sign houses are not substituted for KP Placidus cusps."},planets:planetRows,rulingPlanets,significators,horary:{status:"not-implemented",notice:"KP horary number and event judgment require validated cusps and a reviewed rule corpus."},rulebook:{id:"sahadeva-kp-structural-preview",version:"0.1.0",reviewStatus:"draft-unreviewed",sourceKeys:[]},safety:{status:"research-preview",notice:"Star/sub-lord subdivision is deterministic, but this is not a complete KP judgment. No event is promised."}};
+}

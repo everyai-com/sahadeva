@@ -1,0 +1,19 @@
+{
+  "artboards": [
+    { "file": "Welcome.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "1 · Welcome" },
+    { "file": "BirthDetails.dc.html", "x": 490, "y": 0, "w": 390, "h": 844, "title": "2 · Birth details" },
+    { "file": "Reveal.dc.html", "x": 980, "y": 0, "w": 390, "h": 844, "title": "3 · Chart reveal" },
+    { "file": "Paywall.dc.html", "x": 1470, "y": 0, "w": 390, "h": 844, "title": "4 · Paywall" },
+    { "file": "Main.dc.html", "x": 0, "y": 1000, "w": 390, "h": 844, "title": "Home · Today" },
+    { "file": "Chat.dc.html", "x": 490, "y": 1000, "w": 390, "h": 844, "title": "Ask · AI chat" },
+    { "file": "Chart.dc.html", "x": 980, "y": 1000, "w": 390, "h": 844, "title": "Birth chart" },
+    { "file": "AltLightEditorial.dc.html", "x": 0, "y": 2000, "w": 390, "h": 844, "title": "Alt A · Warm editorial" },
+    { "file": "AltMysticColor.dc.html", "x": 490, "y": 2000, "w": 390, "h": 844, "title": "Alt B · Mystic color" }
+  ],
+  "annotations": [
+    { "id": "flow-note", "x": 0, "y": -150, "w": 420, "text": "Onboarding flow — Welcome → Birth details → Chart reveal → Paywall.\nThe reveal is the wow moment: show real chart facts before asking for money." },
+    { "id": "core-note", "x": 0, "y": 870, "w": 420, "text": "Core app — Today dashboard, AI chat grounded in the user's chart, South Indian birth chart with divisional tabs." },
+    { "id": "alt-note", "x": 0, "y": 1870, "w": 420, "text": "Two low-fi alternate directions for the same Home screen. Main deck uses the dark celestial-gold direction — pick one and I'll restyle everything." }
+  ],
+  "launch": { "view": "canvas" }
+}
