@@ -6,3 +6,4 @@ playwright-report
 .dev.vars
 worker-configuration.d.ts
 *.tsbuildinfo
+.knowledge-sql

@@ -372,6 +372,10 @@ const STRINGS = {
     dashaSystem: "System",
     rename: "Rename",
     renamePrompt: "Chat name:",
+    library: "📚 Classical library",
+    librarySearch: "Search the classical texts…",
+    libraryNotice: "Short excerpts from: Vedic Remedies in Astrology (Sanjay Rath), Sarvarth Chintamani (J.N. Bhasin), Jyotisha Fundamentals (Visti Larsen). Reference only.",
+    libraryEmpty: "No passages matched. Try planet, house or yoga names.",
     chartStyle: "Style",
     southStyle: "South",
     northStyle: "North",
@@ -549,6 +553,10 @@ const STRINGS = {
     dashaSystem: "పద్ధతి",
     rename: "పేరు మార్చండి",
     renamePrompt: "సంభాషణ పేరు:",
+    library: "📚 శాస్త్ర గ్రంథాలయం",
+    librarySearch: "శాస్త్ర గ్రంథాల్లో వెతకండి…",
+    libraryNotice: "మూలాలు: Vedic Remedies in Astrology (సంజయ్ రాథ్), Sarvarth Chintamani (జె.ఎన్. భసీన్), Jyotisha Fundamentals (విష్టి లార్సెన్). సూచన కోసమే.",
+    libraryEmpty: "పదాలు దొరకలేదు. గ్రహం, భావం లేదా యోగం పేర్లతో ప్రయత్నించండి.",
     chartStyle: "శైలి",
     southStyle: "దక్షిణ",
     northStyle: "ఉత్తర",
@@ -2996,6 +3004,11 @@ function DetailsSheet({
               )}
 
               <section hidden={tab === "overview"}>
+                <h3>{t.library}</h3>
+                <ClassicalLibrary t={t} />
+              </section>
+
+              <section hidden={tab === "overview"}>
                 <h3>{t.tools}</h3>
                 <div className="tool-buttons">
                   <button className="cta secondary" onClick={shareChart} disabled={shareState === "busy"}>
@@ -3182,6 +3195,66 @@ function Onboarding({
         </p>
       </div>
     </div>
+  );
+}
+
+function ClassicalLibrary({ t }: { t: Strings }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<
+    Array<{ work: string; author: string; section: string; snippet: string }>
+  >([]);
+  const [state, setState] = useState<"idle" | "busy" | "empty" | "done">("idle");
+  async function search(event: React.FormEvent) {
+    event.preventDefault();
+    if (query.trim().length < 3) return;
+    setState("busy");
+    try {
+      const response = await fetch(
+        `/api/knowledge/search?q=${encodeURIComponent(query)}`,
+      );
+      const data = (await response.json()) as {
+        results?: Array<{
+          work: string;
+          author: string;
+          section: string;
+          snippet: string;
+        }>;
+      };
+      const rows = data.results ?? [];
+      setResults(rows);
+      setState(rows.length ? "done" : "empty");
+    } catch {
+      setState("empty");
+    }
+  }
+  return (
+    <>
+      <form className="library-search" onSubmit={search}>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t.librarySearch}
+          aria-label={t.library}
+        />
+        <button type="submit" disabled={state === "busy"} aria-label={t.library}>
+          {state === "busy" ? "…" : "🔍"}
+        </button>
+      </form>
+      {state === "empty" && <p className="muted small">{t.libraryEmpty}</p>}
+      {results.length > 0 && (
+        <div className="library-results">
+          {results.map((row, index) => (
+            <div key={index}>
+              <strong>
+                {row.work} <em>· {row.section}</em>
+              </strong>
+              <p>{row.snippet}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="muted small">{t.libraryNotice}</p>
+    </>
   );
 }
 

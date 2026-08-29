@@ -4931,6 +4931,84 @@ app.get("/api/push/brief", async (c) => {
   }
 });
 
+const KNOWLEDGE_STOPWORDS = new Set(
+  "the a an and or of in on for to is are will i my me what when how does do about tell with this that its from can should would you your please".split(" "),
+);
+const TE_TERM_MAP: Array<[RegExp, string]> = [
+  [/వివాహ|పెళ్లి/g, " marriage "],
+  [/ఉద్యోగ|వృత్తి/g, " career profession "],
+  [/ధనం|డబ్బు|సంపద/g, " wealth money "],
+  [/ఆరోగ్య/g, " health disease "],
+  [/సంతాన|పిల్లల/g, " children progeny "],
+  [/విద్య|చదువు/g, " education learning "],
+  [/ప్రయాణ|విదేశ/g, " travel foreign "],
+  [/శని/g, " saturn "],
+  [/గురు|బృహస్పతి/g, " jupiter "],
+  [/శుక్ర/g, " venus "],
+  [/బుధ/g, " mercury "],
+  [/కుజ|మంగళ/g, " mars "],
+  [/చంద్ర/g, " moon "],
+  [/సూర్య|రవి/g, " sun "],
+  [/రాహు/g, " rahu "],
+  [/కేతు/g, " ketu "],
+  [/దోష/g, " dosha "],
+  [/పరిహార|శాంతి/g, " remedy remedies "],
+  [/దశ/g, " dasha "],
+  [/యోగ/g, " yoga "],
+];
+async function searchKnowledge(env: Env, query: string, limit: number) {
+  let expanded = query;
+  for (const [pattern, replacement] of TE_TERM_MAP)
+    expanded = expanded.replace(pattern, replacement);
+  const terms = [
+    ...new Set(
+      expanded
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((word) => word.length > 2 && !KNOWLEDGE_STOPWORDS.has(word)),
+    ),
+  ].slice(0, 12);
+  if (!terms.length) return [];
+  const match = terms.map((term) => `"${term}"`).join(" OR ");
+  try {
+    const rows = await env.DB.prepare(
+      "SELECT work, author, section, snippet(knowledge_fts, 3, '', '', '…', 48) AS excerpt, substr(body, 1, 900) AS passage FROM knowledge_fts WHERE knowledge_fts MATCH ? ORDER BY rank LIMIT ?",
+    )
+      .bind(match, limit)
+      .all<{
+        work: string;
+        author: string;
+        section: string;
+        excerpt: string;
+        passage: string;
+      }>();
+    return rows.results || [];
+  } catch {
+    return [];
+  }
+}
+
+app.get("/api/knowledge/search", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const query = (c.req.query("q") || "").slice(0, 200);
+  if (query.trim().length < 3)
+    return c.json({ error: "A query of at least 3 characters is required" }, 400);
+  const results = await searchKnowledge(c.env, query, 8);
+  return c.json({
+    query,
+    results: results.map((row) => ({
+      work: row.work,
+      author: row.author,
+      section: row.section,
+      snippet: row.excerpt.slice(0, 320),
+    })),
+    notice:
+      "Short reference excerpts from copyrighted works, for grounding only.",
+  });
+});
+
 app.get("/api/panchanga/today", async (c) => {
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
   if (limited) return limited;
@@ -6296,6 +6374,19 @@ app.post("/api/chat", async (c) => {
           avastha: item.balaadiAvastha,
         })),
         confidence: chart.advanced.guidance.confidence,
+        classicalSources: await (async () => {
+          const lastUser = [...history]
+            .reverse()
+            .find((m) => m.role === "user")?.content;
+          if (!lastUser) return [];
+          const rows = await searchKnowledge(c.env, lastUser, 3);
+          return rows.map((row) => ({
+            work: row.work,
+            author: row.author,
+            section: row.section,
+            excerpt: row.passage,
+          }));
+        })(),
         ...(body.mode?.prashna
           ? (() => {
               const question =
@@ -6467,6 +6558,8 @@ app.post("/api/chat", async (c) => {
         "If a `compatibility` object is supplied, the user is comparing charts with partnerSubject: explain the calculated guna/kuta scores and dosha findings from it faithfully, note that matching is one traditional input among many, and never declare a match doomed or guaranteed.",
         "If a `prashna` object is supplied, this is a horary (Prashna) consultation: explain its judgment (direction, tier, observations, uncertainty) faithfully and never change its direction or score. Present it as a bounded traditional judgment, not a prediction.",
         "If a `muhurta` object is supplied, the user asked for auspicious timing: present the topWindows with their local times and scores, explain the strongest reasons, and note these are traditional quality windows, not guarantees.",
+        "classicalSources are short reference excerpts retrieved from copyrighted classical works. When one is relevant, paraphrase it and cite the work and section naturally (e.g. 'Sarvarth Chintamani, on the 10th house, notes…'). Never reproduce long passages verbatim, never invent a citation, and if none are relevant simply ignore them.",
+        "Remedies: only ever describe remedies that appear in classicalSources, framed as traditional practice with the source named — never as guaranteed fixes, and never prescribe expensive items.",
         "The `today` object holds today's calculated panchanga at the user's birth location, with personalized taraBala and chandraBala. Use it for any question about today, this week, timing an activity, or a daily check-in — cite tara/chandra bala and rahu kaal times naturally. It is a daily rhythm lens, not a verdict.",
         "Separate observation from traditional interpretation. Astrology is a cultural practice, not scientific fact; say so briefly when relevant, not in every message.",
         "Use Parashari methodology only. Never blend KP, Western, Nadi, or other systems.",
