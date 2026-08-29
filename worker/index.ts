@@ -4713,7 +4713,6 @@ app.put("/api/me/conversation", async (c) => {
               .map((source) => ({
                 work: String(source.work || "").slice(0, 80),
                 section: String(source.section || "").slice(0, 120),
-                snippet: String(source.snippet || "").slice(0, 400),
               }))
           : undefined,
       }));
@@ -5100,26 +5099,6 @@ async function searchKnowledge(env: Env, query: string, limit: number) {
     return [];
   }
 }
-
-app.get("/api/knowledge/search", async (c) => {
-  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
-  if (limited) return limited;
-  const query = (c.req.query("q") || "").slice(0, 200);
-  if (query.trim().length < 3)
-    return c.json({ error: "A query of at least 3 characters is required" }, 400);
-  const results = await searchKnowledge(c.env, query, 8);
-  return c.json({
-    query,
-    results: results.map((row) => ({
-      work: row.work,
-      author: row.author,
-      section: row.section,
-      snippet: row.excerpt.slice(0, 320),
-    })),
-    notice:
-      "Short reference excerpts from copyrighted works, for grounding only.",
-  });
-});
 
 app.post("/api/admin/reindex-knowledge", async (c) => {
   if (
@@ -6836,7 +6815,7 @@ app.post("/api/chat", async (c) => {
     // Stream protocol: one JSON line with the summary, then a record
     // separator (U+001E), then plain reply text as it is generated.
     const encoder = new TextEncoder();
-    const head = encoder.encode(`${JSON.stringify({ summary, model, sources: retrievedSources.map((row) => ({ work: row.work, section: row.section, snippet: row.excerpt.slice(0, 360) })) })}`);
+    const head = encoder.encode(`${JSON.stringify({ summary, model, sources: retrievedSources.map((row) => ({ work: row.work, section: row.section })) })}`);
     if (!(aiStream instanceof ReadableStream)) {
       const response = narrationText(aiStream).trim();
       if (!response) throw new Error("Workers AI returned no chat text");
