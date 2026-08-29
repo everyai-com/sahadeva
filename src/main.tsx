@@ -1,6 +1,6 @@
 import { StrictMode, Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import ChatApp from "./ChatApp";
+import ChatApp, { SharedChartView } from "./ChatApp";
 
 const ProApp = lazy(() => import("./App"));
 
@@ -17,6 +17,8 @@ function Root() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  const sharedToken = new URLSearchParams(window.location.search).get("chart");
+  if (sharedToken) return <SharedChartView token={sharedToken} />;
   return pro ? (
     <Suspense fallback={null}>
       <ProApp />

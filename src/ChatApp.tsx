@@ -12,6 +12,8 @@ import {
 } from "../shared/telugu";
 import { SIGNS } from "../shared/constants";
 import { calculateKpPreview } from "../shared/kp";
+import { calculateYoginiDasha } from "../shared/additionalDashas";
+import { NorthChart } from "./NorthChart";
 import "./chat.css";
 
 type Language = "en" | "te";
@@ -349,6 +351,30 @@ const STRINGS = {
     dockSize: "Panel size",
     focusTools: "Tools only",
     backToChat: "← Back to chat",
+    prashnaChip: "🔮 Prashna",
+    prashnaBanner: "Prashna mode — ask your question now",
+    prashnaOff: "cancel",
+    muhurtaChip: "🕐 Good time for…",
+    muhurtaTitle: "Find an auspicious time",
+    muhurtaActivities: {
+      marriage: "Marriage / engagement",
+      travel: "Travel / journey",
+      naming: "Naming / new beginning",
+      contract: "Contract / signing / purchase",
+    },
+    muhurtaAsk: "Find auspicious times in the next 5 days for",
+    shareChart: "Share chart link",
+    shareCopied: "Link copied! Valid 30 days.",
+    shareNeedsAccount: "Sign in to create share links.",
+    reminders: "Daily morning reminder",
+    remindersDesc: "A notification each morning with your panchanga, tara bala and rahu kaal.",
+    remindersDenied: "Notifications are blocked in your browser settings.",
+    dashaSystem: "System",
+    rename: "Rename",
+    renamePrompt: "Chat name:",
+    chartStyle: "Style",
+    southStyle: "South",
+    northStyle: "North",
     ownsCol: "Owns",
     lordInCol: "Lord sits in",
     proModeTitle: "Jyotishya (Pro) mode",
@@ -502,6 +528,30 @@ const STRINGS = {
     dockSize: "ప్యానెల్ పరిమాణం",
     focusTools: "పరికరాలు మాత్రమే",
     backToChat: "← సంభాషణకు తిరిగి",
+    prashnaChip: "🔮 ప్రశ్న",
+    prashnaBanner: "ప్రశ్న మోడ్ — ఇప్పుడు మీ ప్రశ్న అడగండి",
+    prashnaOff: "రద్దు",
+    muhurtaChip: "🕐 మంచి సమయం…",
+    muhurtaTitle: "శుభ ముహూర్తం వెతకండి",
+    muhurtaActivities: {
+      marriage: "వివాహం / నిశ్చితార్థం",
+      travel: "ప్రయాణం",
+      naming: "నామకరణం / కొత్త ఆరంభం",
+      contract: "ఒప్పందం / సంతకం / కొనుగోలు",
+    },
+    muhurtaAsk: "వచ్చే 5 రోజుల్లో శుభ సమయాలు చెప్పండి:",
+    shareChart: "జాతకం లింక్ పంచుకోండి",
+    shareCopied: "లింక్ కాపీ అయింది! 30 రోజులు చెల్లుతుంది.",
+    shareNeedsAccount: "లింక్ కోసం సైన్ ఇన్ చేయండి.",
+    reminders: "రోజువారీ ఉదయపు రిమైండర్",
+    remindersDesc: "ప్రతి ఉదయం పంచాంగం, తారా బలం, రాహుకాలంతో నోటిఫికేషన్.",
+    remindersDenied: "బ్రౌజర్ సెట్టింగ్స్‌లో నోటిఫికేషన్లు నిలిపివేయబడ్డాయి.",
+    dashaSystem: "పద్ధతి",
+    rename: "పేరు మార్చండి",
+    renamePrompt: "సంభాషణ పేరు:",
+    chartStyle: "శైలి",
+    southStyle: "దక్షిణ",
+    northStyle: "ఉత్తర",
     ownsCol: "ఆధీన భావాలు",
     lordInCol: "అధిపతి ఉన్న భావం",
     proModeTitle: "జ్యోతిష్య (ప్రో) మోడ్",
@@ -724,6 +774,47 @@ function pushProfile(profile: Profile) {
   }).catch(() => {});
 }
 
+async function enableDailyReminder(hour: number, tzOffset: number) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window))
+    throw new Error("unsupported");
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") throw new Error("denied");
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  const { publicKey } = (await (await fetch("/api/push/key")).json()) as {
+    publicKey?: string;
+  };
+  if (!publicKey) throw new Error("no-key");
+  const padded = publicKey.replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+  const applicationServerKey = Uint8Array.from(raw, (ch) => ch.charCodeAt(0));
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey,
+  });
+  const response = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ subscription, hour, tzOffset }),
+  });
+  if (!response.ok) throw new Error("save-failed");
+}
+
+async function disableDailyReminder() {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    const subscription = await registration?.pushManager.getSubscription();
+    await fetch("/api/push/subscribe", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription?.endpoint }),
+    });
+    await subscription?.unsubscribe();
+  } catch {
+    /* best effort */
+  }
+}
+
 function pushThreads(threads: Thread[], activeThreadId: string) {
   void fetch("/api/me/conversation", {
     method: "PUT",
@@ -856,6 +947,11 @@ export default function ChatApp() {
   const [account, setAccount] = useState<Account>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [partner, setPartner] = useState<Profile | null>(null);
+  const [prashnaMode, setPrashnaMode] = useState(false);
+  const [muhurtaOpen, setMuhurtaOpen] = useState(false);
+  const modeRef = useRef<
+    { prashna?: boolean; muhurta?: { activity?: string } } | undefined
+  >(undefined);
   const [today, setToday] = useState<TodayPanchanga | null>(null);
   const [meLoaded, setMeLoaded] = useState(false);
   const [threads, setThreads] = useState<Thread[]>(
@@ -948,6 +1044,30 @@ export default function ChatApp() {
       saveThreadsLocal(next, id);
       return next;
     });
+  }
+
+  function askMuhurta(activity: string, label: string) {
+    setMuhurtaOpen(false);
+    if (!profile || busy) return;
+    modeRef.current = { muhurta: { activity } };
+    void (async () => {
+      const question = `${t.muhurtaAsk} ${label}`;
+      const next: Message[] = [...messages, { role: "user", content: question }];
+      commitMessages(next);
+      setBusy(true);
+      setError("");
+      try {
+        const reply = await callChat(profile, next, setDraft);
+        modeRef.current = undefined;
+        commitMessages([...next, { role: "assistant", content: reply }]);
+      } catch (err) {
+        modeRef.current = undefined;
+        setError(err instanceof Error ? err.message : t.genericError);
+      } finally {
+        setDraft(null);
+        setBusy(false);
+      }
+    })();
   }
 
   function newChat() {
@@ -1054,6 +1174,7 @@ export default function ChatApp() {
       body: JSON.stringify({
         profile: activeProfile,
         partner: partner ?? undefined,
+        mode: modeRef.current,
         messages: history,
       }),
     });
@@ -1134,10 +1255,16 @@ export default function ChatApp() {
     setInput("");
     setBusy(true);
     setError("");
+    if (prashnaMode) {
+      modeRef.current = { prashna: true };
+      setPrashnaMode(false);
+    }
     try {
       const reply = await callChat(profile, next, setDraft);
+      modeRef.current = undefined;
       commitMessages([...next, { role: "assistant", content: reply }]);
     } catch (err) {
+      modeRef.current = undefined;
       setError(err instanceof Error ? err.message : t.genericError);
     } finally {
       setDraft(null);
@@ -1415,6 +1542,15 @@ export default function ChatApp() {
 
       {!busy && !partner && (
         <div className="chip-row" role="list">
+          <button
+            className={prashnaMode ? "chip on" : "chip"}
+            onClick={() => setPrashnaMode(!prashnaMode)}
+          >
+            {t.prashnaChip}
+          </button>
+          <button className="chip" onClick={() => setMuhurtaOpen(true)}>
+            {t.muhurtaChip}
+          </button>
           {[
             ...t.dailySuggestions,
             ...(messages.length <= 1 ? t.suggestions : []),
@@ -1430,6 +1566,12 @@ export default function ChatApp() {
         </div>
       )}
 
+      {prashnaMode && (
+        <div className="compare-banner">
+          🔮 {t.prashnaBanner}
+          <button onClick={() => setPrashnaMode(false)}>{t.prashnaOff} ✕</button>
+        </div>
+      )}
       {partner && (
         <div className="compare-banner">
           ⚭ {t.comparingWith} <strong>{partner.name}</strong>
@@ -1457,6 +1599,37 @@ export default function ChatApp() {
           ↑
         </button>
       </form>
+
+      {muhurtaOpen && (
+        <div className="sheet-backdrop" onClick={() => setMuhurtaOpen(false)}>
+          <aside
+            className="sheet sheet-compact"
+            role="dialog"
+            aria-label={t.muhurtaTitle}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="sheet-handle" />
+            <div className="sheet-head">
+              <h2>{t.muhurtaTitle}</h2>
+              <button onClick={() => setMuhurtaOpen(false)} aria-label={t.closeDetails}>✕</button>
+            </div>
+            <div className="sheet-body">
+              <div className="people-list">
+                {Object.entries(t.muhurtaActivities).map(([key, label]) => (
+                  <div key={key} className="person">
+                    <button
+                      className="person-main"
+                      onClick={() => askMuhurta(key, label)}
+                    >
+                      <strong>{label}</strong>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {threadsOpen && (
         <div className="sheet-backdrop" onClick={() => setThreadsOpen(false)}>
@@ -1494,6 +1667,30 @@ export default function ChatApp() {
                           {thread.messages.length} ·{" "}
                           {formatDay(new Date(thread.updatedAt), language)}
                         </em>
+                      </button>
+                      <button
+                        className="person-remove"
+                        aria-label={t.rename}
+                        onClick={() => {
+                          const name = window.prompt(
+                            t.renamePrompt,
+                            threadTitle(thread, t.emptyChat),
+                          );
+                          if (name === null) return;
+                          setThreads((prev) => {
+                            const next = prev.map((item) =>
+                              item.id === thread.id
+                                ? { ...item, title: name.slice(0, 80) }
+                                : item,
+                            );
+                            if (accountRef.current)
+                              pushThreads(next, activeThreadIdRef.current);
+                            saveThreadsLocal(next, activeThreadIdRef.current);
+                            return next;
+                          });
+                        }}
+                      >
+                        ✎
                       </button>
                       {thread.id !== activeThreadId && (
                         <button
@@ -1594,6 +1791,35 @@ function AccountSheet({
   onAddPerson?: () => void;
 }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [reminderOn, setReminderOn] = useState(false);
+  const [reminderError, setReminderError] = useState("");
+  useEffect(() => {
+    if (!account || !("serviceWorker" in navigator)) return;
+    void navigator.serviceWorker
+      .getRegistration("/sw.js")
+      .then((registration) => registration?.pushManager.getSubscription())
+      .then((subscription) => setReminderOn(Boolean(subscription)))
+      .catch(() => {});
+  }, [account]);
+  async function toggleReminder(next: boolean) {
+    setReminderError("");
+    if (next) {
+      try {
+        await enableDailyReminder(7, activeProfile?.timezoneOffset ?? 5.5);
+        setReminderOn(true);
+      } catch (err) {
+        setReminderError(
+          err instanceof Error && err.message === "denied"
+            ? t.remindersDenied
+            : t.genericError,
+        );
+        setReminderOn(false);
+      }
+    } else {
+      await disableDailyReminder();
+      setReminderOn(false);
+    }
+  }
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -1709,6 +1935,20 @@ function AccountSheet({
                   )}
                 </section>
               )}
+              <section>
+                <label className="pro-toggle">
+                  <span>
+                    <strong>🔔 {t.reminders}</strong>
+                    <em>{reminderError || t.remindersDesc}</em>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={reminderOn}
+                    onChange={(event) => void toggleReminder(event.target.checked)}
+                  />
+                  <i aria-hidden="true" />
+                </label>
+              </section>
               <section className="account-actions">
                 {onEditBirth && (
                   <button className="link-btn" onClick={onEditBirth}>
@@ -1827,6 +2067,52 @@ function DetailsSheet({
     pickTab(next ? "pro" : "overview");
   }
   const [varga, setVarga] = useState("D1");
+  const [chartStyle, setChartStyle] = useState<"south" | "north">(() => {
+    try {
+      return localStorage.getItem("sahadeva.chartstyle") === "north"
+        ? "north"
+        : "south";
+    } catch {
+      return "south";
+    }
+  });
+  function pickStyle(next: "south" | "north") {
+    setChartStyle(next);
+    try {
+      localStorage.setItem("sahadeva.chartstyle", next);
+    } catch {
+      /* private mode */
+    }
+  }
+  const [dashaSystem, setDashaSystem] = useState<"vimshottari" | "yogini">(
+    "vimshottari",
+  );
+  const [shareState, setShareState] = useState<"idle" | "busy" | "copied" | "need-account">("idle");
+  async function shareChart() {
+    if (shareState === "busy") return;
+    setShareState("busy");
+    try {
+      const response = await fetch("/api/me/share", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (response.status === 401) {
+        setShareState("need-account");
+        window.setTimeout(() => setShareState("idle"), 2500);
+        return;
+      }
+      const data = (await response.json()) as { token?: string };
+      if (!data.token) throw new Error();
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/?chart=${data.token}`,
+      );
+      setShareState("copied");
+      window.setTimeout(() => setShareState("idle"), 2500);
+    } catch {
+      setShareState("idle");
+    }
+  }
   const [tab, setTab] = useState<"overview" | "pro">(() => {
     try {
       return localStorage.getItem("sahadeva.protab") === "pro" &&
@@ -2157,18 +2443,50 @@ function DetailsSheet({
           {chart && (
             <>
               <section className="chart-section" hidden={tab === "pro"}>
-                <SouthChart
-                  placements={chart.placements as never}
-                  title={language === "te" ? "రాశి చక్రం (D1)" : "Rasi (D1)"}
-                  language={language}
-                />
+                <div className="lang-row style-row">
+                  <button
+                    type="button"
+                    className={chartStyle === "south" ? "on" : ""}
+                    onClick={() => pickStyle("south")}
+                  >
+                    {t.southStyle}
+                  </button>
+                  <button
+                    type="button"
+                    className={chartStyle === "north" ? "on" : ""}
+                    onClick={() => pickStyle("north")}
+                  >
+                    {t.northStyle}
+                  </button>
+                </div>
+                {chartStyle === "south" ? (
+                  <SouthChart
+                    placements={chart.placements as never}
+                    title={language === "te" ? "రాశి చక్రం (D1)" : "Rasi (D1)"}
+                    language={language}
+                  />
+                ) : (
+                  <NorthChart
+                    placements={chart.placements as never}
+                    title={language === "te" ? "రాశి చక్రం (D1)" : "Rasi (D1)"}
+                    language={language}
+                  />
+                )}
               </section>
               <section className="chart-section" hidden={tab === "pro"}>
-                <SouthChart
-                  placements={chart.navamsa as never}
-                  title={language === "te" ? "నవాంశ చక్రం (D9)" : "Navamsa (D9)"}
-                  language={language}
-                />
+                {chartStyle === "south" ? (
+                  <SouthChart
+                    placements={chart.navamsa as never}
+                    title={language === "te" ? "నవాంశ చక్రం (D9)" : "Navamsa (D9)"}
+                    language={language}
+                  />
+                ) : (
+                  <NorthChart
+                    placements={chart.navamsa as never}
+                    title={language === "te" ? "నవాంశ చక్రం (D9)" : "Navamsa (D9)"}
+                    language={language}
+                  />
+                )}
               </section>
 
               <section hidden={tab === "overview"}>
@@ -2264,7 +2582,100 @@ function DetailsSheet({
 
               <section hidden={tab === "overview"}>
                 {proHead(t.dashaTimeline, "timeline")}
-                <div className="timeline">
+                <div className="lang-row style-row">
+                  <button
+                    type="button"
+                    className={dashaSystem === "vimshottari" ? "on" : ""}
+                    onClick={() => setDashaSystem("vimshottari")}
+                  >
+                    Vimshottari
+                  </button>
+                  <button
+                    type="button"
+                    className={dashaSystem === "yogini" ? "on" : ""}
+                    onClick={() => setDashaSystem("yogini")}
+                  >
+                    Yogini
+                  </button>
+                </div>
+                {dashaSystem === "yogini" && (
+                  <div className="timeline">
+                    {(() => {
+                      try {
+                        const yogini = calculateYoginiDasha(chart as never) as {
+                          periods: Array<{
+                            lord?: string;
+                            planet?: string;
+                            startJulianDay: number;
+                            endJulianDay: number;
+                            subPeriods?: Array<{
+                              lord?: string;
+                              planet?: string;
+                              startJulianDay: number;
+                              endJulianDay: number;
+                            }>;
+                          }>;
+                        };
+                        return yogini.periods.map((period, index) => {
+                          const active =
+                            jd >= period.startJulianDay &&
+                            jd < period.endJulianDay;
+                          return (
+                            <details key={index} open={active}>
+                              <summary className={active ? "active" : ""}>
+                                <strong>
+                                  {period.lord}
+                                  {period.planet
+                                    ? ` (${localize(period.planet, language, TELUGU_GRAHAS)})`
+                                    : ""}
+                                </strong>
+                                <em>
+                                  {formatDay(jdToDate(period.startJulianDay), language)} –{" "}
+                                  {formatDay(jdToDate(period.endJulianDay), language)}
+                                </em>
+                                {active && <i className="running-dot" />}
+                              </summary>
+                              <div className="timeline-sub">
+                                {(period.subPeriods ?? []).map((sub, subIndex) => {
+                                  const subActive =
+                                    jd >= sub.startJulianDay &&
+                                    jd < sub.endJulianDay;
+                                  return (
+                                    <div
+                                      key={subIndex}
+                                      className={subActive ? "active" : ""}
+                                    >
+                                      <span>
+                                        {sub.lord}
+                                        {sub.planet
+                                          ? ` (${localize(sub.planet, language, TELUGU_GRAHAS)})`
+                                          : ""}
+                                      </span>
+                                      <em>
+                                        {formatMonth(
+                                          jdToDate(sub.startJulianDay).toISOString(),
+                                          language,
+                                        )}{" "}
+                                        –{" "}
+                                        {formatMonth(
+                                          jdToDate(sub.endJulianDay).toISOString(),
+                                          language,
+                                        )}
+                                      </em>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </details>
+                          );
+                        });
+                      } catch {
+                        return null;
+                      }
+                    })()}
+                  </div>
+                )}
+                <div className="timeline" hidden={dashaSystem !== "vimshottari"}>
                   {chart.advanced.vimshottariTimeline.map((maha) => {
                     const active =
                       jd >= maha.startJulianDay && jd < maha.endJulianDay;
@@ -2587,6 +2998,13 @@ function DetailsSheet({
               <section hidden={tab === "overview"}>
                 <h3>{t.tools}</h3>
                 <div className="tool-buttons">
+                  <button className="cta secondary" onClick={shareChart} disabled={shareState === "busy"}>
+                    {shareState === "copied"
+                      ? t.shareCopied
+                      : shareState === "need-account"
+                        ? t.shareNeedsAccount
+                        : `🔗 ${t.shareChart}`}
+                  </button>
                   <button className="cta secondary" onClick={downloadPdf} disabled={pdfBusy}>
                     {pdfBusy ? t.generatingPdf : t.downloadPdf}
                   </button>
@@ -2763,6 +3181,60 @@ function Onboarding({
           <a href="#pro">{t.workspace}</a>
         </p>
       </div>
+    </div>
+  );
+}
+
+/* ── Read-only shared chart viewer (?chart=TOKEN) ────── */
+
+export function SharedChartView({ token }: { token: string }) {
+  const [data, setData] = useState<{
+    profile: Profile;
+    chart: NonNullable<FullChart>;
+  } | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    void fetch(`/api/share/${encodeURIComponent(token)}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        return (await response.json()) as {
+          profile: Profile;
+          chart: NonNullable<FullChart>;
+        };
+      })
+      .then(setData)
+      .catch(() => setFailed(true));
+  }, [token]);
+  if (failed)
+    return (
+      <div className="onboard">
+        <div className="onboard-card">
+          <div className="onboard-mark">✳</div>
+          <h1>Sahadeva</h1>
+          <p className="muted">This share link is invalid or has expired.</p>
+          <p className="muted small">
+            <a href="/">Open Sahadeva →</a>
+          </p>
+        </div>
+      </div>
+    );
+  if (!data) return null;
+  const language: Language = data.profile.language === "te" ? "te" : "en";
+  const summary = summaryFromChart(data.chart);
+  return (
+    <div className="chat-shell dock-full shared-view">
+      <DetailsSheet
+        profile={data.profile}
+        summary={summary}
+        chart={data.chart}
+        today={null}
+        t={STRINGS[language]}
+        language={language}
+        docked
+        onClose={() => {}}
+        onEdit={() => {}}
+        onLanguage={() => {}}
+      />
     </div>
   );
 }

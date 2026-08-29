@@ -1812,3 +1812,84 @@ body:has(.onboard) {
     max-width: 420px;
   }
 }
+
+/* ── North chart, shared view, style row ────────────── */
+.north-chart {
+  margin: 0;
+}
+
+.north-chart figcaption {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  margin-bottom: 9px;
+}
+
+.north-chart svg {
+  width: 100%;
+  height: auto;
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.nc-line {
+  stroke: var(--line-strong);
+  stroke-width: 2;
+}
+
+.nc-sign {
+  font-size: 13px;
+  fill: var(--ink-faint);
+  font-family: var(--font-ui);
+}
+
+.nc-grahas {
+  font-size: 16px;
+  font-weight: 700;
+  fill: var(--accent);
+  font-family: var(--font-ui);
+}
+
+.style-row {
+  margin-bottom: 10px;
+}
+
+.style-row button {
+  padding: 7px;
+  font-size: 13px;
+}
+
+.chip.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.shared-view {
+  display: block;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.shared-view .sheet-dock,
+.shared-view .sheet.docked {
+  border-left: none;
+  background: none;
+  height: auto;
+}
+
+@media (max-width: 1099px) {
+  .shared-view .sheet {
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+  }
+
+  .shared-view .sheet-handle,
+  .shared-view .sheet-head button {
+    display: none;
+  }
+}
