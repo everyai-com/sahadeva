@@ -30,8 +30,7 @@ type Profile = {
   language: Language;
 };
 
-type Source = { work: string; section: string; snippet?: string };
-type Message = { role: "user" | "assistant"; content: string; sources?: Source[] };
+type Message = { role: "user" | "assistant"; content: string };
 
 type Thread = {
   id: string;
@@ -959,7 +958,6 @@ export default function ChatApp() {
   const modeRef = useRef<
     { prashna?: boolean; muhurta?: { activity?: string } } | undefined
   >(undefined);
-  const sourcesRef = useRef<Source[]>([]);
   const [today, setToday] = useState<TodayPanchanga | null>(null);
   const [transit, setTransit] = useState<FullChart>(null);
   const [meLoaded, setMeLoaded] = useState(false);
@@ -1068,10 +1066,7 @@ export default function ChatApp() {
       try {
         const reply = await callChat(profile, next, setDraft);
         modeRef.current = undefined;
-        commitMessages([
-          ...next,
-          { role: "assistant", content: reply, sources: sourcesRef.current },
-        ]);
+        commitMessages([...next, { role: "assistant", content: reply }]);
       } catch (err) {
         modeRef.current = undefined;
         setError(err instanceof Error ? err.message : t.genericError);
@@ -1243,12 +1238,8 @@ export default function ChatApp() {
         try {
           const parsed = JSON.parse(buffer.slice(0, split)) as {
             summary?: ChatSummary;
-            sources?: Source[];
           };
           if (parsed.summary) setSummary(parsed.summary);
-          sourcesRef.current = Array.isArray(parsed.sources)
-            ? parsed.sources.slice(0, 3)
-            : [];
         } catch {
           /* head was not JSON; ignore */
         }
@@ -1297,10 +1288,7 @@ export default function ChatApp() {
     try {
       const reply = await callChat(profile, next, setDraft);
       modeRef.current = undefined;
-      commitMessages([
-        ...next,
-        { role: "assistant", content: reply, sources: sourcesRef.current },
-      ]);
+      commitMessages([...next, { role: "assistant", content: reply }]);
     } catch (err) {
       modeRef.current = undefined;
       setError(err instanceof Error ? err.message : t.genericError);
@@ -1553,15 +1541,6 @@ export default function ChatApp() {
             ) : (
               <div key={index} className="bubble-assistant">
                 {renderAssistantText(message.content)}
-                {(message.sources?.length ?? 0) > 0 && (
-                  <div className="source-chips">
-                    {message.sources!.map((source, sourceIndex) => (
-                      <span key={sourceIndex} className="source-chip-label">
-                        📖 {source.work} · {source.section.slice(0, 40)}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
             ),
           )}
