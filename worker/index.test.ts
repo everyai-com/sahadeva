@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import app from "./index";
+import { app } from "./index";
 
 async function mcp(method: string, params?: unknown, env?: unknown) {
   const response = await app.request(

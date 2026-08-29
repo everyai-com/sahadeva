@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import { createAuth, sessionUser } from "./auth";
+import { sendPush } from "./push";
 import {
   calculateChart,
   calculateIngressTimeline,
@@ -79,6 +80,8 @@ type Env = {
   OPENAI_CHAT_MODEL?: string;
   GEOAPIFY_API_KEY?: string;
   BETTER_AUTH_SECRET?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
 };
 const app = new Hono<{ Bindings: Env }>();
 const safetyEnvelope = () => ({
@@ -4761,6 +4764,173 @@ app.delete("/api/me/data", async (c) => {
     .run();
   return c.json({ ok: true });
 });
+app.post("/api/me/share", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const body = await c.req
+    .json<{ includeName?: boolean; expiresDays?: number }>()
+    .catch(() => ({}) as { includeName?: boolean; expiresDays?: number });
+  const active = await activePersonRow(c.env, user.id);
+  const profile = meParse(active?.profile_json) as Record<string, unknown> | null;
+  if (!profile?.date) return c.json({ error: "No active chart to share" }, 409);
+  const token = [...crypto.getRandomValues(new Uint8Array(18))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const days = Math.min(90, Math.max(1, Number(body.expiresDays) || 30));
+  await c.env.DB.prepare(
+    "INSERT INTO user_shares (id, token_hash, user_id, profile_json, include_name, expires_at, created_at) VALUES (?,?,?,?,?,?,?)",
+  )
+    .bind(
+      personId(),
+      await sha256(token),
+      user.id,
+      JSON.stringify(
+        body.includeName === false ? { ...profile, name: "Shared chart" } : profile,
+      ),
+      body.includeName === false ? 0 : 1,
+      new Date(Date.now() + days * 86400000).toISOString(),
+      new Date().toISOString(),
+    )
+    .run();
+  return c.json({ ok: true, token, expiresDays: days });
+});
+
+app.get("/api/share/:token", async (c) => {
+  const hash = await sha256(c.req.param("token"));
+  const row = await c.env.DB.prepare(
+    "SELECT profile_json FROM user_shares WHERE token_hash=? AND expires_at > ?",
+  )
+    .bind(hash, new Date().toISOString())
+    .first<{ profile_json: string }>();
+  if (!row) return c.json({ error: "Share not found or expired" }, 404);
+  const profile = meParse(row.profile_json) as Record<string, unknown> | null;
+  const parsed = birthInputSchema.safeParse({
+    ...profile,
+    methodology: "parashari",
+  });
+  if (!parsed.success) return c.json({ error: "Share data invalid" }, 500);
+  return c.json({
+    profile: {
+      name: parsed.data.name,
+      date: parsed.data.date,
+      time: parsed.data.time,
+      place: parsed.data.place,
+      language: parsed.data.language,
+    },
+    chart: await calculateChartCached(c.env, parsed.data),
+  });
+});
+
+app.post("/api/push/subscribe", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const body = await c.req
+    .json<{
+      subscription?: {
+        endpoint?: string;
+        keys?: { p256dh?: string; auth?: string };
+      };
+      hour?: number;
+      tzOffset?: number;
+    }>()
+    .catch(() => null);
+  const sub = body?.subscription;
+  if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys.auth)
+    return c.json({ error: "A push subscription is required" }, 400);
+  await c.env.DB.prepare(
+    "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, hour, tz_offset, created_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth, hour=excluded.hour, tz_offset=excluded.tz_offset",
+  )
+    .bind(
+      personId(),
+      user.id,
+      sub.endpoint.slice(0, 800),
+      sub.keys.p256dh.slice(0, 200),
+      sub.keys.auth.slice(0, 100),
+      Math.min(23, Math.max(0, Math.round(Number(body?.hour ?? 7)))),
+      Math.min(14, Math.max(-14, Number(body?.tzOffset ?? 5.5))),
+      new Date().toISOString(),
+    )
+    .run();
+  return c.json({ ok: true });
+});
+
+app.delete("/api/push/subscribe", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const body = await c.req
+    .json<{ endpoint?: string }>()
+    .catch(() => ({}) as { endpoint?: string });
+  if (body.endpoint)
+    await c.env.DB.prepare(
+      "DELETE FROM push_subscriptions WHERE endpoint=? AND user_id=?",
+    )
+      .bind(body.endpoint, user.id)
+      .run();
+  else
+    await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE user_id=?")
+      .bind(user.id)
+      .run();
+  return c.json({ ok: true });
+});
+
+app.get("/api/push/key", (c) =>
+  c.json({ publicKey: c.env.VAPID_PUBLIC_KEY || null }),
+);
+
+app.get("/api/push/brief", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const active = await activePersonRow(c.env, user.id);
+  const profile = meParse(active?.profile_json) as Record<string, unknown> | null;
+  const parsed = birthInputSchema.safeParse({
+    ...profile,
+    methodology: "parashari",
+  });
+  if (!parsed.success) return c.json({ error: "No chart" }, 409);
+  try {
+    const natal = await calculateChartCached(c.env, parsed.data);
+    const dayIso = (offset: number) =>
+      new Date(
+        Date.now() + (parsed.data.timezoneOffset * 3600 + offset * 86400) * 1000,
+      )
+        .toISOString()
+        .slice(0, 10);
+    const base = { ...parsed.data, name: "Today", time: "12:00", birthTimeAccuracyMinutes: 0 };
+    const daily = buildDailyPanchanga(
+      calculateChart({ ...base, date: dayIso(0) }),
+      calculateChart({ ...base, date: dayIso(1) }),
+      natal,
+    ) as {
+      fiveLimbs?: { vara: string; tithi: string; nakshatra: string };
+      personalized?: {
+        taraBala?: { favorable: boolean };
+        chandraBala?: { favorable: boolean };
+      } | null;
+      inauspicious?: { rahuKaal?: { startIso: string; endIso: string } | null };
+    };
+    const te = parsed.data.language === "te";
+    const clock = (iso?: string) =>
+      iso
+        ? new Date(iso).toLocaleTimeString(te ? "te-IN" : "en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: parsed.data.timezone || "UTC",
+          })
+        : "";
+    const tara = daily.personalized?.taraBala?.favorable;
+    const chandra = daily.personalized?.chandraBala?.favorable;
+    const title = te
+      ? `నమస్తే ${parsed.data.name} — నేటి పంచాంగం`
+      : `Namaste ${parsed.data.name} — today's panchanga`;
+    const bodyText = te
+      ? `${daily.fiveLimbs?.vara}, ${daily.fiveLimbs?.tithi}, ${daily.fiveLimbs?.nakshatra}. తారా బలం: ${tara ? "అనుకూలం" : "జాగ్రత్త"}, చంద్ర బలం: ${chandra ? "అనుకూలం" : "జాగ్రత్త"}. రాహుకాలం ${clock(daily.inauspicious?.rahuKaal?.startIso)}–${clock(daily.inauspicious?.rahuKaal?.endIso)}.`
+      : `${daily.fiveLimbs?.vara}, ${daily.fiveLimbs?.tithi}, ${daily.fiveLimbs?.nakshatra}. Tara bala: ${tara ? "favorable" : "take care"}, chandra bala: ${chandra ? "favorable" : "take care"}. Rahu kaal ${clock(daily.inauspicious?.rahuKaal?.startIso)}–${clock(daily.inauspicious?.rahuKaal?.endIso)}.`;
+    return c.json({ title, body: bodyText });
+  } catch {
+    return c.json({ error: "Brief unavailable" }, 500);
+  }
+});
+
 app.get("/api/panchanga/today", async (c) => {
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
   if (limited) return limited;
@@ -5989,6 +6159,7 @@ app.post("/api/chat", async (c) => {
     .json<{
       profile?: Record<string, unknown>;
       partner?: Record<string, unknown>;
+      mode?: { prashna?: boolean; muhurta?: { activity?: string } };
       messages?: Array<{ role?: string; content?: string }>;
     }>()
     .catch(() => null);
@@ -6125,6 +6296,112 @@ app.post("/api/chat", async (c) => {
           avastha: item.balaadiAvastha,
         })),
         confidence: chart.advanced.guidance.confidence,
+        ...(body.mode?.prashna
+          ? (() => {
+              const question =
+                [...history].reverse().find((m) => m.role === "user")
+                  ?.content || "General question";
+              const lower = question.toLowerCase();
+              const category = /career|job|work|promotion|business|ఉద్యోగ|వృత్తి/.test(lower)
+                ? "career"
+                : /marri|love|partner|relationship|పెళ్లి|వివాహ/.test(lower)
+                  ? "relationship"
+                  : /money|loan|debt|salary|డబ్బు/.test(lower)
+                    ? "money"
+                    : /house|property|land|home|ఇల్లు|స్థలం/.test(lower)
+                      ? "property"
+                      : /travel|trip|abroad|visa|ప్రయాణ/.test(lower)
+                        ? "travel"
+                        : /lost|missing|పోయి/.test(lower)
+                          ? "lost-object"
+                          : "general";
+              try {
+                const prashna = buildPrashnaConsultation(
+                  {
+                    question: question.slice(0, 500),
+                    category,
+                    place: parsed.data.place,
+                    latitude: parsed.data.latitude,
+                    longitude: parsed.data.longitude,
+                    timezone: parsed.data.timezone || "UTC",
+                    language: parsed.data.language,
+                  },
+                  new Date(),
+                );
+                return {
+                  prashna: {
+                    ...prashna,
+                    confirmationToken: undefined,
+                  },
+                };
+              } catch {
+                return {};
+              }
+            })()
+          : {}),
+        ...(body.mode?.muhurta
+          ? (() => {
+              const activity = (
+                body.mode.muhurta.activity &&
+                body.mode.muhurta.activity in MUHURTA_RULEBOOK.activities
+                  ? body.mode.muhurta.activity
+                  : "contract"
+              ) as MuhurtaActivity;
+              try {
+                const windows = [];
+                const base = {
+                  name: "Muhurta",
+                  time: "12:00",
+                  place: parsed.data.place,
+                  latitude: parsed.data.latitude,
+                  longitude: parsed.data.longitude,
+                  timezone: parsed.data.timezone,
+                  timezoneOffset: parsed.data.timezoneOffset,
+                  language: "en" as const,
+                  methodology: "parashari" as const,
+                  focus: "general" as const,
+                  birthTimeAccuracyMinutes: 0,
+                };
+                const startAt = Date.now();
+                for (let day = 0; day < 5; day++) {
+                  const at = startAt + day * 86400000;
+                  const date = new Date(at).toISOString().slice(0, 10);
+                  const nextDate = new Date(at + 86400000)
+                    .toISOString()
+                    .slice(0, 10);
+                  const daily = buildDailyPanchanga(
+                    calculateChart(birthInputSchema.parse({ ...base, date })),
+                    calculateChart(
+                      birthInputSchema.parse({ ...base, date: nextDate }),
+                    ),
+                    chart,
+                  );
+                  if (daily.status !== "computed" || !daily.choghadiya)
+                    continue;
+                  for (const candidate of daily.choghadiya.day.filter(
+                    (item) => item.quality === "favorable",
+                  )) {
+                    windows.push(
+                      scoreMuhurta(activity, daily, candidate, chart),
+                    );
+                  }
+                }
+                windows.sort(
+                  (a, b) =>
+                    b.score - a.score || a.startJulianDay - b.startJulianDay,
+                );
+                return {
+                  muhurta: {
+                    activity,
+                    daysSearched: 5,
+                    topWindows: windows.slice(0, 6),
+                  },
+                };
+              } catch {
+                return {};
+              }
+            })()
+          : {}),
         today: (() => {
           try {
             const dayIso = (offsetDays: number) =>
@@ -6188,6 +6465,8 @@ app.post("/api/chat", async (c) => {
         "House positions are given in wholeSignHouses (whole-sign from the lagna) — use them instead of recomputing. Mention detectedYogas only when relevant, always with their evidence; never claim a yoga that is not listed.",
         "Follow the evidence order: lagna, relevant house and its lord, natural karaka, dignity, varga, then dasha timing.",
         "If a `compatibility` object is supplied, the user is comparing charts with partnerSubject: explain the calculated guna/kuta scores and dosha findings from it faithfully, note that matching is one traditional input among many, and never declare a match doomed or guaranteed.",
+        "If a `prashna` object is supplied, this is a horary (Prashna) consultation: explain its judgment (direction, tier, observations, uncertainty) faithfully and never change its direction or score. Present it as a bounded traditional judgment, not a prediction.",
+        "If a `muhurta` object is supplied, the user asked for auspicious timing: present the topWindows with their local times and scores, explain the strongest reasons, and note these are traditional quality windows, not guarantees.",
         "The `today` object holds today's calculated panchanga at the user's birth location, with personalized taraBala and chandraBala. Use it for any question about today, this week, timing an activity, or a daily check-in — cite tara/chandra bala and rahu kaal times naturally. It is a daily rhythm lens, not a verdict.",
         "Separate observation from traditional interpretation. Astrology is a cultural practice, not scientific fact; say so briefly when relevant, not in every message.",
         "Use Parashari methodology only. Never blend KP, Western, Nadi, or other systems.",
@@ -6398,4 +6677,57 @@ app.post("/mcp", async (c) => {
   });
 });
 
-export default app;
+async function scheduled(
+  _event: ScheduledController,
+  env: Env,
+  _ctx: ExecutionContext,
+) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.DB) return;
+  const nowUtcHour = new Date().getUTCHours() + new Date().getUTCMinutes() / 60;
+  const rows = await env.DB.prepare(
+    "SELECT endpoint, hour, tz_offset, last_sent_at FROM push_subscriptions",
+  ).all<{
+    endpoint: string;
+    hour: number;
+    tz_offset: number;
+    last_sent_at: string | null;
+  }>();
+  const todayKey = new Date().toISOString().slice(0, 10);
+  for (const row of rows.results || []) {
+    const localHour = (((nowUtcHour + row.tz_offset) % 24) + 24) % 24;
+    const due = Math.abs(localHour - row.hour) < 0.75;
+    const alreadySent = row.last_sent_at?.slice(0, 10) === todayKey;
+    if (!due || alreadySent) continue;
+    try {
+      const status = await sendPush(
+        row.endpoint,
+        env.VAPID_PUBLIC_KEY,
+        env.VAPID_PRIVATE_KEY,
+      );
+      if (status === 404 || status === 410) {
+        await env.DB.prepare(
+          "DELETE FROM push_subscriptions WHERE endpoint=?",
+        )
+          .bind(row.endpoint)
+          .run();
+      } else {
+        await env.DB.prepare(
+          "UPDATE push_subscriptions SET last_sent_at=? WHERE endpoint=?",
+        )
+          .bind(new Date().toISOString(), row.endpoint)
+          .run();
+      }
+    } catch (error) {
+      console.error(
+        "push send failed:",
+        error instanceof Error ? error.message : "unknown",
+      );
+    }
+  }
+}
+
+export { app };
+export default {
+  fetch: app.fetch,
+  scheduled,
+};
