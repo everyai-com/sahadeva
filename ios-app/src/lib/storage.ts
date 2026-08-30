@@ -1,0 +1,91 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import type { Profile, Thread } from "./types";
+
+// Same keys as the web client so the mental model stays identical.
+const PROFILE_KEY = "sahadeva.profile.v1";
+const THREADS_KEY = "sahadeva.threads.v1";
+
+export async function loadProfile(): Promise<Profile | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PROFILE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Profile;
+    return parsed && parsed.date && parsed.time ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveProfile(profile: Profile | null): Promise<void> {
+  try {
+    if (profile) await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    else await AsyncStorage.removeItem(PROFILE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export type StoredThreads = { threads: Thread[]; activeThreadId: string };
+
+export function normalizeThreads(raw: unknown): StoredThreads {
+  if (Array.isArray(raw)) {
+    // Legacy single-conversation shape.
+    const id = newThreadId();
+    const messages = raw as Thread["messages"];
+    return {
+      threads: messages.length
+        ? [{ id, title: "", updatedAt: new Date().toISOString(), messages }]
+        : [],
+      activeThreadId: messages.length ? id : "",
+    };
+  }
+  const value = raw as { threads?: Thread[]; activeThreadId?: string } | null;
+  if (value && Array.isArray(value.threads)) {
+    const threads = value.threads.filter((t) => t && Array.isArray(t.messages));
+    return {
+      threads,
+      activeThreadId:
+        value.activeThreadId && threads.some((t) => t.id === value.activeThreadId)
+          ? value.activeThreadId
+          : (threads[0]?.id ?? ""),
+    };
+  }
+  return { threads: [], activeThreadId: "" };
+}
+
+export const newThreadId = () => Math.random().toString(36).slice(2, 10);
+
+export function threadTitle(thread: Thread, fallback: string): string {
+  if (thread.title) return thread.title;
+  const firstUser = thread.messages.find((m) => m.role === "user");
+  return firstUser ? firstUser.content.slice(0, 48) : fallback;
+}
+
+export async function loadThreads(): Promise<StoredThreads> {
+  try {
+    const raw = await AsyncStorage.getItem(THREADS_KEY);
+    return normalizeThreads(raw ? JSON.parse(raw) : null);
+  } catch {
+    return { threads: [], activeThreadId: "" };
+  }
+}
+
+export async function saveThreads(threads: Thread[], activeThreadId: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      THREADS_KEY,
+      JSON.stringify({ threads: threads.slice(-20), activeThreadId }),
+    );
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export async function clearThreads(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(THREADS_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}

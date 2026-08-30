@@ -1,180 +1,328 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Onboarding } from "@/components/onboarding";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { BottomTabInset } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { API_URL, createShareLink } from "@/lib/api";
+import { useAppState } from "@/lib/app-state";
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
+export default function MoreScreen() {
+  const state = useAppState();
   const theme = useTheme();
+  const router = useRouter();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [shareState, setShareState] = useState<"idle" | "busy" | "done" | "need-account">("idle");
+  const [editOpen, setEditOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+  const { t, profile, account } = state;
+  const te = state.language === "te";
+
+  const methodLayers = te
+    ? [
+        { title: "సరళమైన రీడింగ్", body: "సాధారణ భాషలో హద్దులతో కూడిన నిర్ణయం." },
+        { title: "ఈ నిర్ణయం ఎందుకు", body: "అనుకూలం, ప్రతికూలం, వర్గ ధృవీకరణ, కాలం విడివిడిగా చూపుతాం." },
+        { title: "సాంకేతిక సాక్ష్యం", body: "భావాలు, అధిపతులు, స్థితి, కొలిచిన బలం, సంబంధాలు." },
+        { title: "మూలాలు", body: "సమీక్షించిన నియమాలకే ఉల్లేఖనలు; మిగతావి బహిరంగంగా పెండింగ్‌లో." },
+      ]
+    : [
+        { title: "Plain reading", body: "A bounded conclusion in ordinary language." },
+        { title: "Why this judgment", body: "Support, opposition, Varga confirmation and timing are separated." },
+        { title: "Technical evidence", body: "Houses, lords, dignity, measured strength, relationships and dispositors." },
+        { title: "Sources", body: "Only publishable rules receive citations; unresolved source keys stay visible." },
+      ];
+
+  async function submitAuth() {
+    if (!email.trim() || password.length < 8 || authBusy) return;
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      if (mode === "signin") await state.signIn(email, password);
+      else await state.signUp(email, password, profile?.name || email.split("@")[0]);
+      setEmail("");
+      setPassword("");
+    } catch {
+      setAuthError(mode === "signin" ? t.authError : t.signupError);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function shareChart() {
+    if (!account) {
+      setShareState("need-account");
+      return;
+    }
+    setShareState("busy");
+    const url = await createShareLink();
+    if (url) {
+      setShareState("done");
+      await Share.share({ message: url }).catch(() => {});
+    } else {
+      setShareState("idle");
+    }
+  }
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+    <ThemedView style={styles.screen}>
+      <SafeAreaView style={styles.flex} edges={["top"]}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <ThemedText style={styles.eyebrow}>{t.account.toUpperCase()}</ThemedText>
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
+          {/* Account */}
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+            {account ? (
+              <>
+                <ThemedText type="smallBold">
+                  {t.signedInAs} {account.email}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">{t.syncNote}</ThemedText>
+                <Pressable onPress={() => void state.signOut()} style={[styles.outlineButton, { borderColor: theme.border }]}>
+                  <ThemedText type="smallBold">{t.signOut}</ThemedText>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder={t.email}
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
                 />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={t.password}
+                  placeholderTextColor={theme.textSecondary}
+                  secureTextEntry
+                  style={[styles.input, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+                />
+                <Pressable
+                  onPress={() => void submitAuth()}
+                  disabled={authBusy || !email.trim() || password.length < 8}
+                  style={[
+                    styles.primary,
+                    { backgroundColor: theme.accent, opacity: authBusy || !email.trim() || password.length < 8 ? 0.5 : 1 },
+                  ]}>
+                  {authBusy ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <ThemedText style={styles.primaryText}>{mode === "signin" ? t.signIn : t.signUp}</ThemedText>
+                  )}
+                </Pressable>
+                <Pressable onPress={() => setMode(mode === "signin" ? "signup" : "signin")} hitSlop={8}>
+                  <ThemedText type="small" style={{ color: theme.accent }}>
+                    {mode === "signin" ? t.noAccount : t.haveAccount}
+                  </ThemedText>
+                </Pressable>
+                {authError ? <ThemedText style={styles.error}>{authError}</ThemedText> : null}
+                <ThemedText type="small" themeColor="textSecondary">{t.guestNote}</ThemedText>
+              </>
+            )}
+          </View>
+
+          {/* People */}
+          {account && (
+            <>
+              <ThemedText style={styles.eyebrow}>{t.people.toUpperCase()}</ThemedText>
+              <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+                {state.people.map((person) => (
+                  <View key={person.id} style={[styles.personRow, { borderBottomColor: theme.border }]}>
+                    <Pressable style={styles.personMain} onPress={() => void state.switchPerson(person)}>
+                      <ThemedText type="smallBold">
+                        {person.profile?.name || "—"}
+                        {person.profile?.name === profile?.name ? `  · ${t.activeTag}` : ""}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {person.profile ? `${person.profile.date} · ${person.profile.place}` : ""}
+                      </ThemedText>
+                    </Pressable>
+                    {person.profile && person.profile.name !== profile?.name && (
+                      <>
+                        <Pressable
+                          onPress={() => {
+                            void state.compareWith(person);
+                            router.navigate("/");
+                          }}
+                          hitSlop={8}>
+                          <ThemedText type="small" style={{ color: theme.accent }}>⚭ {t.compare}</ThemedText>
+                        </Pressable>
+                        <Pressable onPress={() => void state.deletePerson(person)} hitSlop={8}>
+                          <ThemedText type="small" style={styles.error}>{t.deletePerson}</ThemedText>
+                        </Pressable>
+                      </>
+                    )}
+                  </View>
+                ))}
+                <Pressable onPress={() => setAddOpen(true)} hitSlop={8}>
+                  <ThemedText type="small" style={{ color: theme.accent }}>{t.addPerson}</ThemedText>
+                </Pressable>
+              </View>
+            </>
+          )}
+
+          {/* Preferences */}
+          <ThemedText style={styles.eyebrow}>{t.language.toUpperCase()}</ThemedText>
+          <View style={styles.langRow}>
+            {(["en", "te"] as const).map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => state.switchLanguage(option)}
+                style={[
+                  styles.langButton,
+                  {
+                    backgroundColor: state.language === option ? theme.accent : theme.backgroundElement,
+                    borderColor: theme.border,
+                  },
+                ]}>
+                <ThemedText style={{ color: state.language === option ? "#fff" : theme.text, fontWeight: "700" }}>
+                  {option === "en" ? "English" : "తెలుగు"}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Chart actions */}
+          {profile && (
+            <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+              <Pressable onPress={() => void shareChart()} disabled={shareState === "busy"} hitSlop={6}>
+                <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                  {shareState === "busy" ? "…" : `↗ ${t.shareChart}`}
+                </ThemedText>
+              </Pressable>
+              {shareState === "done" && (
+                <ThemedText type="small" themeColor="textSecondary">{t.shareCopied}</ThemedText>
+              )}
+              {shareState === "need-account" && (
+                <ThemedText type="small" themeColor="textSecondary">{t.shareNeedsAccount}</ThemedText>
+              )}
+              <Pressable onPress={() => setEditOpen(true)} hitSlop={6}>
+                <ThemedText type="smallBold" style={{ color: theme.accent }}>✎ {t.editBirth}</ThemedText>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Method */}
+          <ThemedText style={styles.eyebrow}>{t.method.toUpperCase()}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">{t.methodIntro}</ThemedText>
+          {methodLayers.map((item, index) => (
+            <View key={item.title} style={[styles.methodCard, { backgroundColor: theme.backgroundElement }]}>
+              <ThemedText style={[styles.methodNumber, { color: theme.accent }]}>0{index + 1}</ThemedText>
+              <View style={styles.methodCopy}>
+                <ThemedText type="smallBold">{item.title}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">{item.body}</ThemedText>
+              </View>
+            </View>
+          ))}
+
+          <View style={[styles.notice, { borderColor: theme.border }]}>
+            <ThemedText type="smallBold">{t.researchBoundary}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">{t.researchNote}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">{t.disclaimer}</ThemedText>
+            <ThemedText type="code" themeColor="textSecondary">API {API_URL}</ThemedText>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+
+      {/* Edit birth details */}
+      <Modal visible={editOpen} animationType="slide" onRequestClose={() => setEditOpen(false)}>
+        <ThemedView style={styles.screen}>
+          <SafeAreaView style={styles.flex}>
+            <View style={styles.modalHeader}>
+              <Pressable onPress={() => setEditOpen(false)} hitSlop={10}>
+                <ThemedText style={{ color: theme.accent }}>✕ {t.cancel}</ThemedText>
+              </Pressable>
+            </View>
+            <Onboarding
+              initial={profile}
+              title={t.editBirth.toUpperCase()}
+              onReady={(next) => {
+                state.replaceProfile(next);
+                setEditOpen(false);
+              }}
+            />
+          </SafeAreaView>
         </ThemedView>
+      </Modal>
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
-
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
+      {/* Add another person */}
+      <Modal visible={addOpen} animationType="slide" onRequestClose={() => setAddOpen(false)}>
+        <ThemedView style={styles.screen}>
+          <SafeAreaView style={styles.flex}>
+            <View style={styles.modalHeader}>
+              <Pressable onPress={() => setAddOpen(false)} hitSlop={10}>
+                <ThemedText style={{ color: theme.accent }}>✕ {t.cancel}</ThemedText>
+              </Pressable>
+            </View>
+            <Onboarding
+              title={t.addPerson.replace("+ ", "").toUpperCase()}
+              onReady={(next) => {
+                void state.addPersonProfile(next);
+                setAddOpen(false);
+              }}
+            />
+          </SafeAreaView>
         </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+      </Modal>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
+  screen: { flex: 1 },
+  flex: { flex: 1 },
+  content: { padding: 18, gap: 12, paddingBottom: BottomTabInset + 60 },
+  eyebrow: { fontSize: 10, letterSpacing: 1.5, fontWeight: "700", marginTop: 8 },
+  card: { borderRadius: 18, padding: 16, gap: 12 },
+  input: { minHeight: 50, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, fontSize: 16 },
+  primary: { minHeight: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  primaryText: { color: "#fff", fontWeight: "700" },
+  outlineButton: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 18,
   },
-  contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  error: { color: "#a84840" },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingBottom: 10,
+    marginBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
-  },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
-  },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-  },
+  personMain: { flex: 1, gap: 2 },
+  langRow: { flexDirection: "row", gap: 10 },
+  langButton: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  methodCard: { borderRadius: 18, padding: 16, flexDirection: "row", gap: 14 },
+  methodNumber: { fontSize: 22, fontWeight: "700" },
+  methodCopy: { flex: 1, gap: 3 },
+  notice: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 8 },
+  modalHeader: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 18, paddingTop: 8 },
 });

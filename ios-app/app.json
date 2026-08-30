@@ -10,6 +10,7 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.everyai.sahadeva",
+      "buildNumber": "1",
       "supportsTablet": true
     },
     "android": {
@@ -30,7 +31,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#f7f3eb",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
