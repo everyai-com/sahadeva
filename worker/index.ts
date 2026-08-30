@@ -7,7 +7,7 @@ import {
   historicalTimezoneOffset,
   simulateBirthTimeUncertainty,
 } from "../shared/jyotish";
-import { birthInputSchema } from "../shared/schema";
+import { birthInputSchema, type ChartResult } from "../shared/schema";
 import { teluguChartSummary } from "../shared/telugu";
 import {
   buildDashaCalendar,
@@ -54,7 +54,7 @@ import {
   buildPrashnaConsultation,
   prashnaRequestSchema,
 } from "../shared/prashna";
-import { fuseTiming } from "../shared/timingFusion";
+import { assessNatalPromise, fuseTiming } from "../shared/timingFusion";
 import {
   rectificationRequestSchema,
   rectifyBirthTime,
@@ -62,6 +62,64 @@ import {
 import { calculateStrengthLineage } from "../shared/strengthLineage";
 import { synthesizeVargas } from "../shared/vargaSynthesis";
 import { additionalDashaStatus } from "../shared/additionalDashas";
+import {
+  buildTopicJudgment,
+  JUDGMENT_TOPICS,
+  type JudgmentCitation,
+  type JudgmentTopic,
+  type TopicJudgment,
+} from "../shared/judgment";
+import { executeRule, executableRuleSchema } from "../shared/ruleDsl";
+import { analyzeAllHouses, analyzeHouse } from "../shared/houseJudgment";
+import { buildPlanetaryRelationshipGraph } from "../shared/practitioner";
+import { analyzeNatalPanchanga } from "../shared/natalPanchanga";
+import { analyzeJudgmentSensitivity } from "../shared/judgmentSensitivity";
+import {
+  buildChartRemedyProtocol,
+  buildRemedyProtocol,
+} from "../shared/remedies";
+import { calculateDevataProfile, type DevataLineageId } from "../shared/devata";
+import {
+  analyzeDomainStructure,
+  analyzeNakshatraProfile,
+  buildClaimEvidenceLedger,
+  runLongitudinalValidation,
+} from "../shared/domainMcp";
+import {
+  analyzeArudhaUpapada,
+  analyzeBadhaka,
+  analyzeTransitActivation,
+  analyzeVarga,
+  analyzeYogas,
+  auditReadingEvidence,
+  calculateAshtakavargaProfile,
+  calculateDashaSystem,
+  calculateStrengthProfile,
+  compareReadingVersions,
+  explainChartSources,
+} from "../shared/advancedMcp";
+import { compareConventions } from "../shared/conventionComparison";
+import {
+  compactChatHistory,
+  requestsFullProfile,
+  routeChatEvidence,
+} from "../shared/chatEvidenceRouting";
+import { handleBtrChat } from "../shared/btrChat";
+import {
+  contradictionDraftSchema,
+  contradictionResolutionSchema,
+  enforceDisplayRights,
+  passageDraftSchema,
+  passageReviewSchema,
+  reviewDecisionSchema,
+  ruleDraftSchema,
+  ruleExampleDraftSchema,
+} from "../shared/reviewAuthoring";
+import {
+  BOOK_RULE_CATALOG,
+  BOOK_RULE_CATALOG_META,
+} from "../shared/bookRuleCatalog";
+import bookRuleFixtures from "../shared/bookRuleFixtures.json";
 
 type RateLimiter = {
   limit(input: { key: string }): Promise<{ success: boolean }>;
@@ -118,6 +176,8 @@ const INTERPRETIVE_TOOLS = new Set([
   "get_depth_analysis",
   "fuse_timing",
   "rectify_birth_time",
+  "analyze_chart_topic",
+  "compare_conventions",
 ]);
 function enforceSafetyContract(response: any, toolName?: string) {
   if (
@@ -346,6 +406,7 @@ type RpcRequest = {
   method?: string;
   params?: { name?: string; arguments?: unknown };
 };
+const MCP_PROTOCOL_VERSION = "2025-11-25";
 const mcpTools = [
   {
     name: "search_locations",
@@ -663,9 +724,9 @@ const mcpTools = [
   },
   {
     name: "consult_jyotishya",
-    title: "Get a compact one-call Jyotish consultation",
+    title: "Ask Sahadeva — master Jyotisha consultation",
     description:
-      "Runs the relevant deterministic chart, strength, Dasha and timing engines in one call and returns a compact consultation brief. Designed as the default MCP entry point; it never invokes another AI model.",
+      "PRIMARY TOOL FOR EVERY NORMAL USER QUESTION AND FIRST READING. Always runs a complete person-first screen covering identity, education, employment, business, money, love, marriage, health routines, family/property, children and spirituality, plus strengths, Doshas/cancellations and safe practical support. It then gives extra Varga and timing depth to the exact question, checks contradictions and reports coverage. Use specialist tools only when this result requests additional inputs or the user asks for technical matrices. Deterministic: it never invokes another AI model.",
     inputSchema: {
       type: "object",
       required: ["name", "date", "time"],
@@ -706,11 +767,606 @@ const mcpTools = [
           enum: ["brief", "standard"],
           default: "brief",
         },
+        readingMode: {
+          type: "string",
+          enum: ["auto", "full-profile", "follow-up"],
+          default: "auto",
+          description:
+            "Use auto normally: without profileRef it creates the full first-reading dossier; with profileRef it returns a focused follow-up.",
+        },
+        profileRef: {
+          type: "string",
+          pattern: "^chart_[a-f0-9]{20}$",
+          description:
+            "Stable profile reference returned by the first consultation. Pass it on later questions together with the same birth details.",
+        },
       },
       anyOf: [
         { required: ["place"] },
         { required: ["latitude", "longitude", "timezone"] },
       ],
+    },
+  },
+  {
+    name: "analyze_chart_topic",
+    title: "Analyze one chart topic with an evidence ledger",
+    description:
+      "Runs the shared deterministic judgment pipeline for career, education, property, relationships, or spirituality. Returns supporting and opposing evidence, relevant Varga confirmation, current Dasha activation, uncertainty, matched reviewed citations, unresolved source keys, and explicit abstention boundaries. The web app uses the same judgment engine.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time", "topic"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        time: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+        place: { type: "string" },
+        latitude: { type: "number", minimum: -90, maximum: 90 },
+        longitude: { type: "number", minimum: -180, maximum: 180 },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number", minimum: -12, maximum: 14 },
+        topic: { type: "string", enum: [...JUDGMENT_TOPICS] },
+        asOfDate: { type: "string" },
+        language: { type: "string", enum: ["en", "te"], default: "en" },
+        birthTimeAccuracyMinutes: {
+          type: "number",
+          minimum: 0,
+          maximum: 1440,
+          default: 5,
+        },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "validate_rule_spec",
+    title: "Validate and replay a structured Jyotisha rule",
+    description:
+      "Reviewer/developer tool. Validates the typed rule DSL and replays a proposed rule, including exceptions and harm/review publication gates, against a deterministic chart. It does not approve or publish the rule.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time", "rule"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        asOfDate: { type: "string" },
+        rule: { type: "object", additionalProperties: true },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "compare_conventions",
+    title: "Compare chart conventions without silent mixing",
+    description:
+      "Compares Lahiri with selected alternative ayanamsa projections for one topic, identifies changed Lagna, topic lord, karaka, sign, house and Nakshatra anchors, and marks when a Lahiri judgment must not be reused. Alternative full derived charts remain explicitly unvalidated.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time", "topic"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        topic: { type: "string", enum: [...JUDGMENT_TOPICS] },
+        conventions: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["lahiri", "krishnamurti", "raman", "fagan-bradley"],
+          },
+        },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "analyze_house",
+    title: "Analyze one natal house with support and opposition",
+    description:
+      "Returns the selected house, lord condition, occupants, functional lordship, relevant relationship edges, supporting and opposing evidence, unresolved source keys and sensitive-house restrictions.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time", "house"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        house: { type: "integer", minimum: 1, maximum: 12 },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "get_planetary_relationship_graph",
+    title: "Get the typed planetary relationship graph",
+    description:
+      "Returns dispositors, chains, conjunctions, exchanges, Graha Drishti, compound relationships and Lagna-specific functional lordships as distinct edge types.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "get_natal_panchanga",
+    title: "Analyze the five natal Panchanga limbs",
+    description:
+      "Returns calculated Vara, Tithi class, Nakshatra lord, Yoga, Karana, Paksha Bala, boundary warnings and unresolved lineage-specific source keys. This is distinct from daily Panchanga.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "suggest_safe_practice",
+    title: "Suggest belief-compatible low-burden support",
+    description:
+      "Builds an optional practice protocol from the evidence ledger and user preferences. It can return no-remedy-needed, never emits unreviewed gemstones, costly rituals or initiation-only mantras, and does not claim causality.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time", "topic", "preferences"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        topic: { type: "string", enum: [...JUDGMENT_TOPICS] },
+        preferences: {
+          type: "object",
+          required: [
+            "beliefMode",
+            "maximumBurden",
+            "maximumCost",
+            "allowPrayer",
+            "allowCharity",
+          ],
+          properties: {
+            beliefMode: {
+              type: "string",
+              enum: ["secular", "spiritual", "tradition-specific"],
+            },
+            tradition: { type: "string" },
+            maximumBurden: { type: "string", enum: ["minimal", "moderate"] },
+            maximumCost: { type: "string", enum: ["free", "low"] },
+            allowPrayer: { type: "boolean" },
+            allowCharity: { type: "boolean" },
+          },
+        },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "calculate_devata_profile",
+    title: "Calculate Iṣṭa and guiding Devatā candidates",
+    description:
+      "Calculates Iṣṭa, Dharma, Pālana, Guru and Kula Devatā anchors from an explicit lineage preset: occupants, Rashi Drishti, then sign lord with visible tie-breaks. Unsupported lineages are withheld rather than silently mixed. It never prescribes initiation-only mantra or claims one uniquely correct deity.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        lineage: {
+          type: "string",
+          enum: ["rath-eight-karaka-reversed-rahu", "seven-karaka-comparative"],
+          default: "rath-eight-karaka-reversed-rahu",
+        },
+        birthTimeAccuracyMinutes: {
+          type: "number",
+          minimum: 0,
+          maximum: 1440,
+          default: 5,
+        },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "analyze_remedies",
+    title: "Build a source-grounded chart remedy protocol",
+    description:
+      "Combines the topic evidence ledger, belief/cost/burden preferences, Iṣṭa and guiding Devatā calculation, Muhurta-as-remedy routing, optional charity and low-risk conduct. Every candidate exposes its source and publication gate. It withholds unreviewed gemstones, initiation-only mantras, fasting and costly rituals.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time", "topic", "preferences"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        topic: { type: "string", enum: [...JUDGMENT_TOPICS] },
+        asOfDate: { type: "string" },
+        birthTimeAccuracyMinutes: {
+          type: "number",
+          minimum: 0,
+          maximum: 1440,
+          default: 5,
+        },
+        preferences: {
+          type: "object",
+          required: [
+            "beliefMode",
+            "maximumBurden",
+            "maximumCost",
+            "allowPrayer",
+            "allowCharity",
+          ],
+          properties: {
+            beliefMode: {
+              type: "string",
+              enum: ["secular", "spiritual", "tradition-specific"],
+            },
+            tradition: { type: "string" },
+            maximumBurden: { type: "string", enum: ["minimal", "moderate"] },
+            maximumCost: { type: "string", enum: ["free", "low"] },
+            allowPrayer: { type: "boolean" },
+            allowCharity: { type: "boolean" },
+            accessibilityNotes: { type: "array", items: { type: "string" } },
+          },
+        },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  ...(
+    [
+      [
+        "analyze_transit_activation",
+        "Analyze natal, Dasha and transit activation together",
+        {
+          topic: {
+            type: "string",
+            enum: [
+              "career",
+              "marriage",
+              "wealth",
+              "education",
+              "children",
+              "property",
+              "spirituality",
+            ],
+          },
+          asOfIso: { type: "string" },
+          startIso: { type: "string" },
+          endIso: { type: "string" },
+        },
+      ],
+      [
+        "calculate_strength_profile",
+        "Calculate a separated planetary strength profile",
+        {},
+      ],
+      [
+        "calculate_ashtakavarga",
+        "Calculate Bhinnashtakavarga and Sarvashtakavarga",
+        {},
+      ],
+      [
+        "analyze_varga",
+        "Analyze one divisional chart",
+        {
+          varga: {
+            type: "string",
+            enum: [
+              "D1",
+              "D2",
+              "D3",
+              "D4",
+              "D7",
+              "D9",
+              "D10",
+              "D12",
+              "D16",
+              "D20",
+              "D24",
+              "D27",
+              "D30",
+              "D40",
+              "D45",
+              "D60",
+            ],
+          },
+          topic: {
+            type: "string",
+            enum: [
+              "career",
+              "marriage",
+              "wealth",
+              "education",
+              "children",
+              "property",
+              "spirituality",
+            ],
+          },
+        },
+      ],
+      ["analyze_yogas", "Analyze Yoga formation, strength and opposition", {}],
+      [
+        "calculate_dasha_system",
+        "Calculate a declared Dasha system",
+        {
+          system: {
+            type: "string",
+            enum: [
+              "vimshottari",
+              "yogini",
+              "ashtottari",
+              "kalachakra",
+              "narayana",
+              "chara",
+              "status",
+            ],
+          },
+          asOfIso: { type: "string" },
+        },
+      ],
+      [
+        "analyze_badhaka",
+        "Inspect Badhaka structure without supernatural claims",
+        {},
+      ],
+      [
+        "analyze_arudha_and_upapada",
+        "Analyze Arudha and Upapada structures",
+        {},
+      ],
+      [
+        "audit_reading_evidence",
+        "Audit reading prose against calculated placements and safety rules",
+        { text: { type: "string", maxLength: 30000 } },
+      ],
+    ] as Array<[string, string, Record<string, unknown>]>
+  ).map(([name, title, extra]) => ({
+    name,
+    title,
+    description: title,
+    inputSchema: {
+      type: "object",
+      required: [
+        "name",
+        "date",
+        "time",
+        ...(name === "analyze_transit_activation"
+          ? ["topic", "asOfIso", "startIso", "endIso"]
+          : name === "analyze_varga"
+            ? ["varga"]
+            : name === "calculate_dasha_system"
+              ? ["system", "asOfIso"]
+              : name === "audit_reading_evidence"
+                ? ["text"]
+                : []),
+      ],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        ...extra,
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  })),
+  {
+    name: "explain_chart_sources",
+    title: "Explain the source and review status behind a chart topic",
+    description:
+      "Returns book-section locators and rule-review status without treating discovered prose as executable doctrine.",
+    inputSchema: {
+      type: "object",
+      required: ["topic"],
+      properties: { topic: { type: "string" } },
+    },
+  },
+  {
+    name: "compare_reading_versions",
+    title: "Explain why two reading versions changed",
+    description:
+      "Compares engine, ruleset, input and conclusion status changes.",
+    inputSchema: {
+      type: "object",
+      required: ["first", "second"],
+      properties: { first: { type: "object" }, second: { type: "object" } },
+    },
+  },
+  ...(
+    [
+      "analyze_nakshatra_profile",
+      "analyze_marriage_structure",
+      "analyze_career_structure",
+      "analyze_education_structure",
+      "analyze_property_and_vehicle",
+      "analyze_finance_structure",
+      "analyze_spiritual_path",
+      "build_claim_evidence_ledger",
+    ] as const
+  ).map((name) => ({
+    name,
+    title: name.replaceAll("_", " "),
+    description: `Evidence-linked ${name.replaceAll("_", " ")} without deterministic outcome claims.`,
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string" },
+        time: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        asOfIso: { type: "string" },
+        topics: {
+          type: "array",
+          items: { type: "string", enum: [...JUDGMENT_TOPICS] },
+        },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  })),
+  {
+    name: "find_muhurta_with_natal_fit",
+    title: "Find Muhurta windows fitted to a natal chart",
+    description:
+      "Ranks a maximum seven-day range using Panchanga, prohibited intervals, Tara Bala and Chandra Bala. Medical procedures are unsupported.",
+    inputSchema: {
+      type: "object",
+      required: ["activity", "startDate", "endDate", "natal"],
+      properties: {
+        activity: {
+          type: "string",
+          enum: Object.keys(MUHURTA_RULEBOOK.activities),
+        },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        limit: { type: "integer", minimum: 1, maximum: 20 },
+        natal: {
+          type: "object",
+          required: ["name", "date", "time"],
+          properties: {
+            name: { type: "string" },
+            date: { type: "string" },
+            time: { type: "string" },
+            place: { type: "string" },
+            latitude: { type: "number" },
+            longitude: { type: "number" },
+            timezone: { type: "string" },
+            timezoneOffset: { type: "number" },
+          },
+        },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "run_longitudinal_validation",
+    title: "Measure outcome calibration over time",
+    description:
+      "Produces descriptive calibration from recorded claim outcomes; it never presents the result as scientific validation.",
+    inputSchema: {
+      type: "object",
+      required: ["records"],
+      properties: {
+        records: {
+          type: "array",
+          minItems: 1,
+          maxItems: 10000,
+          items: {
+            type: "object",
+            required: ["claimId", "predictedStatus", "outcome"],
+            properties: {
+              claimId: { type: "string" },
+              predictedStatus: { type: "string" },
+              outcome: {
+                type: "string",
+                enum: [
+                  "confirmed",
+                  "partly-confirmed",
+                  "not-confirmed",
+                  "unresolved",
+                ],
+              },
+              recordedAt: { type: "string" },
+            },
+          },
+        },
+      },
     },
   },
   {
@@ -1540,6 +2196,30 @@ const uniformLocationTools = new Set([
   "get_depth_analysis",
   "fuse_timing",
   "calculate_prashna",
+  "validate_rule_spec",
+  "analyze_house",
+  "get_planetary_relationship_graph",
+  "get_natal_panchanga",
+  "suggest_safe_practice",
+  "calculate_devata_profile",
+  "analyze_remedies",
+  "analyze_transit_activation",
+  "calculate_strength_profile",
+  "calculate_ashtakavarga",
+  "analyze_varga",
+  "analyze_yogas",
+  "calculate_dasha_system",
+  "analyze_badhaka",
+  "analyze_arudha_and_upapada",
+  "audit_reading_evidence",
+  "analyze_nakshatra_profile",
+  "analyze_marriage_structure",
+  "analyze_career_structure",
+  "analyze_education_structure",
+  "analyze_property_and_vehicle",
+  "analyze_finance_structure",
+  "analyze_spiritual_path",
+  "build_claim_evidence_ledger",
 ]);
 for (const tool of mcpTools) {
   const schema = tool.inputSchema as {
@@ -1554,7 +2234,11 @@ for (const tool of mcpTools) {
     schema.properties = { ...schema.properties, ...coordinateProperties };
     schema.anyOf = locationAlternatives;
   }
-  if (tool.name === "get_panchanga" || tool.name === "find_muhurta") {
+  if (
+    tool.name === "get_panchanga" ||
+    tool.name === "find_muhurta" ||
+    tool.name === "find_muhurta_with_natal_fit"
+  ) {
     schema.required = (schema.required || []).filter(
       (field) => field !== "place",
     );
@@ -1586,6 +2270,238 @@ for (const tool of mcpTools) {
     }
 }
 const mcpOutputSchemas: Record<string, unknown> = {
+  compare_conventions: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "topic",
+      "variants",
+      "judgmentChangeAnalysis",
+      "traditionBoundary",
+      "safety",
+    ],
+    additionalProperties: true,
+  },
+  analyze_house: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "house",
+      "lord",
+      "supportingEvidence",
+      "opposingEvidence",
+      "sourceCoverage",
+      "safety",
+    ],
+    additionalProperties: true,
+  },
+  get_planetary_relationship_graph: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "nodes",
+      "edges",
+      "dispositorChains",
+      "functionalLordships",
+    ],
+    additionalProperties: true,
+  },
+  get_natal_panchanga: {
+    type: "object",
+    required: ["schemaVersion", "limbs", "paksha", "interpretation", "safety"],
+    additionalProperties: true,
+  },
+  suggest_safe_practice: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "diagnosis",
+      "outcome",
+      "preferences",
+      "remedyFamilyEligibility",
+      "eligiblePractices",
+      "traditionalChartRemedies",
+      "contraindications",
+      "followUp",
+    ],
+    additionalProperties: true,
+  },
+  calculate_devata_profile: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "lineage",
+      "convention",
+      "anchors",
+      "ishtaDevata",
+      "dharmaDevata",
+      "palanaDevata",
+      "guruDevata",
+      "kulaDevata",
+      "birthTimeSensitivity",
+      "safety",
+    ],
+    additionalProperties: true,
+  },
+  analyze_remedies: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "diagnosis",
+      "chartDiagnosis",
+      "remedyFamilyEligibility",
+      "eligiblePractices",
+      "traditionalChartRemedies",
+      "traditionalRemedyStatus",
+      "sourceCoverage",
+      "decisionTrace",
+      "contraindications",
+      "followUp",
+    ],
+    additionalProperties: true,
+  },
+  analyze_transit_activation: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "topic",
+      "promise",
+      "transits",
+      "timingFusion",
+      "safety",
+    ],
+    additionalProperties: true,
+  },
+  calculate_strength_profile: {
+    type: "object",
+    required: ["schemaVersion", "dignities", "avasthas", "shadbala", "lineage"],
+    additionalProperties: true,
+  },
+  calculate_ashtakavarga: {
+    type: "object",
+    required: ["schemaVersion", "sarva", "signs"],
+    additionalProperties: true,
+  },
+  analyze_varga: {
+    type: "object",
+    required: ["schemaVersion", "varga", "purpose", "placements", "safety"],
+    additionalProperties: true,
+  },
+  analyze_yogas: {
+    type: "object",
+    required: ["schemaVersion", "detected", "notDetected", "notice"],
+    additionalProperties: true,
+  },
+  calculate_dasha_system: { type: "object", additionalProperties: true },
+  analyze_badhaka: {
+    type: "object",
+    required: ["schemaVersion", "status", "badhaka", "safety"],
+    additionalProperties: true,
+  },
+  analyze_arudha_and_upapada: {
+    type: "object",
+    required: ["schemaVersion", "arudhaLagna", "upapadaLagna"],
+    additionalProperties: true,
+  },
+  explain_chart_sources: {
+    type: "object",
+    required: ["schemaVersion", "topic", "sources", "notice"],
+    additionalProperties: true,
+  },
+  audit_reading_evidence: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "supported",
+      "unsupportedClaims",
+      "prohibitedClaimPatterns",
+    ],
+    additionalProperties: true,
+  },
+  compare_reading_versions: {
+    type: "object",
+    required: ["schemaVersion", "configurationChanges", "conclusions"],
+    additionalProperties: true,
+  },
+  analyze_nakshatra_profile: {
+    type: "object",
+    required: ["schemaVersion", "janma", "placements", "notice"],
+    additionalProperties: true,
+  },
+  analyze_marriage_structure: {
+    type: "object",
+    required: ["schemaVersion", "domain", "judgment", "vargas", "safety"],
+    additionalProperties: true,
+  },
+  analyze_career_structure: {
+    type: "object",
+    required: ["schemaVersion", "domain", "judgment", "vargas", "safety"],
+    additionalProperties: true,
+  },
+  analyze_education_structure: {
+    type: "object",
+    required: ["schemaVersion", "domain", "judgment", "vargas", "safety"],
+    additionalProperties: true,
+  },
+  analyze_property_and_vehicle: {
+    type: "object",
+    required: ["schemaVersion", "domain", "judgment", "vargas", "safety"],
+    additionalProperties: true,
+  },
+  analyze_finance_structure: {
+    type: "object",
+    required: ["schemaVersion", "domain", "judgment", "vargas", "safety"],
+    additionalProperties: true,
+  },
+  analyze_spiritual_path: {
+    type: "object",
+    required: ["schemaVersion", "domain", "judgment", "vargas", "safety"],
+    additionalProperties: true,
+  },
+  build_claim_evidence_ledger: {
+    type: "object",
+    required: ["schemaVersion", "claims", "summary", "notice"],
+    additionalProperties: true,
+  },
+  find_muhurta_with_natal_fit: {
+    type: "object",
+    required: ["schemaVersion", "activity", "windows", "safety"],
+    additionalProperties: true,
+  },
+  run_longitudinal_validation: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "sample",
+      "descriptiveConfirmationRate",
+      "limitations",
+    ],
+    additionalProperties: true,
+  },
+  validate_rule_spec: {
+    type: "object",
+    required: ["valid", "execution", "publicationGate"],
+    additionalProperties: true,
+  },
+  analyze_chart_topic: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "topic",
+      "conclusion",
+      "status",
+      "supportingEvidence",
+      "opposingEvidence",
+      "vargaConfirmation",
+      "timingActivation",
+      "appliedRules",
+      "citations",
+      "unresolvedSourceKeys",
+      "uncertainty",
+      "safety",
+    ],
+    additionalProperties: true,
+  },
   consult_jyotishya: {
     type: "object",
     required: [
@@ -1751,6 +2667,7 @@ const mcpOutputSchemas: Record<string, unknown> = {
       "charaKarakas",
       "arudhaPadas",
       "karakamsha",
+      "devataProfile",
       "rashiDrishti",
       "charaDasha",
       "safety",
@@ -1761,6 +2678,7 @@ const mcpOutputSchemas: Record<string, unknown> = {
       charaKarakas: { type: "object" },
       arudhaPadas: { type: "object" },
       karakamsha: { type: "object" },
+      devataProfile: { type: "object" },
       rashiDrishti: { type: "object" },
       charaDasha: { type: "object" },
       safety: { type: "object" },
@@ -2100,6 +3018,211 @@ for (const tool of mcpTools)
       openWorldHint: tool.name === "search_locations",
     },
   });
+
+// Keep the model-visible surface deliberately small and task-oriented. The
+// implementation retains specialist tools for backwards-compatible direct
+// calls, while the expert-tools resource documents advanced workflows.
+const publicMcpToolNames = new Set([
+  "search_locations",
+  "consult_jyotishya",
+  "analyze_chart_topic",
+  "compare_conventions",
+  "analyze_house",
+  "get_natal_panchanga",
+  "suggest_safe_practice",
+  "calculate_devata_profile",
+  "analyze_remedies",
+  "analyze_transit_activation",
+  "calculate_strength_profile",
+  "calculate_ashtakavarga",
+  "analyze_varga",
+  "analyze_yogas",
+  "calculate_dasha_system",
+  "analyze_arudha_and_upapada",
+  "explain_chart_sources",
+  "audit_reading_evidence",
+  "compare_reading_versions",
+  "analyze_nakshatra_profile",
+  "analyze_marriage_structure",
+  "analyze_career_structure",
+  "analyze_education_structure",
+  "analyze_property_and_vehicle",
+  "analyze_finance_structure",
+  "analyze_spiritual_path",
+  "build_claim_evidence_ledger",
+  "find_muhurta_with_natal_fit",
+  "generate_full_life_report",
+  "get_full_life_report_section",
+  "calculate_compatibility",
+  "get_panchanga",
+  "find_muhurta",
+  "calculate_doshas",
+  "calculate_gochara_from_known_place",
+  "find_marriage_windows",
+  "get_marriage_readiness",
+  "calculate_prashna",
+  "record_prashna_outcome",
+  "get_depth_analysis",
+  "fuse_timing",
+  "rectify_birth_time",
+  "render_chart",
+  "generate_report_pdf",
+]);
+const publicMcpTools = mcpTools.filter((tool) =>
+  publicMcpToolNames.has(tool.name),
+);
+const expertMcpTools = mcpTools
+  .filter((tool) => !publicMcpToolNames.has(tool.name))
+  .map((tool) => ({
+    name: tool.name,
+    title: tool.title,
+    description: tool.description,
+  }));
+
+type ConsultationTopic =
+  | "career"
+  | "marriage"
+  | "wealth"
+  | "education"
+  | "children"
+  | "property"
+  | "spirituality";
+const CONSULTATION_TOPIC_PATTERNS: Array<[ConsultationTopic, RegExp]> = [
+  ["marriage", /marriage|partner|relationship|spouse|wedding|వివాహ|పెళ్లి/i],
+  ["career", /career|job|work|business|promotion|profession|ఉద్యోగ|వృత్తి/i],
+  ["wealth", /money|wealth|finance|income|investment|ధనం|డబ్బు|సంపద/i],
+  ["education", /education|study|exam|college|degree|విద్య|చదువు/i],
+  ["children", /child|children|parent|progeny|సంతాన|పిల్ల/i],
+  ["property", /property|house|home|land|vehicle|ఇల్లు|ఆస్తి/i],
+  ["spirituality", /spiritual|dharma|practice|teacher|meaning|ఆధ్యాత్మిక/i],
+];
+function consultationTopic(question: string, focus: string) {
+  const matched = CONSULTATION_TOPIC_PATTERNS.find(([, pattern]) =>
+    pattern.test(question),
+  );
+  if (matched) return matched[0];
+  return [
+    "career",
+    "marriage",
+    "children",
+    "education",
+    "property",
+    "spirituality",
+  ].includes(focus)
+    ? (focus as ConsultationTopic)
+    : null;
+}
+function consultationRange(asOf: string) {
+  const start = new Date(asOf);
+  if (!Number.isFinite(start.getTime())) throw new Error("Invalid asOfDate");
+  const end = new Date(start);
+  end.setUTCFullYear(end.getUTCFullYear() + 2);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+const COMPLETE_READING_TOPICS: ConsultationTopic[] = [
+  "education",
+  "career",
+  "wealth",
+  "marriage",
+  "property",
+  "children",
+  "spirituality",
+];
+function completeDomainReading(chart: ChartResult) {
+  const calculated = Object.fromEntries(
+    COMPLETE_READING_TOPICS.map((topic) => {
+      const vargas = synthesizeVargas(chart, topic),
+        promise = assessNatalPromise(chart, topic);
+      return [
+        topic,
+        {
+          topic,
+          primaryHouse: vargas.primaryHouse,
+          primaryLord: vargas.primaryLord,
+          relevantVargas: vargas.rows.map((row) => row.varga),
+          crossVargaJudgment: vargas.judgment,
+          crossVargaScore: vargas.score,
+          natalPromise: promise,
+          interpretationStatus: "structural-research-preview",
+        },
+      ];
+    }),
+  ) as unknown as Record<ConsultationTopic, Record<string, unknown>>;
+  const lagna = chart.placements.find((item) => item.name === "Lagna")!,
+    sixthSign = (lagna.sign + 5) % 12,
+    twelfthSign = (lagna.sign + 11) % 12,
+    sixthOccupants = chart.placements
+      .filter((item) => item.name !== "Lagna" && item.sign === sixthSign)
+      .map((item) => item.name),
+    twelfthOccupants = chart.placements
+      .filter((item) => item.name !== "Lagna" && item.sign === twelfthSign)
+      .map((item) => item.name);
+  return {
+    identityAndTemperament: {
+      anchors: ["Lagna", "Moon", "Sun"],
+      status: "included-in-anchors-and-priorities",
+    },
+    education: calculated.education,
+    employment: calculated.career,
+    businessAndIndependentWork: {
+      evidenceCombination: ["career", "wealth"],
+      careerJudgment: calculated.career.crossVargaJudgment,
+      resourceJudgment: calculated.wealth.crossVargaJudgment,
+      evidenceRefs: ["employment", "moneyAndResources"],
+      notice:
+        "Business suitability is not inferred from one placement; work structure and resource structure are shown together.",
+    },
+    moneyAndResources: calculated.wealth,
+    loveAndRelationships: {
+      evidenceRef: "marriageAndCommitment",
+      crossVargaJudgment: calculated.marriage.crossVargaJudgment,
+      notice:
+        "Relationship quality is broader than marriage timing; communication, consent and lived compatibility remain primary.",
+    },
+    marriageAndCommitment: calculated.marriage,
+    healthRoutinesAndResilience: {
+      scope:
+        "Traditional routine, workload and rest indicators only; no diagnosis, disease prediction, treatment advice or longevity claim.",
+      sixthHouseSign: sixthSign,
+      sixthHouseOccupants: sixthOccupants,
+      twelfthHouseSign: twelfthSign,
+      twelfthHouseOccupants: twelfthOccupants,
+      prohibitedConclusions: [
+        "medical diagnosis",
+        "disease prediction",
+        "treatment selection",
+        "lifespan",
+      ],
+    },
+    familyHomeAndProperty: calculated.property,
+    childrenMentoringAndCreativity: calculated.children,
+    spiritualityMeaningAndPractice: calculated.spirituality,
+    domainCoverage: {
+      covered: [
+        "identity",
+        "education",
+        "employment",
+        "business",
+        "money",
+        "love",
+        "marriage",
+        "health routines",
+        "family",
+        "home and property",
+        "children and mentoring",
+        "spirituality",
+      ],
+      notAutomaticallyClaimed: [
+        "specific events",
+        "guaranteed outcomes",
+        "medical conditions",
+        "fertility outcomes",
+        "lifespan",
+      ],
+    },
+  };
+}
 
 function rpcResult(id: RpcRequest["id"], result: unknown) {
   if (result && typeof result === "object") {
@@ -2475,6 +3598,40 @@ function enrichedChart(chart: ReturnType<typeof calculateChart>) {
   return { ...chart, placements };
 }
 
+async function attachJudgmentCitations(
+  judgment: TopicJudgment,
+  db?: D1Database,
+): Promise<TopicJudgment> {
+  if (!db || !judgment.unresolvedSourceKeys.length) return judgment;
+  const keys = judgment.unresolvedSourceKeys,
+    placeholders = keys.map(() => "?").join(","),
+    result = await db
+      .prepare(
+        `SELECT rb.source_key,r.id rule_id,r.interpretation,p.locator,s.title source_title,s.author FROM rule_bindings rb JOIN publishable_rules r ON r.id=rb.rule_id JOIN passages p ON p.id=r.passage_id AND p.review_status='approved' JOIN sources s ON s.id=p.source_id WHERE rb.source_key IN (${placeholders})`,
+      )
+      .bind(...keys)
+      .all()
+      .catch(() => ({ results: [] })),
+    citations = (result.results || []).map((row) => ({
+      sourceKey: String(row.source_key),
+      ruleId: String(row.rule_id),
+      sourceTitle: String(row.source_title),
+      author: row.author === null ? null : String(row.author),
+      locator: String(row.locator),
+      interpretation: String(row.interpretation),
+      reviewStatus: "publishable" as const,
+    })) satisfies JudgmentCitation[],
+    found = new Set(citations.map((item) => item.sourceKey));
+  return {
+    ...judgment,
+    appliedRules: judgment.appliedRules.map((rule) =>
+      found.has(rule.sourceKey) ? { ...rule, status: "publishable" } : rule,
+    ),
+    citations,
+    unresolvedSourceKeys: keys.filter((key) => !found.has(key)),
+  };
+}
+
 async function handleMcp(
   request: RpcRequest,
   env?: Env,
@@ -2484,9 +3641,9 @@ async function handleMcp(
     return rpcError(request.id, -32600, "Invalid JSON-RPC request");
   if (request.method === "initialize")
     return rpcResult(request.id, {
-      protocolVersion: "2025-11-25",
+      protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: {
-        tools: {},
+        tools: { listChanged: false },
         prompts: { listChanged: false },
         resources: { subscribe: false, listChanged: false },
       },
@@ -2494,7 +3651,7 @@ async function handleMcp(
     });
   if (request.method === "server/discover")
     return rpcResult(request.id, {
-      protocolVersion: "2026-07-28",
+      protocolVersion: MCP_PROTOCOL_VERSION,
       serverInfo: { name: "sahadeva", version: "0.3.0" },
       capabilities: {
         tools: { listChanged: false },
@@ -2506,9 +3663,7 @@ async function handleMcp(
   if (request.method === "ping") return rpcResult(request.id, {});
   if (request.method === "tools/list")
     return rpcResult(request.id, {
-      tools: mcpTools,
-      ttlMs: 3600000,
-      cacheScope: "public",
+      tools: publicMcpTools,
     });
   if (request.method === "prompts/list")
     return rpcResult(request.id, {
@@ -2580,7 +3735,7 @@ async function handleMcp(
         quick_consultation:
           "Resolve the location using your own host capabilities when necessary, then call consult_jyotishya once with the birth details, question, focus, asOfDate and detail=brief. Explain the returned priorities and timing in plain language. Do not call the full chart or full report unless the user explicitly requests technical depth.",
         full_life_reading:
-          "Call search_locations for a deterministic match. If none exists, resolve the place using your own host capabilities and pass its label, latitude, longitude, and IANA timezone to calculate_chart_from_known_place. Sahadeva MCP tools never need another AI call. Then call generate_full_life_report, explain each section plainly, preserve evidence and uncertainty, and never turn timing themes into guaranteed events.",
+          "Call search_locations for a deterministic match. If none exists, resolve the place using your own host capabilities. Pass the verified label, latitude, longitude, IANA timezone and offset directly to generate_full_life_report. Do not calculate the same chart first with another tool. Explain each section plainly, preserve evidence and uncertainty, and never turn timing themes into guaranteed events.",
         timing_outlook:
           "Call get_timing_context and generate_full_life_report with the requested horizon. Summarize year-by-year overlaps as planning themes, not deterministic predictions.",
         prashna_consultation:
@@ -2625,6 +3780,11 @@ async function handleMcp(
           name: "Blind validation protocol for life-theme ranking",
           mimeType: "application/json",
         },
+        {
+          uri: "sahadeva://expert-tools",
+          name: "Specialist tools for explicit advanced workflows",
+          mimeType: "application/json",
+        },
       ],
     });
   if (request.method === "resources/read") {
@@ -2642,11 +3802,7 @@ async function handleMcp(
           : uri === "sahadeva://mcp-workflows"
             ? {
                 defaultConsultation: ["consult_jyotishya"],
-                fullReport: [
-                  "search_locations",
-                  "calculate_chart_from_known_place or calculate_south_indian_chart",
-                  "generate_full_life_report",
-                ],
+                fullReport: ["search_locations", "generate_full_life_report"],
                 timing: ["get_timing_context", "build_slow_transit_calendar"],
                 consultation: [
                   "search_locations",
@@ -2689,7 +3845,13 @@ async function handleMcp(
                     blindValidationCompleted: false,
                     calibratedProbabilities: false,
                   }
-                : null;
+                : uri === "sahadeva://expert-tools"
+                  ? {
+                      notice:
+                        "These specialist tools remain callable by name for backwards compatibility, but are intentionally omitted from default model discovery to improve routing quality.",
+                      tools: expertMcpTools,
+                    }
+                  : null;
     if (!data) return rpcError(request.id, -32602, "Unknown resource");
     return rpcResult(request.id, {
       contents: [
@@ -3262,7 +4424,7 @@ async function handleMcp(
         isError: false,
       });
     }
-    if (name === "find_muhurta") {
+    if (name === "find_muhurta" || name === "find_muhurta_with_natal_fit") {
       const args = request.params?.arguments as
           | {
               activity?: unknown;
@@ -3282,6 +4444,12 @@ async function handleMcp(
         );
       if (!(activity in MUHURTA_RULEBOOK.activities))
         return rpcError(request.id, -32602, "Unsupported activity");
+      if (name === "find_muhurta_with_natal_fit" && !args?.natal)
+        return rpcError(
+          request.id,
+          -32602,
+          "Natal details are required for natal-fit Muhurta",
+        );
       const start = Date.parse(`${String(args?.startDate || "")}T00:00:00Z`),
         end = Date.parse(`${String(args?.endDate || "")}T00:00:00Z`);
       if (
@@ -3507,7 +4675,11 @@ async function handleMcp(
           "Invalid birth details",
           parsed.error.flatten(),
         );
-      const structuredContent = calculateJaimini(calculateChart(parsed.data));
+      const chart = calculateChart(parsed.data),
+        structuredContent = {
+          ...calculateJaimini(chart),
+          devataProfile: calculateDevataProfile(chart),
+        };
       return rpcResult(request.id, {
         content: [{ type: "text", text: JSON.stringify(structuredContent) }],
         structuredContent,
@@ -3798,6 +4970,724 @@ async function handleMcp(
         isError: false,
       });
     }
+    if (
+      name === "analyze_house" ||
+      name === "get_planetary_relationship_graph" ||
+      name === "get_natal_panchanga"
+    ) {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        );
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const parsed = birthInputSchema.safeParse({
+          ...args,
+          ...locationInput(located.location),
+          methodology: "parashari",
+          focus: "general",
+          birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+        }),
+        house = Number(args?.house);
+      if (
+        !parsed.success ||
+        (name === "analyze_house" &&
+          (!Number.isInteger(house) || house < 1 || house > 12))
+      )
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid chart or house details",
+          parsed.success ? undefined : parsed.error.flatten(),
+        );
+      const chart = await calculateChartCached(env, parsed.data),
+        structuredContent =
+          name === "analyze_house"
+            ? analyzeHouse(chart, house)
+            : name === "get_natal_panchanga"
+              ? analyzeNatalPanchanga(chart)
+              : (() => {
+                  const graph = buildPlanetaryRelationshipGraph(chart),
+                    evaluations = BOOK_RULE_CATALOG.filter(
+                      (rule) => rule.topic === "argala",
+                    ).map((rule) =>
+                      executeRule(chart, rule, "2000-01-01T00:00:00.000Z"),
+                    );
+                  return {
+                    ...graph,
+                    sourceRuleEvaluations: evaluations.map((row) => ({
+                      ruleId: row.rule.id,
+                      sourceKey: row.rule.sourceKey,
+                      matched: row.matched,
+                      effectiveEffect: row.effectiveEffect,
+                      facts: row.facts,
+                      reviewStatus: row.rule.reviewStatus,
+                      publishable: row.publishable ?? false,
+                      interpretation: row.rule.interpretation,
+                      harmClass: row.rule.harmClass,
+                    })),
+                  };
+                })();
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "compare_conventions") {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        topic = String(args?.topic || "") as JudgmentTopic,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        );
+      if (!JUDGMENT_TOPICS.includes(topic))
+        return rpcError(request.id, -32602, "Unsupported judgment topic");
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const parsed = birthInputSchema.safeParse({
+          ...args,
+          ...locationInput(located.location),
+          methodology: "parashari",
+          focus: topic,
+          birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+        }),
+        allowed = new Set<AyanamsaId>([
+          "lahiri",
+          "krishnamurti",
+          "raman",
+          "fagan-bradley",
+        ]),
+        requested = Array.isArray(args?.conventions)
+          ? args.conventions.filter((id): id is AyanamsaId =>
+              allowed.has(id as AyanamsaId),
+            )
+          : undefined;
+      if (!parsed.success || requested?.length === 0)
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid convention comparison",
+          parsed.success ? undefined : parsed.error.flatten(),
+        );
+      const ids = [
+          "lahiri",
+          ...(requested || ["krishnamurti", "raman"]).filter(
+            (id) => id !== "lahiri",
+          ),
+        ] as AyanamsaId[],
+        structuredContent = compareConventions(
+          await calculateChartCached(env, parsed.data),
+          topic,
+          [...new Set(ids)],
+        );
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "validate_rule_spec") {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        );
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const parsed = birthInputSchema.safeParse({
+          ...args,
+          ...locationInput(located.location),
+          methodology: "parashari",
+          focus: "general",
+          birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+        }),
+        rule = executableRuleSchema.safeParse(args?.rule);
+      if (!parsed.success || !rule.success)
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid chart or rule specification",
+          {
+            chart: parsed.success ? null : parsed.error.flatten(),
+            rule: rule.success ? null : rule.error.flatten(),
+          },
+        );
+      const execution = executeRule(
+          await calculateChartCached(env, parsed.data),
+          rule.data,
+          typeof args?.asOfDate === "string"
+            ? args.asOfDate
+            : new Date().toISOString(),
+        ),
+        structuredContent = {
+          valid: true,
+          execution,
+          publicationGate: {
+            publishable: execution.matched && Boolean(execution.publishable),
+            requirements: [
+              "approved passage",
+              "approved rule",
+              "two independent approvals",
+              "no blocking review",
+              "no open contradiction",
+              "permitted harm class",
+            ],
+            notice:
+              "Successful replay validates structure only; it does not approve the textual interpretation.",
+          },
+        };
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "run_longitudinal_validation") {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        records = args?.records;
+      if (
+        !Array.isArray(records) ||
+        records.length < 1 ||
+        records.length > 10000
+      )
+        return rpcError(request.id, -32602, "Provide 1-10000 outcome records");
+      const allowed = new Set([
+          "confirmed",
+          "partly-confirmed",
+          "not-confirmed",
+          "unresolved",
+        ]),
+        valid = records.every(
+          (r) =>
+            r &&
+            typeof r === "object" &&
+            typeof (r as any).claimId === "string" &&
+            typeof (r as any).predictedStatus === "string" &&
+            allowed.has((r as any).outcome),
+        );
+      if (!valid) return rpcError(request.id, -32602, "Invalid outcome record");
+      const structuredContent = runLongitudinalValidation(
+        records as Parameters<typeof runLongitudinalValidation>[0],
+      );
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (
+      [
+        "analyze_nakshatra_profile",
+        "analyze_marriage_structure",
+        "analyze_career_structure",
+        "analyze_education_structure",
+        "analyze_property_and_vehicle",
+        "analyze_finance_structure",
+        "analyze_spiritual_path",
+        "build_claim_evidence_ledger",
+      ].includes(String(name))
+    ) {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        );
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const parsed = birthInputSchema.safeParse({
+        ...args,
+        ...locationInput(located.location),
+        methodology: "parashari",
+        focus: "general",
+        birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+      });
+      if (!parsed.success)
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid chart details",
+          parsed.error.flatten(),
+        );
+      const chart = await calculateChartCached(env, parsed.data),
+        asOf =
+          typeof args?.asOfIso === "string" &&
+          Number.isFinite(Date.parse(args.asOfIso))
+            ? args.asOfIso
+            : new Date().toISOString();
+      let structuredContent: unknown;
+      if (name === "analyze_nakshatra_profile")
+        structuredContent = analyzeNakshatraProfile(chart);
+      else if (name === "build_claim_evidence_ledger") {
+        const requested = Array.isArray(args?.topics)
+            ? args.topics.filter((t): t is JudgmentTopic =>
+                JUDGMENT_TOPICS.includes(t as JudgmentTopic),
+              )
+            : JUDGMENT_TOPICS,
+          judgments = await Promise.all(
+            requested.map((t) =>
+              attachJudgmentCitations(
+                buildTopicJudgment(chart, t, asOf),
+                env?.DB,
+              ),
+            ),
+          );
+        structuredContent = buildClaimEvidenceLedger(judgments);
+      } else {
+        const domains: Record<
+          string,
+          Parameters<typeof analyzeDomainStructure>[1]
+        > = {
+          analyze_marriage_structure: "marriage",
+          analyze_career_structure: "career",
+          analyze_education_structure: "education",
+          analyze_property_and_vehicle: "property",
+          analyze_finance_structure: "finance",
+          analyze_spiritual_path: "spiritual",
+        };
+        structuredContent = analyzeDomainStructure(
+          chart,
+          domains[String(name)],
+          asOf,
+        );
+      }
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "explain_chart_sources") {
+      const topic = String(
+        (request.params?.arguments as Record<string, unknown> | undefined)
+          ?.topic || "",
+      ).trim();
+      if (!topic)
+        return rpcError(request.id, -32602, "A source topic is required");
+      const structuredContent = explainChartSources(topic);
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "compare_reading_versions") {
+      const args = request.params?.arguments as
+        Record<string, unknown> | undefined;
+      if (
+        !args?.first ||
+        !args?.second ||
+        typeof args.first !== "object" ||
+        typeof args.second !== "object"
+      )
+        return rpcError(
+          request.id,
+          -32602,
+          "Two reading versions are required",
+        );
+      const structuredContent = compareReadingVersions(
+        args.first as Parameters<typeof compareReadingVersions>[0],
+        args.second as Parameters<typeof compareReadingVersions>[1],
+      );
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (
+      [
+        "analyze_transit_activation",
+        "calculate_strength_profile",
+        "calculate_ashtakavarga",
+        "analyze_varga",
+        "analyze_yogas",
+        "calculate_dasha_system",
+        "analyze_badhaka",
+        "analyze_arudha_and_upapada",
+        "audit_reading_evidence",
+      ].includes(String(name))
+    ) {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        );
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const topics = [
+          "career",
+          "marriage",
+          "wealth",
+          "education",
+          "children",
+          "property",
+          "spirituality",
+        ],
+        topic = String(args?.topic || "") as Parameters<
+          typeof analyzeTransitActivation
+        >[1],
+        vargas = [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D7",
+          "D9",
+          "D10",
+          "D12",
+          "D16",
+          "D20",
+          "D24",
+          "D27",
+          "D30",
+          "D40",
+          "D45",
+          "D60",
+        ],
+        systems = [
+          "vimshottari",
+          "yogini",
+          "ashtottari",
+          "kalachakra",
+          "narayana",
+          "chara",
+          "status",
+        ];
+      if (
+        name === "analyze_transit_activation" &&
+        (!topics.includes(topic) ||
+          ![args?.asOfIso, args?.startIso, args?.endIso].every(
+            (v) => typeof v === "string" && Number.isFinite(Date.parse(v)),
+          ))
+      )
+        return rpcError(
+          request.id,
+          -32602,
+          "Valid topic and ISO dates are required",
+        );
+      if (
+        name === "analyze_varga" &&
+        !vargas.includes(String(args?.varga || ""))
+      )
+        return rpcError(request.id, -32602, "Unsupported Varga");
+      if (
+        name === "calculate_dasha_system" &&
+        (!systems.includes(String(args?.system || "")) ||
+          typeof args?.asOfIso !== "string" ||
+          !Number.isFinite(Date.parse(args.asOfIso)))
+      )
+        return rpcError(
+          request.id,
+          -32602,
+          "Valid Dasha system and asOfIso are required",
+        );
+      if (
+        name === "audit_reading_evidence" &&
+        (typeof args?.text !== "string" ||
+          !args.text.trim() ||
+          args.text.length > 30000)
+      )
+        return rpcError(
+          request.id,
+          -32602,
+          "Reading text must be 1-30000 characters",
+        );
+      const parsed = birthInputSchema.safeParse({
+        ...args,
+        ...locationInput(located.location),
+        methodology: "parashari",
+        focus: topic === "marriage" ? "marriage" : topic || "general",
+        birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+      });
+      if (!parsed.success)
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid chart details",
+          parsed.error.flatten(),
+        );
+      const chart = await calculateChartCached(env, parsed.data);
+      const structuredContent =
+        name === "analyze_transit_activation"
+          ? analyzeTransitActivation(
+              chart,
+              topic,
+              String(args?.asOfIso),
+              String(args?.startIso),
+              String(args?.endIso),
+            )
+          : name === "calculate_strength_profile"
+            ? calculateStrengthProfile(chart)
+            : name === "calculate_ashtakavarga"
+              ? calculateAshtakavargaProfile(chart)
+              : name === "analyze_varga"
+                ? analyzeVarga(
+                    chart,
+                    String(args?.varga),
+                    topics.includes(topic) ? topic : undefined,
+                  )
+                : name === "analyze_yogas"
+                  ? analyzeYogas(chart)
+                  : name === "calculate_dasha_system"
+                    ? calculateDashaSystem(
+                        chart,
+                        String(args?.system),
+                        String(args?.asOfIso),
+                      )
+                    : name === "analyze_badhaka"
+                      ? analyzeBadhaka(chart)
+                      : name === "analyze_arudha_and_upapada"
+                        ? analyzeArudhaUpapada(chart)
+                        : auditReadingEvidence(String(args?.text), chart);
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "calculate_devata_profile") {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        ),
+        lineage = String(
+          args?.lineage || "rath-eight-karaka-reversed-rahu",
+        ) as DevataLineageId;
+      if (
+        ![
+          "rath-eight-karaka-reversed-rahu",
+          "seven-karaka-comparative",
+        ].includes(lineage)
+      )
+        return rpcError(request.id, -32602, "Unsupported Devata lineage");
+      if (lineage === "seven-karaka-comparative")
+        return rpcError(
+          request.id,
+          -32602,
+          "The seven-karaka comparative Devata preset is visible but withheld until its mapping is independently reviewed",
+        );
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const parsed = birthInputSchema.safeParse({
+        ...args,
+        ...locationInput(located.location),
+        methodology: "parashari",
+        focus: "spirituality",
+        birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+      });
+      if (!parsed.success)
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid chart details",
+          parsed.error.flatten(),
+        );
+      const structuredContent = calculateDevataProfile(
+        await calculateChartCached(env, parsed.data),
+        { lineage },
+      );
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "suggest_safe_practice" || name === "analyze_remedies") {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        topic = String(args?.topic || "") as JudgmentTopic,
+        prefs = args?.preferences as Record<string, unknown> | undefined,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        );
+      if (
+        !JUDGMENT_TOPICS.includes(topic) ||
+        !prefs ||
+        !["secular", "spiritual", "tradition-specific"].includes(
+          String(prefs.beliefMode),
+        ) ||
+        !["minimal", "moderate"].includes(String(prefs.maximumBurden)) ||
+        !["free", "low"].includes(String(prefs.maximumCost)) ||
+        typeof prefs.allowPrayer !== "boolean" ||
+        typeof prefs.allowCharity !== "boolean"
+      )
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid topic or practice preferences",
+        );
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const parsed = birthInputSchema.safeParse({
+        ...args,
+        ...locationInput(located.location),
+        methodology: "parashari",
+        focus: topic === "relationships" ? "marriage" : topic,
+        birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+      });
+      if (!parsed.success)
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid chart details",
+          parsed.error.flatten(),
+        );
+      const chart = await calculateChartCached(env, parsed.data),
+        judgment = await attachJudgmentCitations(
+          buildTopicJudgment(
+            chart,
+            topic,
+            typeof args?.asOfDate === "string"
+              ? args.asOfDate
+              : new Date().toISOString(),
+          ),
+          env?.DB,
+        ),
+        preferences = {
+          beliefMode: String(prefs.beliefMode) as
+            "secular" | "spiritual" | "tradition-specific",
+          tradition:
+            typeof prefs.tradition === "string" ? prefs.tradition : undefined,
+          maximumBurden: String(prefs.maximumBurden) as "minimal" | "moderate",
+          maximumCost: String(prefs.maximumCost) as "free" | "low",
+          allowPrayer: prefs.allowPrayer,
+          allowCharity: prefs.allowCharity,
+          accessibilityNotes: Array.isArray(prefs.accessibilityNotes)
+            ? prefs.accessibilityNotes
+                .filter((item): item is string => typeof item === "string")
+                .slice(0, 8)
+            : undefined,
+        },
+        structuredContent =
+          name === "analyze_remedies"
+            ? buildChartRemedyProtocol(chart, judgment, preferences)
+            : buildRemedyProtocol(judgment, preferences);
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "analyze_chart_topic") {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        topic = String(args?.topic || "") as JudgmentTopic,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        );
+      if (!JUDGMENT_TOPICS.includes(topic))
+        return rpcError(request.id, -32602, "Unsupported judgment topic");
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const parsed = birthInputSchema.safeParse({
+        ...args,
+        ...locationInput(located.location),
+        methodology: "parashari",
+        focus: topic === "relationships" ? "marriage" : topic,
+        birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+      });
+      if (!parsed.success)
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid judgment details",
+          parsed.error.flatten(),
+        );
+      const chart = await calculateChartCached(env, parsed.data),
+        judgment = await attachJudgmentCitations(
+          buildTopicJudgment(
+            chart,
+            topic,
+            typeof args?.asOfDate === "string"
+              ? args.asOfDate
+              : new Date().toISOString(),
+          ),
+          env?.DB,
+        ),
+        structuredContent = {
+          ...judgment,
+          sensitivity: analyzeJudgmentSensitivity(
+            parsed.data,
+            topic,
+            typeof args?.asOfDate === "string"
+              ? args.asOfDate
+              : new Date().toISOString(),
+          ),
+        };
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
     if (name === "consult_jyotishya") {
       const startedAt = Date.now(),
         args = request.params?.arguments as Record<string, unknown> | undefined,
@@ -3853,6 +5743,28 @@ async function handleMcp(
                 Number(b.requiredStrengthRatio) -
                 Number(a.requiredStrengthRatio),
             ),
+          question = String(args?.question || "").trim(),
+          topic = consultationTopic(question, parsed.data.focus),
+          range = consultationRange(asOf),
+          vargaAnalysis = topic ? synthesizeVargas(chart, topic) : null,
+          timingAnalysis: any = topic
+            ? fuseTiming(chart, topic, range.startIso, range.endIso)
+            : null,
+          lifeThemeAnalysis: any = detectLifeThemes(
+            chart,
+            range.startIso,
+            range.endIso,
+          ),
+          activeThemePeriod = lifeThemeAnalysis.periods.find(
+            (period: { startIso: string; endIso: string }) =>
+              Date.parse(period.startIso) <= Date.parse(range.startIso) &&
+              Date.parse(period.endIso) > Date.parse(range.startIso),
+          ),
+          completeReading = completeDomainReading(chart),
+          doshaAnalysis = calculateDoshas(chart),
+          jaiminiAnalysis = calculateJaimini(chart),
+          devataAnalysis = calculateDevataProfile(chart),
+          kpAnalysis = calculateKpPreview(chart),
           chartRef = `chart_${(
             await sha256(
               JSON.stringify([
@@ -3866,15 +5778,146 @@ async function handleMcp(
               ]),
             )
           ).slice(0, 20)}`,
+          judgmentTopic =
+            topic === "career" ||
+            topic === "education" ||
+            topic === "property" ||
+            topic === "spirituality"
+              ? topic
+              : topic === "marriage"
+                ? "relationships"
+                : null,
+          topicJudgment = judgmentTopic
+            ? await attachJudgmentCitations(
+                buildTopicJudgment(chart, judgmentTopic, asOf),
+                env?.DB,
+              )
+            : null;
+        const requestedMode = String(args?.readingMode || "auto"),
+          requestedProfileRef = String(args?.profileRef || "").trim();
+        if (requestedProfileRef && requestedProfileRef !== chartRef)
+          return rpcError(
+            request.id,
+            -32602,
+            "profileRef does not match these birth details or engine version; create a new full profile instead of reusing another person's context",
+          );
+        if (requestedMode === "follow-up" && !requestedProfileRef)
+          return rpcError(
+            request.id,
+            -32602,
+            "follow-up mode requires the profileRef returned by the first reading",
+          );
+        const isFollowUp =
+            requestedMode === "follow-up" ||
+            (requestedMode === "auto" && requestedProfileRef === chartRef),
           structuredContent = {
             schemaVersion: "sahadeva-consultation-1",
             chartRef,
-            responseProfile: detail,
+            responseProfile: isFollowUp ? "focused-follow-up" : "full-profile",
+            profileLifecycle: {
+              mode: isFollowUp ? "follow-up" : "first-reading",
+              profileRef: chartRef,
+              verifiedAgainstBirthData: true,
+              nextAction: isFollowUp
+                ? "Continue passing this profileRef with the same birth details for later focused questions."
+                : "Retain this profileRef. Pass it with the same birth details on later questions so the complete dossier is not repeated.",
+            },
+            profileCalculationManifest: isFollowUp
+              ? {
+                  status: "verified-existing-profile",
+                  profileRef: chartRef,
+                  focusedEnginesRun: [
+                    "question-intent",
+                    "relevant-varga-synthesis",
+                    "current-dasha",
+                    "timing-fusion",
+                    "contradiction-check",
+                  ],
+                }
+              : {
+                  status: "full-natal-dossier-calculated",
+                  calculatedFromBirthData: [
+                    "sidereal natal placements and houses",
+                    "Panchanga and Nakshatra anchors",
+                    "Shodashavarga divisional charts",
+                    "Vimshottari timeline and current sub-periods",
+                    "planetary dignities, combustion and retrogression",
+                    "Shadbala and planetary-state lineage",
+                    "Parashari Graha Drishti",
+                    "Ashtakavarga",
+                    "structural Yogas",
+                    "Doshas with cancellations and mitigations",
+                    "Jaimini structural anchors",
+                    "KP structural preview boundaries",
+                    "additional Dasha availability",
+                    "cross-Varga analysis for every major life domain",
+                    "natal-promise gates for education, career, wealth, marriage, property, children and spirituality",
+                    "current life-theme activation",
+                    "slow-transit and Dasha timing context for the focused topic",
+                    "birth-time uncertainty and boundary warnings",
+                  ],
+                  requiresAdditionalInput: [
+                    {
+                      workflow: "compatibility and relationship matching",
+                      requires: "the second person's verified birth details",
+                    },
+                    {
+                      workflow: "birth-time rectification",
+                      requires: "dated life events and a candidate time range",
+                    },
+                    {
+                      workflow: "Muhurta",
+                      requires: "activity, location and date range",
+                    },
+                    {
+                      workflow: "Varshaphal annual return",
+                      requires: "target year",
+                    },
+                    {
+                      workflow: "Prashna",
+                      requires:
+                        "a precise question and the server receipt time",
+                    },
+                  ],
+                  rule: "A workflow requiring missing external input is not guessed or represented as already calculated.",
+                },
             subject: {
               name: parsed.data.name,
               place: parsed.data.place,
-              question: String(args?.question || "").trim() || null,
+              question: question || null,
               focus: parsed.data.focus,
+            },
+            answerContract: {
+              userQuestion: String(args?.question || "").trim() || null,
+              instruction: isFollowUp
+                ? "This is a verified follow-up to an existing profile. Answer the exact question directly using consultationAnalysis, currentTiming, priorities, verification and the retained profile context. Do not repeat the whole-person dossier unless the user asks. Never invent missing profile facts."
+                : "This is the first reading. Give a deep whole-person dossier covering every domain in completeLifeReading, explain the calculation manifest and verification limits, then answer the user's exact question. Distinguish calculated facts from traditional interpretation. Never invent placements, dates, citations, remedies, medical claims or guaranteed events.",
+              evidenceOrder: [
+                "verification",
+                "completeLifeReading",
+                "consultationAnalysis",
+                "remediesAndPracticalSupport",
+                "priorities",
+                "currentTiming",
+                "measuredStrengths",
+                "anchors",
+                "confidence",
+              ],
+              responseShape: isFollowUp
+                ? [
+                    "direct answer",
+                    "strongest existing profile evidence",
+                    "new timing evidence when relevant",
+                    "contradictions and uncertainty",
+                    "one practical next step",
+                  ]
+                : [
+                    "whole-person executive overview",
+                    "education, work/business, money, relationships/marriage, health routines, home/family, children and spirituality",
+                    "direct answer to the initial question",
+                    "calculation coverage and verification limits",
+                    "optional low-risk practical supports",
+                  ],
             },
             anchors: {
               lagna: {
@@ -3903,6 +5946,227 @@ async function handleMcp(
                 ratio: item.requiredStrengthRatio,
                 avastha: item.balaadiAvastha,
               })),
+            consultationAnalysis: {
+              inferredTopic: topic,
+              judgment: topicJudgment
+                ? {
+                    schemaVersion: topicJudgment.schemaVersion,
+                    topic: topicJudgment.topic,
+                    conclusion: topicJudgment.conclusion,
+                    status: topicJudgment.status,
+                    score: topicJudgment.score,
+                    supportingEvidence: topicJudgment.supportingEvidence.slice(
+                      0,
+                      3,
+                    ),
+                    opposingEvidence: topicJudgment.opposingEvidence.slice(
+                      0,
+                      3,
+                    ),
+                    vargaConfirmation: {
+                      varga: topicJudgment.vargaConfirmation.varga,
+                      status: topicJudgment.vargaConfirmation.status,
+                    },
+                    timingActivation: topicJudgment.timingActivation,
+                    citations: topicJudgment.citations,
+                    unresolvedSourceKeys: topicJudgment.unresolvedSourceKeys,
+                    uncertainty: topicJudgment.uncertainty,
+                  }
+                : null,
+              enginesRun: [
+                "natal-chart",
+                "vimshottari",
+                "planetary-strengths",
+                "life-theme-synthesis",
+                ...(topic ? ["relevant-varga-synthesis", "timing-fusion"] : []),
+                "complete-life-domain-screen",
+                "dosha-and-cancellation-analysis",
+              ],
+              relevantVargas: vargaAnalysis,
+              timing: timingAnalysis
+                ? {
+                    schemaVersion: timingAnalysis.schemaVersion,
+                    topic: timingAnalysis.topic,
+                    promise: timingAnalysis.promise,
+                    windows: (timingAnalysis.windows || []).slice(0, 4),
+                    notice: timingAnalysis.notice || null,
+                  }
+                : null,
+              activeLifeThemes: activeThemePeriod
+                ? {
+                    mahadasha: activeThemePeriod.mahadasha,
+                    antardasha: activeThemePeriod.antardasha,
+                    startIso: activeThemePeriod.startIso,
+                    endIso: activeThemePeriod.endIso,
+                    themes: activeThemePeriod.themes.slice(0, 4),
+                  }
+                : null,
+              doshas: {
+                summary: doshaAnalysis.summary,
+                patterns: doshaAnalysis.patterns.map((pattern) => ({
+                  id: pattern.id,
+                  label: pattern.label,
+                  detected: pattern.detected,
+                  rawSeverity: pattern.rawSeverity,
+                  effectiveSeverity: pattern.severity,
+                  mitigations: pattern.cancellationsOrMitigations.map(
+                    (item) => item.evidence,
+                  ),
+                  sourceKey: pattern.sourceKey,
+                })),
+                rulebookStatus: doshaAnalysis.rulebook.reviewStatus,
+                safety: doshaAnalysis.safety,
+              },
+            },
+            completeLifeReading: isFollowUp ? null : completeReading,
+            advancedProfileAnchors: isFollowUp
+              ? null
+              : {
+                  jaimini: {
+                    status: jaiminiAnalysis.status,
+                    atmakaraka: jaiminiAnalysis.charaKarakas.sevenKaraka[0],
+                    karakamsha: jaiminiAnalysis.karakamsha,
+                    arudhaLagna: jaiminiAnalysis.arudhaPadas.arudhaLagna,
+                    upapadaLagna: jaiminiAnalysis.arudhaPadas.upapadaLagna,
+                    rulebookStatus: jaiminiAnalysis.rulebook.reviewStatus,
+                    devataProfile: devataAnalysis,
+                  },
+                  kp: {
+                    status: kpAnalysis.status,
+                    rulingPlanets: kpAnalysis.rulingPlanets,
+                    validationBoundaries: {
+                      ayanamsa: kpAnalysis.zodiac.kpAyanamsa.status,
+                      cusps: kpAnalysis.cusps.status,
+                    },
+                    rulebookStatus: kpAnalysis.rulebook.reviewStatus,
+                  },
+                  uncertainty: chart.advanced.uncertainty,
+                },
+            remediesAndPracticalSupport: isFollowUp
+              ? null
+              : {
+                  practicalSupports: [
+                    {
+                      id: "clear-decisions",
+                      label: "Written decision check",
+                      instruction:
+                        "Before a major commitment, write the facts, assumptions, alternatives, costs and review date. Use the chart as a reflection aid, not as the sole reason for acting.",
+                      burden: "minimal",
+                      optional: true,
+                      type: "practical-support",
+                    },
+                    {
+                      id: "steady-routine",
+                      label: "Sustainable daily discipline",
+                      instruction:
+                        "Choose one modest sleep, movement, study, budgeting or work routine that can be repeated safely for four weeks, then review its real-world effect.",
+                      burden: "minimal",
+                      optional: true,
+                      type: "practical-support",
+                    },
+                    {
+                      id: "reflection-or-prayer",
+                      label: "Voluntary reflection or prayer",
+                      instruction:
+                        "If it fits the person's beliefs, use a few quiet minutes of prayer, meditation or reflection before the next practical action. No astrological hour or purchase is required.",
+                      burden: "minimal",
+                      optional: true,
+                      type: "traditional-low-risk-practice",
+                    },
+                  ],
+                  traditionalRemedies: [],
+                  traditionalRemedyStatus:
+                    "No chart-specific mantra, gemstone, donation, ritual or planetary remedy is published until its source and rule have completed review.",
+                  sourceGroundedRemedyEngine: {
+                    tool: "analyze_remedies",
+                    status: "available-with-user-preferences",
+                    requiredPreferences: [
+                      "beliefMode",
+                      "maximumBurden",
+                      "maximumCost",
+                      "allowPrayer",
+                      "allowCharity",
+                    ],
+                    notice:
+                      "Call the dedicated tool before presenting chart-specific remedy candidates; the consultation does not assume the person's beliefs.",
+                  },
+                  prohibited: [
+                    "guaranteed remedies",
+                    "medical substitutes",
+                    "expensive gemstones or purchases",
+                    "fear-based ritual pressure",
+                  ],
+                },
+            verification: {
+              status: "completed",
+              checks: [
+                {
+                  id: "location",
+                  status: located.location.source ? "passed" : "unverified",
+                  evidence: `${located.location.label} · ${located.location.timezone} · ${located.location.latitude}, ${located.location.longitude}`,
+                },
+                {
+                  id: "cross-varga",
+                  status: vargaAnalysis
+                    ? vargaAnalysis.judgment === "mixed"
+                      ? "mixed"
+                      : "passed"
+                    : "not-applicable",
+                  evidence: vargaAnalysis
+                    ? `${vargaAnalysis.judgment}; score ${vargaAnalysis.score}/100`
+                    : "No single life-area topic was inferred",
+                },
+                {
+                  id: "natal-promise-before-timing",
+                  status: timingAnalysis
+                    ? timingAnalysis.promise.present
+                      ? "passed"
+                      : "limited"
+                    : "not-applicable",
+                  evidence: timingAnalysis
+                    ? `Promise score ${timingAnalysis.promise.score}/100; ${timingAnalysis.promise.contradictions.length} contradiction(s)`
+                    : "No topic-specific timing claim requested",
+                },
+                {
+                  id: "birth-time-sensitivity",
+                  status:
+                    parsed.data.birthTimeAccuracyMinutes <= 15
+                      ? "passed"
+                      : "caution",
+                  evidence: `Reported accuracy ±${parsed.data.birthTimeAccuracyMinutes} minutes`,
+                },
+                {
+                  id: "reviewed-textual-grounding",
+                  status: "unavailable",
+                  evidence:
+                    "Calculation evidence is present; reviewed classical passage retrieval is not currently deployed",
+                },
+              ],
+              contradictions: [
+                ...(timingAnalysis?.promise?.contradictions || []),
+                ...(vargaAnalysis?.judgment === "mixed"
+                  ? [
+                      "Relevant divisional charts give mixed structural confirmation",
+                    ]
+                  : []),
+              ],
+              rule: "Lead with agreement across independent factors. State mixed evidence plainly. Never convert an unreviewed rule or heuristic score into certainty.",
+            },
+            coverage: {
+              completeForQuestion: Boolean(topic || !question),
+              omittedBecauseNotApplicable: [
+                "compatibility requires a second person's birth details",
+                "rectification requires dated life events",
+                "muhurta requires an activity and date range",
+              ],
+              followUpNeeded: topic
+                ? []
+                : question
+                  ? [
+                      "The question did not map cleanly to a supported specialist topic; clarify the intended life area for full Varga and timing fusion.",
+                    ]
+                  : [],
+            },
             confidence: chart.advanced.guidance.confidence,
             meta: {
               calculationMs: Date.now() - startedAt,
@@ -3913,6 +6177,12 @@ async function handleMcp(
             safety: safetyEnvelope(),
           },
           textSummary = [
+            structuredContent.answerContract.instruction,
+            structuredContent.subject.question
+              ? `Question to answer: ${structuredContent.subject.question}`
+              : "Question to answer: general chart overview",
+            `Specialist topic: ${structuredContent.consultationAnalysis.inferredTopic || "general"}; engines: ${structuredContent.consultationAnalysis.enginesRun.join(", ")}`,
+            `Verification: ${structuredContent.verification.status}; contradictions: ${structuredContent.verification.contradictions.length}`,
             `${structuredContent.subject.name} · ${structuredContent.anchors.lagna.signName} Lagna · ${structuredContent.anchors.moon.nakshatra} Moon`,
             `Current period: ${current.mahadasha || "—"} / ${current.antardasha || "—"}`,
             ...priorities.map(
@@ -4666,7 +6936,9 @@ app.put("/api/me/conversation", async (c) => {
   const payload = Array.isArray(rawBody.threads)
     ? {
         threads: rawBody.threads.slice(0, 20).map((thread) => ({
-          id: String(thread.id || "").slice(0, 32) || crypto.randomUUID().slice(0, 8),
+          id:
+            String(thread.id || "").slice(0, 32) ||
+            crypto.randomUUID().slice(0, 8),
           title: String(thread.title || "").slice(0, 80),
           updatedAt: String(thread.updatedAt || "").slice(0, 40),
           messages: cleanMessages(thread.messages),
@@ -4771,7 +7043,10 @@ app.post("/api/me/share", async (c) => {
     .json<{ includeName?: boolean; expiresDays?: number }>()
     .catch(() => ({}) as { includeName?: boolean; expiresDays?: number });
   const active = await activePersonRow(c.env, user.id);
-  const profile = meParse(active?.profile_json) as Record<string, unknown> | null;
+  const profile = meParse(active?.profile_json) as Record<
+    string,
+    unknown
+  > | null;
   if (!profile?.date) return c.json({ error: "No active chart to share" }, 409);
   const token = [...crypto.getRandomValues(new Uint8Array(18))]
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -4785,7 +7060,9 @@ app.post("/api/me/share", async (c) => {
       await sha256(token),
       user.id,
       JSON.stringify(
-        body.includeName === false ? { ...profile, name: "Shared chart" } : profile,
+        body.includeName === false
+          ? { ...profile, name: "Shared chart" }
+          : profile,
       ),
       body.includeName === false ? 0 : 1,
       new Date(Date.now() + days * 86400000).toISOString(),
@@ -4881,7 +7158,10 @@ app.get("/api/push/brief", async (c) => {
   const user = await sessionUser(c.env, c.req.raw);
   if (!user) return c.json({ error: "Sign in required" }, 401);
   const active = await activePersonRow(c.env, user.id);
-  const profile = meParse(active?.profile_json) as Record<string, unknown> | null;
+  const profile = meParse(active?.profile_json) as Record<
+    string,
+    unknown
+  > | null;
   const parsed = birthInputSchema.safeParse({
     ...profile,
     methodology: "parashari",
@@ -4891,11 +7171,17 @@ app.get("/api/push/brief", async (c) => {
     const natal = await calculateChartCached(c.env, parsed.data);
     const dayIso = (offset: number) =>
       new Date(
-        Date.now() + (parsed.data.timezoneOffset * 3600 + offset * 86400) * 1000,
+        Date.now() +
+          (parsed.data.timezoneOffset * 3600 + offset * 86400) * 1000,
       )
         .toISOString()
         .slice(0, 10);
-    const base = { ...parsed.data, name: "Today", time: "12:00", birthTimeAccuracyMinutes: 0 };
+    const base = {
+      ...parsed.data,
+      name: "Today",
+      time: "12:00",
+      birthTimeAccuracyMinutes: 0,
+    };
     const daily = buildDailyPanchanga(
       calculateChart({ ...base, date: dayIso(0) }),
       calculateChart({ ...base, date: dayIso(1) }),
@@ -5260,6 +7546,915 @@ async function knowledgeStatus(db: D1Database) {
 app.get("/api/knowledge/status", async (c) =>
   c.json(await knowledgeStatus(c.env.DB)),
 );
+
+async function requireActiveReviewer(c: Context<{ Bindings: Env }>) {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const reviewer = await c.env.DB.prepare(
+    "SELECT id,display_name,languages_json,traditions_json,credentials FROM reviewers WHERE id=? AND active=1",
+  )
+    .bind(user.id)
+    .first()
+    .catch(() => null);
+  return reviewer || c.json({ error: "Active reviewer access required" }, 403);
+}
+
+app.get("/api/review/queue", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const module = c.req.query("module") || null,
+    limit = Math.min(200, Math.max(1, Number(c.req.query("limit") || 100))),
+    result = module
+      ? await c.env.DB.prepare(
+          "SELECT * FROM rule_review_queue WHERE module=? ORDER BY publishable,next_action,source_key LIMIT ?",
+        )
+          .bind(module, limit)
+          .all()
+      : await c.env.DB.prepare(
+          "SELECT * FROM rule_review_queue ORDER BY publishable,next_action,module,source_key LIMIT ?",
+        )
+          .bind(limit)
+          .all();
+  return c.json({
+    reviewer,
+    items: result.results || [],
+    publicationRule:
+      "Passage and rule approved, two distinct approvals, no blocking review, no open contradiction, and permitted harm class.",
+  });
+});
+
+app.get("/api/review/rules/:id/context", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const id = c.req.param("id"),
+    rule = await c.env.DB.prepare(
+      "SELECT r.id,r.tradition,r.condition_json,r.interpretation,r.confidence,r.exceptions_json,r.review_status,r.revision,r.dsl_version,r.effect,r.weight,r.harm_class,p.id passage_id,p.source_id,p.locator,p.original_text,p.transliteration,p.literal_translation,p.interpretive_translation,p.review_status passage_review_status,p.revision passage_revision,p.page_start,p.page_end,p.parser_provenance_json,p.ocr_quality,p.display_rights,s.title source_title,s.rights_status source_rights FROM rules r JOIN passages p ON p.id=r.passage_id JOIN sources s ON s.id=p.source_id WHERE r.id=?",
+    )
+      .bind(id)
+      .first<Record<string, unknown>>();
+  if (!rule) return c.json({ error: "Unknown rule" }, 404);
+  const [ruleReviews, passageReviews, examples, contradictions] =
+    await Promise.all([
+      c.env.DB.prepare(
+        "SELECT rr.reviewer_id,rv.display_name,rr.decision,rr.notes,rr.created_at FROM rule_reviews rr JOIN reviewers rv ON rv.id=rr.reviewer_id WHERE rr.rule_id=? ORDER BY rr.created_at",
+      )
+        .bind(id)
+        .all(),
+      c.env.DB.prepare(
+        "SELECT pr.reviewer_id,rv.display_name,pr.review_kind,pr.decision,pr.notes,pr.created_at FROM passage_reviews pr JOIN reviewers rv ON rv.id=pr.reviewer_id WHERE pr.passage_id=? ORDER BY pr.review_kind,pr.created_at",
+      )
+        .bind(rule.passage_id)
+        .all(),
+      c.env.DB.prepare(
+        "SELECT re.*, (SELECT COUNT(DISTINCT reviewer_id) FROM rule_example_reviews WHERE example_id=re.id AND decision='approve') approvals,(SELECT COUNT(*) FROM rule_example_reviews WHERE example_id=re.id AND decision IN ('reject','request_changes')) blockers FROM rule_examples re WHERE re.rule_id=? ORDER BY re.kind,re.id",
+      )
+        .bind(id)
+        .all(),
+      c.env.DB.prepare(
+        "SELECT * FROM contradictions WHERE first_rule_id=? OR second_rule_id=? ORDER BY created_at",
+      )
+        .bind(id, id)
+        .all(),
+    ]);
+  let parserProvenance: unknown = {};
+  try {
+    parserProvenance = JSON.parse(String(rule.parser_provenance_json || "{}"));
+  } catch {
+    parserProvenance = { invalid: true };
+  }
+  return c.json({
+    reviewer,
+    rule: {
+      id: rule.id,
+      tradition: rule.tradition,
+      condition: JSON.parse(String(rule.condition_json)),
+      interpretation: rule.interpretation,
+      confidence: rule.confidence,
+      exceptions: JSON.parse(String(rule.exceptions_json)),
+      reviewStatus: rule.review_status,
+      revision: rule.revision,
+      dslVersion: rule.dsl_version,
+      effect: rule.effect,
+      weight: rule.weight,
+      harmClass: rule.harm_class,
+    },
+    passage: {
+      id: rule.passage_id,
+      sourceId: rule.source_id,
+      sourceTitle: rule.source_title,
+      sourceRights: rule.source_rights,
+      locator: rule.locator,
+      originalText: rule.original_text,
+      transliteration: rule.transliteration,
+      literalTranslation: rule.literal_translation,
+      interpretiveTranslation: rule.interpretive_translation,
+      reviewStatus: rule.passage_review_status,
+      revision: rule.passage_revision,
+      pageStart: rule.page_start,
+      pageEnd: rule.page_end,
+      parserProvenance,
+      ocrQuality: rule.ocr_quality,
+      displayRights: rule.display_rights,
+    },
+    reviews: {
+      rule: ruleReviews.results || [],
+      passage: passageReviews.results || [],
+    },
+    examples: examples.results || [],
+    contradictions: contradictions.results || [],
+    publicationRule:
+      "Exact passage text, translation/practice/rights clearance, approved regression fixtures, two rule approvals, and no open contradiction.",
+  });
+});
+
+app.get("/api/review/book-coverage", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const sourceId = c.req.query("sourceId") || null,
+    domain = c.req.query("domain") || null,
+    where = [
+      sourceId ? "source_id=?" : null,
+      domain ? "domains_json LIKE ?" : null,
+    ]
+      .filter(Boolean)
+      .join(" AND "),
+    bindings = [
+      ...(sourceId ? [sourceId] : []),
+      ...(domain ? [`%\"${domain.replaceAll('"', "")}\"%`] : []),
+    ],
+    rows = await (
+      where
+        ? c.env.DB.prepare(
+            `SELECT * FROM book_rule_coverage WHERE ${where} ORDER BY source_id,locator LIMIT 500`,
+          ).bind(...bindings)
+        : c.env.DB.prepare(
+            "SELECT * FROM book_rule_coverage ORDER BY source_id,locator LIMIT 500",
+          )
+    ).all(),
+    summary = await c.env.DB.prepare(
+      "SELECT COUNT(*) sections,SUM(eligibility='eligible') eligible,SUM(eligibility='restricted') restricted,SUM(classification_review_status='approved') classifications_approved,SUM(linked_rules>0) linked,SUM(approved_rules>0) rule_approved,SUM(approved_examples>0 AND approved_counterexamples>0) regression_complete FROM book_rule_coverage",
+    ).first();
+  return c.json({
+    reviewer,
+    summary,
+    items: rows.results || [],
+    completionRule:
+      "Eligible section classification approved, linked rule approved, and approved example plus counterexample required.",
+  });
+});
+
+app.post("/api/review/runtime-book-rules/sync", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const sectionIds = (sourceKey: string) =>
+      sourceKey.includes("L1228")
+        ? ["book-bhasin-sarvarth-chintamani:L1228"]
+        : sourceKey.includes("L4265")
+          ? ["book-larsen-fundamentals:L4265"]
+          : sourceKey.includes("L4170")
+            ? [
+                "book-larsen-fundamentals:L4120",
+                "book-larsen-fundamentals:L4217",
+              ]
+            : sourceKey.includes("L6434")
+              ? ["book-bhasin-sarvarth-chintamani:L6434"]
+              : sourceKey.includes("L5541")
+                ? ["book-bhasin-sarvarth-chintamani:L5541"]
+              : sourceKey.includes("L1093")
+                ? ["book-larsen-fundamentals:L1093"]
+              : sourceKey.includes("L5002")
+                ? ["book-larsen-fundamentals:L5002"]
+                : sourceKey.includes("L5020")
+                  ? ["book-larsen-fundamentals:L5020"]
+                  : sourceKey.includes("L5062")
+                    ? ["book-larsen-fundamentals:L5062"]
+                    : [],
+    passages = new Map<string, { id: string; sourceId: string }>(),
+    statements = [] as D1PreparedStatement[];
+  for (const rule of BOOK_RULE_CATALOG) {
+    const sourceId = rule.sourceKey.split(":L")[0],
+      passageId = `runtime-passage:${rule.sourceKey.replace(/[^a-zA-Z0-9-]+/g, "-")}`;
+    passages.set(rule.sourceKey, { id: passageId, sourceId });
+  }
+  for (const [locator, passage] of passages)
+    statements.push(
+      c.env.DB.prepare(
+        "INSERT OR IGNORE INTO passages(id,source_id,locator,original_text,interpretive_translation,review_status,revision,parser_provenance_json,ocr_quality,display_rights) VALUES(?,?,?,?,?,'draft',1,?,'unknown','internal-only')",
+      ).bind(
+        passage.id,
+        passage.sourceId,
+        locator,
+        `Restricted source text must be imported from the registered local corpus at ${locator} before passage approval.`,
+        "Runtime rule staging record; this is not a source quotation.",
+        JSON.stringify({
+          catalog: BOOK_RULE_CATALOG_META.schemaVersion,
+          requiresExactTextImport: true,
+        }),
+      ),
+    );
+  for (const rule of BOOK_RULE_CATALOG) {
+    const passageId = passages.get(rule.sourceKey)!.id,
+      bindingKey = `runtime-book:${rule.id}`;
+    statements.push(
+      c.env.DB.prepare(
+        "INSERT OR IGNORE INTO rules(id,passage_id,tradition,condition_json,interpretation,confidence,exceptions_json,review_status,revision,dsl_version,effect,weight,harm_class) VALUES(?,?,?,?,?,'textual',?,'draft',?,'sahadeva-rule-dsl-1',?,?,?)",
+      ).bind(
+        rule.id,
+        passageId,
+        rule.tradition,
+        JSON.stringify(rule.condition),
+        rule.interpretation,
+        JSON.stringify(rule.exceptions),
+        rule.version,
+        rule.effect,
+        rule.weight,
+        rule.harmClass,
+      ),
+    );
+    statements.push(
+      c.env.DB.prepare(
+        "INSERT INTO rule_bindings(source_key,module,claim_summary,rule_id,implementation_status) VALUES(?,?,?,?, 'active') ON CONFLICT(source_key) DO UPDATE SET module=excluded.module,claim_summary=excluded.claim_summary,rule_id=COALESCE(rule_bindings.rule_id,excluded.rule_id),implementation_status='active'",
+      ).bind(bindingKey, rule.topic, rule.interpretation, rule.id),
+    );
+    for (const sectionId of sectionIds(rule.sourceKey))
+      statements.push(
+        c.env.DB.prepare(
+          "INSERT OR IGNORE INTO section_rule_links(section_id,rule_id,relationship) VALUES(?,?,?)",
+        ).bind(
+          sectionId,
+          rule.id,
+          rule.topic === "yoga-cancellation" ? "cancellation" : "base-rule",
+        ),
+      );
+  }
+  for (const fixture of bookRuleFixtures.fixtures)
+    statements.push(
+      c.env.DB.prepare(
+        "INSERT OR IGNORE INTO rule_examples(id,rule_id,kind,chart_input_json,as_of_iso,expected_match,expected_exception_ids_json,source_locator,review_status) VALUES(?,?,?,?,?,?,?,?,'draft')",
+      ).bind(
+        fixture.id,
+        fixture.ruleId,
+        fixture.kind,
+        JSON.stringify(fixture.chart),
+        fixture.asOfIso,
+        fixture.expectedMatch ? 1 : 0,
+        JSON.stringify(fixture.expectedExceptionIds),
+        fixture.sourceLocator,
+      ),
+    );
+  statements.push(
+    auditReview(
+      c.env.DB,
+      reviewActorId(reviewer),
+      "runtime-book-rules.synced",
+      "rule_catalog",
+      BOOK_RULE_CATALOG_META.schemaVersion,
+      {
+        rules: BOOK_RULE_CATALOG.length,
+        fixtures: bookRuleFixtures.fixtures.length,
+        passages: passages.size,
+      },
+    ),
+  );
+  for (let index = 0; index < statements.length; index += 50)
+    await c.env.DB.batch(statements.slice(index, index + 50));
+  return c.json(
+    {
+      schemaVersion: BOOK_RULE_CATALOG_META.schemaVersion,
+      staged: {
+        passages: passages.size,
+        rules: BOOK_RULE_CATALOG.length,
+        fixtures: bookRuleFixtures.fixtures.length,
+      },
+      reviewStatus: "draft",
+      publicationBoundary:
+        "Restricted source text must be imported and approved; rules and fixtures each require their configured independent reviews.",
+    },
+    201,
+  );
+});
+
+app.post("/api/review/book-sections/:id/classification", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const body = await c.req
+      .json<{
+        domains?: unknown;
+        eligibility?: unknown;
+        exclusionReason?: unknown;
+        decision?: unknown;
+      }>()
+      .catch(() => null),
+    domains = Array.isArray(body?.domains)
+      ? body.domains
+          .filter(
+            (value): value is string =>
+              typeof value === "string" && /^[a-z][a-z-]{1,40}$/.test(value),
+          )
+          .slice(0, 20)
+      : [],
+    eligibility = String(body?.eligibility || ""),
+    decision = String(body?.decision || "");
+  if (
+    !domains.length ||
+    !["unreviewed", "eligible", "restricted", "excluded"].includes(
+      eligibility,
+    ) ||
+    !["draft", "approved", "rejected"].includes(decision)
+  )
+    return c.json(
+      {
+        error:
+          "Valid domains, eligibility and classification decision are required",
+      },
+      400,
+    );
+  const id = c.req.param("id"),
+    existing = await c.env.DB.prepare(
+      "SELECT id FROM source_sections WHERE id=?",
+    )
+      .bind(id)
+      .first();
+  if (!existing) return c.json({ error: "Unknown book section" }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "UPDATE source_sections SET domains_json=?,eligibility=?,exclusion_reason=?,classification_review_status=? WHERE id=?",
+    ).bind(
+      JSON.stringify(domains),
+      eligibility,
+      typeof body?.exclusionReason === "string"
+        ? body.exclusionReason.slice(0, 1000)
+        : null,
+      decision,
+      id,
+    ),
+    auditReview(
+      c.env.DB,
+      reviewActorId(reviewer),
+      "book-section.classified",
+      "source_section",
+      id,
+      { domains, eligibility, decision },
+    ),
+  ]);
+  return c.json({
+    id,
+    domains,
+    eligibility,
+    classificationReviewStatus: decision,
+  });
+});
+
+app.post("/api/review/book-sections/:id/rules/:ruleId", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const relationship = String(
+      (await c.req.json<{ relationship?: unknown }>().catch(() => null))
+        ?.relationship || "",
+    ),
+    allowed = [
+      "definition",
+      "base-rule",
+      "exception",
+      "cancellation",
+      "timing",
+      "remedy",
+      "worked-example",
+      "contradiction",
+    ];
+  if (!allowed.includes(relationship))
+    return c.json({ error: "Unsupported section-rule relationship" }, 400);
+  const sectionId = c.req.param("id"),
+    ruleId = c.req.param("ruleId"),
+    found = await c.env.DB.prepare(
+      "SELECT (SELECT COUNT(*) FROM source_sections WHERE id=?) sections,(SELECT COUNT(*) FROM rules WHERE id=?) rules",
+    )
+      .bind(sectionId, ruleId)
+      .first<{ sections: number; rules: number }>();
+  if (!found?.sections || !found.rules)
+    return c.json({ error: "Unknown section or rule" }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT OR IGNORE INTO section_rule_links(section_id,rule_id,relationship) VALUES(?,?,?)",
+    ).bind(sectionId, ruleId, relationship),
+    auditReview(
+      c.env.DB,
+      reviewActorId(reviewer),
+      "book-section.rule-linked",
+      "source_section",
+      sectionId,
+      { ruleId, relationship },
+    ),
+  ]);
+  return c.json({ sectionId, ruleId, relationship }, 201);
+});
+
+app.post("/api/review/rules/validate", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const body = await c.req
+      .json<{ rule?: unknown; chart?: unknown; asOfDate?: string }>()
+      .catch(() => null),
+    rule = executableRuleSchema.safeParse(body?.rule),
+    chartInput = birthInputSchema.safeParse(body?.chart);
+  if (!body || !rule.success || !chartInput.success)
+    return c.json(
+      {
+        error: "Invalid rule or chart",
+        ruleIssues: rule.success ? null : rule.error.flatten(),
+        chartIssues: chartInput.success ? null : chartInput.error.flatten(),
+      },
+      400,
+    );
+  return c.json({
+    reviewer,
+    valid: true,
+    execution: executeRule(
+      calculateChart(chartInput.data),
+      rule.data,
+      body.asOfDate || new Date().toISOString(),
+    ),
+    notice: "Validation does not approve or publish the rule.",
+  });
+});
+
+const reviewActorId = (reviewer: unknown) =>
+  String((reviewer as { id?: unknown }).id || "");
+const auditReview = (
+  db: D1Database,
+  actorId: string,
+  action: string,
+  objectType: string,
+  objectId: string,
+  metadata: unknown = {},
+) =>
+  db
+    .prepare(
+      "INSERT INTO audit_events(actor_id,action,object_type,object_id,metadata_json) VALUES(?,?,?,?,?)",
+    )
+    .bind(actorId, action, objectType, objectId, JSON.stringify(metadata));
+
+app.post("/api/review/passages", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const parsed = passageDraftSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid passage", issues: parsed.error.flatten() },
+      400,
+    );
+  const value = parsed.data;
+  if (value.originalText.startsWith("Restricted source text must be imported"))
+    return c.json(
+      {
+        error:
+          "Replace the staged placeholder with exact internal source text before saving the passage",
+      },
+      409,
+    );
+  if (value.parserProvenance.requiresExactTextImport === true)
+    return c.json(
+      {
+        error:
+          "Clear the staged-import flag only after exact source text has been entered",
+      },
+      409,
+    );
+  const source = await c.env.DB.prepare(
+    "SELECT rights_status FROM sources WHERE id=?",
+  )
+    .bind(value.sourceId)
+    .first<{ rights_status: string }>();
+  if (!source) return c.json({ error: "Unknown source" }, 404);
+  const rightsError = enforceDisplayRights(
+    source.rights_status,
+    value.displayRights,
+    value.originalText,
+  );
+  if (rightsError) return c.json({ error: rightsError }, 400);
+  const existing = await c.env.DB.prepare(
+      "SELECT revision FROM passages WHERE id=?",
+    )
+      .bind(value.id)
+      .first<{ revision: number }>(),
+    revision = (existing?.revision || 0) + 1;
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO passages(id,source_id,locator,original_text,transliteration,literal_translation,interpretive_translation,review_status,revision,page_start,page_end,parser_provenance_json,ocr_quality,display_rights) VALUES(?,?,?,?,?,?,?,'draft',?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET source_id=excluded.source_id,locator=excluded.locator,original_text=excluded.original_text,transliteration=excluded.transliteration,literal_translation=excluded.literal_translation,interpretive_translation=excluded.interpretive_translation,review_status='draft',revision=excluded.revision,page_start=excluded.page_start,page_end=excluded.page_end,parser_provenance_json=excluded.parser_provenance_json,ocr_quality=excluded.ocr_quality,display_rights=excluded.display_rights",
+    ).bind(
+      value.id,
+      value.sourceId,
+      value.locator,
+      value.originalText,
+      value.transliteration ?? null,
+      value.literalTranslation ?? null,
+      value.interpretiveTranslation ?? null,
+      revision,
+      value.pageStart ?? null,
+      value.pageEnd ?? null,
+      JSON.stringify(value.parserProvenance),
+      value.ocrQuality,
+      value.displayRights,
+    ),
+    auditReview(
+      c.env.DB,
+      reviewActorId(reviewer),
+      existing ? "passage.revised" : "passage.created",
+      "passage",
+      value.id,
+      {
+        revision,
+        sourceId: value.sourceId,
+        displayRights: value.displayRights,
+      },
+    ),
+  ]);
+  return c.json(
+    {
+      id: value.id,
+      revision,
+      reviewStatus: "draft",
+      displayRights: value.displayRights,
+    },
+    existing ? 200 : 201,
+  );
+});
+
+app.post("/api/review/passages/:id/decisions", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const parsed = passageReviewSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid passage review", issues: parsed.error.flatten() },
+      400,
+    );
+  const id = c.req.param("id"),
+    actor = reviewActorId(reviewer),
+    v = parsed.data,
+    exists = await c.env.DB.prepare(
+      "SELECT id,parser_provenance_json FROM passages WHERE id=?",
+    )
+      .bind(id)
+      .first<{ id: string; parser_provenance_json: string }>();
+  if (!exists) return c.json({ error: "Unknown passage" }, 404);
+  let provenance: Record<string, unknown> = {};
+  try {
+    provenance = JSON.parse(exists.parser_provenance_json || "{}");
+  } catch {
+    provenance = { invalid: true };
+  }
+  if (v.decision === "approve" && provenance.requiresExactTextImport === true)
+    return c.json(
+      {
+        error:
+          "Exact restricted source text must be imported through the passage editor before this staged passage can be approved",
+      },
+      409,
+    );
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO passage_reviews(passage_id,reviewer_id,review_kind,decision,notes) VALUES(?,?,?,?,?) ON CONFLICT(passage_id,reviewer_id,review_kind) DO UPDATE SET decision=excluded.decision,notes=excluded.notes,created_at=CURRENT_TIMESTAMP",
+    ).bind(id, actor, v.reviewKind, v.decision, v.notes || null),
+    auditReview(c.env.DB, actor, "passage.reviewed", "passage", id, v),
+  ]);
+  const counts = await c.env.DB.prepare(
+      "SELECT review_kind,SUM(decision='approve') approvals,SUM(decision IN ('reject','request_changes')) blockers FROM passage_reviews WHERE passage_id=? GROUP BY review_kind",
+    )
+      .bind(id)
+      .all(),
+    rows = (counts.results || []) as Array<{
+      review_kind: string;
+      approvals: number;
+      blockers: number;
+    }>,
+    approved =
+      ["translation", "practice", "rights"].every((kind) =>
+        rows.some(
+          (row) =>
+            row.review_kind === kind &&
+            Number(row.approvals) >= 1 &&
+            Number(row.blockers) === 0,
+        ),
+      ) && rows.every((row) => Number(row.blockers) === 0);
+  await c.env.DB.prepare("UPDATE passages SET review_status=? WHERE id=?")
+    .bind(approved ? "approved" : "draft", id)
+    .run();
+  return c.json({
+    id,
+    reviews: rows,
+    reviewStatus: approved ? "approved" : "draft",
+    publicationGate: {
+      approved,
+      requirements: [
+        "translation approval",
+        "practice approval",
+        "rights approval",
+        "no blocking review",
+      ],
+    },
+  });
+});
+
+app.post("/api/review/rules", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const parsed = ruleDraftSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid rule", issues: parsed.error.flatten() },
+      400,
+    );
+  const { rule, passageId, confidence } = parsed.data,
+    actor = reviewActorId(reviewer),
+    existing = await c.env.DB.prepare("SELECT revision FROM rules WHERE id=?")
+      .bind(rule.id)
+      .first<{ revision: number }>(),
+    revision = (existing?.revision || 0) + 1;
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO rules(id,passage_id,tradition,condition_json,interpretation,confidence,exceptions_json,review_status,revision,dsl_version,effect,weight,harm_class) VALUES(?,?,?,?,?,?,?,'draft',?,'sahadeva-rule-dsl-1',?,?,?) ON CONFLICT(id) DO UPDATE SET passage_id=excluded.passage_id,tradition=excluded.tradition,condition_json=excluded.condition_json,interpretation=excluded.interpretation,confidence=excluded.confidence,exceptions_json=excluded.exceptions_json,review_status='draft',revision=excluded.revision,effect=excluded.effect,weight=excluded.weight,harm_class=excluded.harm_class",
+    ).bind(
+      rule.id,
+      passageId,
+      rule.tradition,
+      JSON.stringify(rule.condition),
+      rule.interpretation,
+      confidence,
+      JSON.stringify(rule.exceptions),
+      revision,
+      rule.effect,
+      rule.weight,
+      rule.harmClass,
+    ),
+    c.env.DB.prepare(
+      "UPDATE rule_bindings SET rule_id=? WHERE source_key=?",
+    ).bind(rule.id, rule.sourceKey),
+    auditReview(
+      c.env.DB,
+      actor,
+      existing ? "rule.revised" : "rule.created",
+      "rule",
+      rule.id,
+      { revision, sourceKey: rule.sourceKey },
+    ),
+  ]);
+  return c.json(
+    { id: rule.id, revision, reviewStatus: "draft", sourceKey: rule.sourceKey },
+    existing ? 200 : 201,
+  );
+});
+
+app.post("/api/review/rules/:id/examples", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const raw = {
+      ...(await c.req.json().catch(() => ({}))),
+      ruleId: c.req.param("id"),
+    },
+    parsed = ruleExampleDraftSchema.safeParse(raw);
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid example", issues: parsed.error.flatten() },
+      400,
+    );
+  const v = parsed.data,
+    chart = birthInputSchema.safeParse(v.chart);
+  if (!chart.success)
+    return c.json(
+      { error: "Invalid example chart", issues: chart.error.flatten() },
+      400,
+    );
+  const row = await c.env.DB.prepare(
+    "SELECT r.*,rb.source_key FROM rules r LEFT JOIN rule_bindings rb ON rb.rule_id=r.id WHERE r.id=?",
+  )
+    .bind(v.ruleId)
+    .first<Record<string, unknown>>();
+  if (!row) return c.json({ error: "Unknown rule" }, 404);
+  const executable = {
+      id: row.id,
+      version: row.revision,
+      sourceKey: row.source_key || v.ruleId,
+      tradition: row.tradition,
+      topic: String(row.source_key || "general").split(":")[1] || "general",
+      effect: row.effect,
+      weight: row.weight,
+      condition: JSON.parse(String(row.condition_json)),
+      exceptions: JSON.parse(String(row.exceptions_json)),
+      interpretation: row.interpretation,
+      harmClass: row.harm_class,
+      reviewStatus: row.review_status,
+    },
+    execution = executeRule(
+      calculateChart(chart.data),
+      executable,
+      v.asOfIso || new Date().toISOString(),
+    ),
+    replayPassed =
+      execution.matched === v.expectedMatch &&
+      v.expectedExceptionIds.every((id) =>
+        execution.appliedExceptions.some((item) => item.id === id),
+      );
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO rule_examples(id,rule_id,kind,chart_input_json,as_of_iso,expected_match,expected_exception_ids_json,source_locator,review_status) VALUES(?,?,?,?,?,?,?,?,'draft') ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,chart_input_json=excluded.chart_input_json,as_of_iso=excluded.as_of_iso,expected_match=excluded.expected_match,expected_exception_ids_json=excluded.expected_exception_ids_json,source_locator=excluded.source_locator,review_status='draft'",
+    ).bind(
+      v.id,
+      v.ruleId,
+      v.kind,
+      JSON.stringify(chart.data),
+      v.asOfIso ?? null,
+      v.expectedMatch ? 1 : 0,
+      JSON.stringify(v.expectedExceptionIds),
+      v.sourceLocator ?? null,
+    ),
+    auditReview(
+      c.env.DB,
+      reviewActorId(reviewer),
+      "rule-example.replayed",
+      "rule_example",
+      v.id,
+      { ruleId: v.ruleId, replayPassed },
+    ),
+  ]);
+  return c.json(
+    { id: v.id, replayPassed, execution },
+    replayPassed ? 201 : 409,
+  );
+});
+
+app.post("/api/review/rule-examples/:id/decisions", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const parsed = reviewDecisionSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      {
+        error: "Invalid example review decision",
+        issues: parsed.error.flatten(),
+      },
+      400,
+    );
+  const id = c.req.param("id"),
+    actor = reviewActorId(reviewer),
+    v = parsed.data,
+    example = await c.env.DB.prepare("SELECT id FROM rule_examples WHERE id=?")
+      .bind(id)
+      .first();
+  if (!example) return c.json({ error: "Unknown rule example" }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO rule_example_reviews(example_id,reviewer_id,decision,notes) VALUES(?,?,?,?) ON CONFLICT(example_id,reviewer_id) DO UPDATE SET decision=excluded.decision,notes=excluded.notes,created_at=CURRENT_TIMESTAMP",
+    ).bind(id, actor, v.decision, v.notes || null),
+    auditReview(
+      c.env.DB,
+      actor,
+      "rule-example.reviewed",
+      "rule_example",
+      id,
+      v,
+    ),
+  ]);
+  const gate = await c.env.DB.prepare(
+      "SELECT COUNT(DISTINCT CASE WHEN decision='approve' THEN reviewer_id END) approvals,SUM(decision IN ('reject','request_changes')) blockers FROM rule_example_reviews WHERE example_id=?",
+    )
+      .bind(id)
+      .first<{ approvals: number; blockers: number }>(),
+    approved =
+      Number(gate?.approvals || 0) >= 2 && Number(gate?.blockers || 0) === 0;
+  if (approved)
+    await c.env.DB.prepare(
+      "UPDATE rule_examples SET review_status='approved' WHERE id=?",
+    )
+      .bind(id)
+      .run();
+  else
+    await c.env.DB.prepare(
+      "UPDATE rule_examples SET review_status='draft' WHERE id=?",
+    )
+      .bind(id)
+      .run();
+  return c.json({
+    id,
+    approvals: Number(gate?.approvals || 0),
+    blockers: Number(gate?.blockers || 0),
+    reviewStatus: approved ? "approved" : "draft",
+    publishable: approved,
+  });
+});
+
+app.post("/api/review/rules/:id/decisions", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const parsed = reviewDecisionSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid review decision", issues: parsed.error.flatten() },
+      400,
+    );
+  const id = c.req.param("id"),
+    actor = reviewActorId(reviewer),
+    v = parsed.data,
+    exists = await c.env.DB.prepare("SELECT id FROM rules WHERE id=?")
+      .bind(id)
+      .first();
+  if (!exists) return c.json({ error: "Unknown rule" }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO rule_reviews(rule_id,reviewer_id,decision,notes) VALUES(?,?,?,?) ON CONFLICT(rule_id,reviewer_id) DO UPDATE SET decision=excluded.decision,notes=excluded.notes,created_at=CURRENT_TIMESTAMP",
+    ).bind(id, actor, v.decision, v.notes || null),
+    auditReview(c.env.DB, actor, "rule.reviewed", "rule", id, v),
+  ]);
+  const counts = await c.env.DB.prepare(
+      "SELECT COUNT(DISTINCT CASE WHEN decision='approve' THEN reviewer_id END) approvals,SUM(decision IN ('reject','request_changes')) blockers FROM rule_reviews WHERE rule_id=?",
+    )
+      .bind(id)
+      .first<{ approvals: number; blockers: number }>(),
+    approved =
+      Number(counts?.approvals || 0) >= 2 &&
+      Number(counts?.blockers || 0) === 0;
+  await c.env.DB.prepare("UPDATE rules SET review_status=? WHERE id=?")
+    .bind(approved ? "approved" : "draft", id)
+    .run();
+  const gate = await c.env.DB.prepare(
+    "SELECT CASE WHEN pr.id IS NULL THEN 0 ELSE 1 END publishable FROM rules r LEFT JOIN publishable_rules pr ON pr.id=r.id WHERE r.id=?",
+  )
+    .bind(id)
+    .first();
+  return c.json({
+    id,
+    approvals: Number(counts?.approvals || 0),
+    blockers: Number(counts?.blockers || 0),
+    reviewStatus: approved ? "approved" : "draft",
+    publishable: Number(gate?.publishable || 0),
+  });
+});
+
+app.post("/api/review/contradictions", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const parsed = contradictionDraftSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid contradiction", issues: parsed.error.flatten() },
+      400,
+    );
+  const v = parsed.data;
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO contradictions(id,first_rule_id,second_rule_id,description) VALUES(?,?,?,?)",
+    ).bind(v.id, v.firstRuleId, v.secondRuleId, v.description),
+    auditReview(
+      c.env.DB,
+      reviewActorId(reviewer),
+      "contradiction.created",
+      "contradiction",
+      v.id,
+      v,
+    ),
+  ]);
+  return c.json({ id: v.id, status: "open" }, 201);
+});
+app.post("/api/review/contradictions/:id/resolve", async (c) => {
+  const reviewer = await requireActiveReviewer(c);
+  if (reviewer instanceof Response) return reviewer;
+  const parsed = contradictionResolutionSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid resolution", issues: parsed.error.flatten() },
+      400,
+    );
+  const id = c.req.param("id"),
+    v = parsed.data;
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "UPDATE contradictions SET resolution_status=?,resolution_notes=? WHERE id=?",
+    ).bind(v.status, v.notes, id),
+    auditReview(
+      c.env.DB,
+      reviewActorId(reviewer),
+      "contradiction.resolved",
+      "contradiction",
+      id,
+      v,
+    ),
+  ]);
+  return c.json({ id, ...v });
+});
 
 app.post("/api/keys", async (c) => {
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
@@ -5704,6 +8899,423 @@ app.post("/api/chart", async (c) => {
   return c.json(calculateChart(parsed.data));
 });
 
+app.post("/api/judgments/topic", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null),
+    topic = String(body?.topic || "") as JudgmentTopic;
+  if (!body || !JUDGMENT_TOPICS.includes(topic))
+    return c.json({ error: "Unsupported judgment topic" }, 400);
+  const parsed = birthInputSchema.safeParse({
+    ...body,
+    methodology: "parashari",
+    focus: topic === "relationships" ? "marriage" : topic,
+  });
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid judgment details", issues: parsed.error.flatten() },
+      400,
+    );
+  const judgment = await attachJudgmentCitations(
+    buildTopicJudgment(
+      calculateChart(parsed.data),
+      topic,
+      typeof body.asOfDate === "string"
+        ? body.asOfDate
+        : new Date().toISOString(),
+    ),
+    c.env.DB,
+  );
+  const result = {
+    ...judgment,
+    sensitivity: analyzeJudgmentSensitivity(
+      parsed.data,
+      topic,
+      typeof body.asOfDate === "string"
+        ? body.asOfDate
+        : new Date().toISOString(),
+    ),
+  };
+  if (body.persist === true) {
+    const token = randomToken(24),
+      id = crypto.randomUUID(),
+      now = new Date().toISOString(),
+      ledgerHash = await sha256(stableJson(result));
+    await c.env.DB.prepare(
+      "INSERT INTO consultations(id,created_at,method,category,question_hash,confirmation_hash,asked_at,result_json,outcome_status,engine_version,rule_set_version,judgment_schema_version,evidence_ledger_hash,narration_version) VALUES(?,?,'natal-topic-judgment',?,?,?,?,?,'awaiting-outcome',?,'sahadeva-rule-dsl-1','sahadeva-judgment-1',?,NULL)",
+    )
+      .bind(
+        id,
+        now,
+        topic,
+        await sha256(`topic:${topic}`),
+        await sha256(token),
+        typeof body.asOfDate === "string" ? body.asOfDate : now,
+        JSON.stringify(result),
+        c.env.ENGINE_VERSION || "unknown",
+        ledgerHash,
+      )
+      .run();
+    return c.json(
+      {
+        ...result,
+        persistence: {
+          consultationId: id,
+          confirmationToken: token,
+          evidenceLedgerHash: ledgerHash,
+          notice:
+            "Token shown once. Name, place and raw birth input were not stored.",
+        },
+      },
+      201,
+    );
+  }
+  return c.json(result);
+});
+
+app.post("/api/judgments/regenerate", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null),
+    token = String(body?.confirmationToken || ""),
+    topic = String(body?.topic || "") as JudgmentTopic,
+    parsed = birthInputSchema.safeParse(body);
+  if (!body || !token || !parsed.success || !JUDGMENT_TOPICS.includes(topic))
+    return c.json(
+      { error: "Valid token, chart details and topic are required" },
+      400,
+    );
+  const stored = await c.env.DB.prepare(
+    "SELECT id,result_json,evidence_ledger_hash,engine_version,rule_set_version,judgment_schema_version FROM consultations WHERE confirmation_hash=? AND method='natal-topic-judgment' AND category=?",
+  )
+    .bind(await sha256(token), topic)
+    .first<Record<string, unknown>>();
+  if (!stored) return c.json({ error: "Consultation not found" }, 404);
+  const current = await attachJudgmentCitations(
+      buildTopicJudgment(
+        calculateChart(parsed.data),
+        topic,
+        typeof body.asOfDate === "string"
+          ? body.asOfDate
+          : new Date().toISOString(),
+      ),
+      c.env.DB,
+    ),
+    currentHash = await sha256(stableJson(current));
+  return c.json({
+    consultationId: stored.id,
+    original: JSON.parse(String(stored.result_json)),
+    current,
+    comparison: {
+      sameEvidenceLedger: currentHash === stored.evidence_ledger_hash,
+      originalHash: stored.evidence_ledger_hash,
+      currentHash,
+      originalVersions: {
+        engine: stored.engine_version,
+        ruleSet: stored.rule_set_version,
+        judgmentSchema: stored.judgment_schema_version,
+      },
+      currentVersions: {
+        engine: c.env.ENGINE_VERSION || "unknown",
+        ruleSet: "sahadeva-rule-dsl-1",
+        judgmentSchema: "sahadeva-judgment-1",
+      },
+      notice:
+        "Differences show engine, rule, source-review, timing or input changes; they do not establish predictive accuracy.",
+    },
+  });
+});
+
+app.post("/api/research/consents", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null),
+    token = String(body?.confirmationToken || ""),
+    scope = String(body?.scope || ""),
+    consent = body?.consent === true;
+  if (
+    !consent ||
+    token.length < 16 ||
+    !["descriptive-outcomes", "blind-validation"].includes(scope)
+  )
+    return c.json(
+      {
+        error:
+          "Explicit consent=true, a consultation token and valid research scope are required",
+      },
+      400,
+    );
+  const consultation = await c.env.DB.prepare(
+    "SELECT id FROM consultations WHERE confirmation_hash=?",
+  )
+    .bind(await sha256(token))
+    .first<{ id: string }>();
+  if (!consultation) return c.json({ error: "Consultation not found" }, 404);
+  const id = crypto.randomUUID(),
+    now = new Date(),
+    retention = new Date(now);
+  retention.setUTCFullYear(retention.getUTCFullYear() + 1);
+  await c.env.DB.prepare(
+    "INSERT INTO research_consents(id,user_id,consultation_id,scope,consent_version,engine_version,ruleset_version,consented_at,retention_until) VALUES(?,?,?,?,?,?,?,?,?)",
+  )
+    .bind(
+      id,
+      user.id,
+      consultation.id,
+      scope,
+      "sahadeva-research-consent-1",
+      c.env.ENGINE_VERSION,
+      "sahadeva-rule-dsl-1",
+      now.toISOString(),
+      retention.toISOString(),
+    )
+    .run();
+  return c.json(
+    {
+      id,
+      scope,
+      consentVersion: "sahadeva-research-consent-1",
+      engineVersion: c.env.ENGINE_VERSION,
+      rulesetVersion: "sahadeva-rule-dsl-1",
+      retentionUntil: retention.toISOString(),
+      withdrawalEndpoint: `/api/research/consents/${id}`,
+      notice:
+        "Consent is voluntary and revocable. Withdrawal excludes the record from future research views.",
+    },
+    201,
+  );
+});
+app.delete("/api/research/consents/:id", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const result = await c.env.DB.prepare(
+    "UPDATE research_consents SET withdrawn_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND withdrawn_at IS NULL",
+  )
+    .bind(c.req.param("id"), user.id)
+    .run();
+  if (!result.meta.changes)
+    return c.json({ error: "Active consent not found" }, 404);
+  return c.json({
+    id: c.req.param("id"),
+    withdrawn: true,
+    notice:
+      "The record is immediately excluded from future research eligibility.",
+  });
+});
+app.post("/api/judgments/outcome", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null),
+    token = String(body?.confirmationToken || ""),
+    outcome = String(body?.outcome || "");
+  if (
+    !token ||
+    !["confirmed", "partly-confirmed", "not-confirmed", "unresolved"].includes(
+      outcome,
+    )
+  )
+    return c.json({ error: "Valid token and outcome are required" }, 400);
+  const existing = await c.env.DB.prepare(
+    "SELECT id FROM consultations WHERE confirmation_hash=? AND method='natal-topic-judgment'",
+  )
+    .bind(await sha256(token))
+    .first<{ id: string }>();
+  if (!existing) return c.json({ error: "Consultation not found" }, 404);
+  const consentId =
+    typeof body?.researchConsentId === "string" ? body.researchConsentId : null;
+  let consent: {
+    id: string;
+    engine_version: string;
+    ruleset_version: string;
+  } | null = null;
+  if (consentId) {
+    consent = await c.env.DB.prepare(
+      "SELECT id,engine_version,ruleset_version FROM research_consents WHERE id=? AND consultation_id=? AND withdrawn_at IS NULL AND retention_until>CURRENT_TIMESTAMP",
+    )
+      .bind(consentId, existing.id)
+      .first<{ id: string; engine_version: string; ruleset_version: string }>();
+    if (!consent)
+      return c.json(
+        {
+          error:
+            "Research consent is invalid, withdrawn, expired, or belongs to another consultation",
+        },
+        400,
+      );
+  }
+  const id = crypto.randomUUID(),
+    now = new Date().toISOString();
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      "INSERT INTO consultation_outcomes(id,consultation_id,recorded_at,outcome,resolved_at,notes,research_consent_id,engine_version,ruleset_version,outcome_blinded) VALUES(?,?,?,?,?,?,?,?,?,?)",
+    ).bind(
+      id,
+      existing.id,
+      now,
+      outcome,
+      typeof body?.resolvedAt === "string" ? body.resolvedAt : null,
+      typeof body?.notes === "string" ? body.notes.slice(0, 1000) : null,
+      consent?.id || null,
+      consent?.engine_version || null,
+      consent?.ruleset_version || null,
+      body?.outcomeBlinded === true ? 1 : 0,
+    ),
+    c.env.DB.prepare(
+      "UPDATE consultations SET outcome_status=? WHERE id=?",
+    ).bind(outcome, existing.id),
+  ]);
+  return c.json(
+    {
+      id,
+      consultationId: existing.id,
+      status: "recorded",
+      researchEligible: Boolean(consent),
+      notice: consent
+        ? "The consented outcome is eligible for the declared research scope while consent remains active."
+        : "Outcome recorded for personal follow-up only; it is excluded from research datasets.",
+    },
+    201,
+  );
+});
+
+app.get("/api/judgments/calibration", async (c) => {
+  const rows = await c.env.DB.prepare(
+      "SELECT category topic,outcome,COUNT(*) count FROM research_eligible_consultation_outcomes WHERE method='natal-topic-judgment' AND scope='descriptive-outcomes' GROUP BY category,outcome ORDER BY category,outcome",
+    ).all(),
+    total = (rows.results || []).reduce(
+      (sum, row) => sum + Number(row.count || 0),
+      0,
+    ),
+    blind = await c.env.DB.prepare(
+      "SELECT COUNT(*) count FROM research_eligible_consultation_outcomes WHERE method='natal-topic-judgment' AND scope='blind-validation' AND outcome_blinded=1",
+    ).first<{ count: number }>();
+  return c.json({
+    status:
+      total >= 30
+        ? "descriptive-summary-available"
+        : "insufficient-consented-sample",
+    sampleSize: total,
+    blindEligibleSample: Number(blind?.count || 0),
+    rows: rows.results || [],
+    minimumSample: 30,
+    consentRequired: true,
+    notice:
+      "Only active, unexpired, version-frozen consented outcomes are counted. Descriptive counts do not validate astrology, measure causal effect, or provide predictive probabilities.",
+  });
+});
+
+app.post("/api/judgments/houses", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const parsed = birthInputSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid chart details", issues: parsed.error.flatten() },
+      400,
+    );
+  return c.json(analyzeAllHouses(calculateChart(parsed.data)));
+});
+app.post("/api/judgments/conventions", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null),
+    topic = String(body?.topic || "") as JudgmentTopic,
+    parsed = birthInputSchema.safeParse(body),
+    allowed = new Set<AyanamsaId>([
+      "lahiri",
+      "krishnamurti",
+      "raman",
+      "fagan-bradley",
+    ]),
+    requested = Array.isArray(body?.conventions)
+      ? body.conventions.filter((id): id is AyanamsaId =>
+          allowed.has(id as AyanamsaId),
+        )
+      : undefined;
+  if (
+    !body ||
+    !parsed.success ||
+    !JUDGMENT_TOPICS.includes(topic) ||
+    requested?.length === 0
+  )
+    return c.json({ error: "Invalid convention comparison" }, 400);
+  const ids = [
+    "lahiri",
+    ...(requested || ["krishnamurti", "raman"]).filter((id) => id !== "lahiri"),
+  ] as AyanamsaId[];
+  return c.json(
+    compareConventions(calculateChart(parsed.data), topic, [...new Set(ids)]),
+  );
+});
+app.post("/api/relationships", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const parsed = birthInputSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid chart details", issues: parsed.error.flatten() },
+      400,
+    );
+  return c.json(buildPlanetaryRelationshipGraph(calculateChart(parsed.data)));
+});
+app.post("/api/panchanga/natal", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const parsed = birthInputSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid chart details", issues: parsed.error.flatten() },
+      400,
+    );
+  return c.json(analyzeNatalPanchanga(calculateChart(parsed.data)));
+});
+app.post("/api/practices", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null),
+    topic = String(body?.topic || "") as JudgmentTopic,
+    prefs = body?.preferences as Record<string, unknown> | undefined,
+    parsed = birthInputSchema.safeParse(body);
+  if (
+    !body ||
+    !parsed.success ||
+    !JUDGMENT_TOPICS.includes(topic) ||
+    !prefs ||
+    typeof prefs.allowPrayer !== "boolean" ||
+    typeof prefs.allowCharity !== "boolean"
+  )
+    return c.json({ error: "Invalid practice request" }, 400);
+  const judgment = await attachJudgmentCitations(
+    buildTopicJudgment(
+      calculateChart(parsed.data),
+      topic,
+      new Date().toISOString(),
+    ),
+    c.env.DB,
+  );
+  return c.json(
+    buildRemedyProtocol(judgment, {
+      beliefMode: (prefs.beliefMode === "spiritual" ||
+      prefs.beliefMode === "tradition-specific"
+        ? prefs.beliefMode
+        : "secular") as "secular" | "spiritual" | "tradition-specific",
+      tradition:
+        typeof prefs.tradition === "string" ? prefs.tradition : undefined,
+      maximumBurden:
+        prefs.maximumBurden === "moderate" ? "moderate" : "minimal",
+      maximumCost: prefs.maximumCost === "low" ? "low" : "free",
+      allowPrayer: prefs.allowPrayer,
+      allowCharity: prefs.allowCharity,
+    }),
+  );
+});
+
 app.post("/api/uncertainty", async (c) => {
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
   if (limited) return limited;
@@ -5948,6 +9560,336 @@ app.post("/api/rectification", async (c) => {
   return c.json(rectifyBirthTime(parsed.data));
 });
 
+type BtrStoredEvent = {
+  id: string;
+  topic:
+    | "career"
+    | "marriage"
+    | "wealth"
+    | "education"
+    | "children"
+    | "property"
+    | "spirituality";
+  label: string;
+  precision: "day" | "month" | "year" | "range";
+  date: string;
+  endDate?: string;
+  confidence: number;
+};
+type BtrStoredSession = {
+  earliestTime: string;
+  latestTime: string;
+  stepMinutes: number;
+  events: BtrStoredEvent[];
+};
+function parseBtrSession(value: unknown): BtrStoredSession | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Partial<BtrStoredSession>,
+    topics = new Set([
+      "career",
+      "marriage",
+      "wealth",
+      "education",
+      "children",
+      "property",
+      "spirituality",
+    ]),
+    precisions = new Set(["day", "month", "year", "range"]);
+  if (
+    !/^\d{2}:\d{2}$/.test(String(item.earliestTime)) ||
+    !/^\d{2}:\d{2}$/.test(String(item.latestTime)) ||
+    ![1, 5, 10].includes(Number(item.stepMinutes)) ||
+    !Array.isArray(item.events) ||
+    item.events.length < 3 ||
+    item.events.length > 8
+  )
+    return null;
+  const events: BtrStoredEvent[] = [];
+  for (const raw of item.events) {
+    if (!raw || typeof raw !== "object") return null;
+    const event = raw as BtrStoredEvent;
+    if (
+      typeof event.id !== "string" ||
+      !topics.has(event.topic) ||
+      !precisions.has(event.precision) ||
+      typeof event.label !== "string" ||
+      !event.label.trim() ||
+      event.label.length > 160 ||
+      typeof event.date !== "string" ||
+      !event.date ||
+      (event.precision === "range" && !event.endDate) ||
+      !Number.isInteger(event.confidence) ||
+      event.confidence < 1 ||
+      event.confidence > 5
+    )
+      return null;
+    events.push({ ...event, label: event.label.trim() });
+  }
+  return {
+    earliestTime: String(item.earliestTime),
+    latestTime: String(item.latestTime),
+    stepMinutes: Number(item.stepMinutes),
+    events,
+  };
+}
+function btrMidpoint(event: BtrStoredEvent) {
+  if (event.precision === "day")
+    return /^\d{4}-\d{2}-\d{2}$/.test(event.date) ? event.date : null;
+  if (event.precision === "month")
+    return /^\d{4}-\d{2}$/.test(event.date) ? `${event.date}-15` : null;
+  if (event.precision === "year")
+    return /^\d{4}$/.test(event.date) ? `${event.date}-07-01` : null;
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(event.date) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(event.endDate || "")
+  )
+    return null;
+  const start = Date.parse(`${event.date}T00:00:00Z`),
+    end = Date.parse(`${event.endDate}T00:00:00Z`);
+  return end >= start
+    ? new Date((start + end) / 2).toISOString().slice(0, 10)
+    : null;
+}
+app.get("/api/btr/session", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ session: null });
+  const active = await activePersonRow(c.env, user.id);
+  if (!active) return c.json({ session: null });
+  const row = await c.env.DB.prepare(
+    "SELECT btr_session_json FROM user_people WHERE id=? AND user_id=?",
+  )
+    .bind(active.id, user.id)
+    .first<{ btr_session_json: string | null }>();
+  return c.json({ session: meParse(row?.btr_session_json) });
+});
+app.put("/api/btr/session", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ localOnly: true });
+  const body = await c.req.json<{ session?: unknown }>().catch(() => null),
+    session = parseBtrSession(body?.session);
+  if (!session) return c.json({ error: "Invalid BTR session" }, 400);
+  const active = await activePersonRow(c.env, user.id);
+  if (!active) return c.json({ error: "No active person" }, 409);
+  await c.env.DB.prepare(
+    "UPDATE user_people SET btr_session_json=? WHERE id=? AND user_id=?",
+  )
+    .bind(JSON.stringify(session), active.id, user.id)
+    .run();
+  return c.json({ ok: true });
+});
+app.delete("/api/btr/session", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (user) {
+    const active = await activePersonRow(c.env, user.id);
+    if (active)
+      await c.env.DB.prepare(
+        "UPDATE user_people SET btr_session_json=NULL WHERE id=? AND user_id=?",
+      )
+        .bind(active.id, user.id)
+        .run();
+  }
+  return c.json({ ok: true });
+});
+app.post("/api/btr/telemetry", async (c) => {
+  const body = await c.req
+      .json<{ event?: string; eventCount?: number }>()
+      .catch(() => null),
+    allowed = new Set([
+      "opened",
+      "restarted",
+      "abandoned",
+      "closed_after_result",
+    ]);
+  if (!body?.event || !allowed.has(body.event))
+    return c.json({ error: "Invalid event" }, 400);
+  try {
+    await c.env.DB.prepare(
+      "INSERT INTO security_events(id,event_type,client_hash,path,metadata_json) VALUES(?,?,?,?,?)",
+    )
+      .bind(
+        crypto.randomUUID(),
+        `btr_${body.event}`,
+        await sha256(c.req.header("cf-connecting-ip") || "anonymous"),
+        "/api/btr/telemetry",
+        JSON.stringify({
+          eventCount: Math.max(0, Math.min(8, Number(body.eventCount) || 0)),
+        }),
+      )
+      .run();
+  } catch {}
+  return c.json({ ok: true });
+});
+app.post("/api/readings/feedback", async (c) => {
+  if (Number(c.req.header("content-length") || 0) > 8_192)
+    return c.json({ error: "Request body too large" }, 413);
+  const body = await c.req
+      .json<{
+        reading?: string;
+        section?: string;
+        rating?: string;
+        language?: string;
+        notes?: string;
+      }>()
+      .catch(() => null),
+    ratings = new Set(["helpful", "unclear", "incorrect", "missing"]),
+    reading = String(body?.reading || "");
+  if (
+    reading.length < 20 ||
+    reading.length > 30_000 ||
+    !ratings.has(String(body?.rating)) ||
+    !String(body?.section || "").trim()
+  )
+    return c.json({ error: "Valid reading feedback is required" }, 400);
+  const user = await sessionUser(c.env, c.req.raw),
+    id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    "INSERT INTO reading_feedback(id,created_at,user_id,reading_hash,section,rating,language,notes) VALUES(?,?,?,?,?,?,?,?)",
+  )
+    .bind(
+      id,
+      new Date().toISOString(),
+      user?.id || null,
+      await sha256(reading),
+      String(body?.section).slice(0, 80),
+      String(body?.rating),
+      body?.language === "te" ? "te" : "en",
+      String(body?.notes || "").slice(0, 500) || null,
+    )
+    .run();
+  return c.json({ id, status: "pending-review" }, 201);
+});
+app.post("/api/readings/telemetry", async (c) => {
+  const body = await c.req
+      .json<{ event?: string; language?: string; characters?: number }>()
+      .catch(() => null),
+    allowed = new Set([
+      "full_profile_completed",
+      "reading_downloaded",
+      "reading_shared",
+      "regenerated",
+      "follow_up_started",
+    ]);
+  if (!body?.event || !allowed.has(body.event))
+    return c.json({ error: "Invalid event" }, 400);
+  try {
+    await c.env.DB.prepare(
+      "INSERT INTO security_events(id,event_type,client_hash,path,metadata_json) VALUES(?,?,?,?,?)",
+    )
+      .bind(
+        crypto.randomUUID(),
+        body.event,
+        await sha256(c.req.header("cf-connecting-ip") || "anonymous"),
+        "/api/readings/telemetry",
+        JSON.stringify({
+          language: body.language === "te" ? "te" : "en",
+          characters: Math.max(
+            0,
+            Math.min(30_000, Number(body.characters) || 0),
+          ),
+        }),
+      )
+      .run();
+  } catch {}
+  return c.json({ ok: true });
+});
+app.post("/api/btr/run", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const body = await c.req
+      .json<{ session?: unknown; profile?: unknown }>()
+      .catch(() => null),
+    session = parseBtrSession(body?.session),
+    profile = birthInputSchema.safeParse({
+      ...(body?.profile && typeof body.profile === "object"
+        ? body.profile
+        : {}),
+      methodology: "parashari",
+    });
+  if (!session || !profile.success)
+    return c.json({ error: "Review the time range and all 3–8 events." }, 400);
+  if (session.latestTime < session.earliestTime)
+    return c.json(
+      { error: "The birth-time range cannot cross midnight." },
+      400,
+    );
+  const dates = session.events.map(btrMidpoint);
+  if (dates.some((date) => !date))
+    return c.json(
+      { error: "One or more event dates are invalid or ambiguous." },
+      400,
+    );
+  const signatures = new Set<string>();
+  for (const event of session.events) {
+    const signature = `${event.topic}:${event.date}:${event.precision}`;
+    if (signatures.has(signature))
+      return c.json(
+        { error: "Remove duplicate events before running BTR." },
+        400,
+      );
+    signatures.add(signature);
+  }
+  const request = {
+      baseInput: profile.data,
+      earliestTime: session.earliestTime,
+      latestTime: session.latestTime,
+      stepMinutes: session.stepMinutes,
+      events: session.events.map((event, index) => ({
+        id: event.id,
+        date: `${dates[index]}T00:00:00.000Z`,
+        topic: event.topic,
+        importance: event.confidence,
+      })),
+      holdoutEventId: session.events.at(-1)!.id,
+    },
+    result = rectifyBirthTime(request),
+    top = result.rankedClusters[0],
+    second = result.rankedClusters[1],
+    spread = (top?.bestScore || 0) - (second?.bestScore || 0),
+    leaveOneOut = [];
+  for (const omitted of session.events) {
+    const remaining = request.events.filter((event) => event.id !== omitted.id);
+    if (remaining.length < 2) continue;
+    const replay = rectifyBirthTime({
+        ...request,
+        events: remaining,
+        holdoutEventId: remaining.at(-1)!.id,
+      }),
+      winner = replay.rankedClusters[0];
+    leaveOneOut.push({
+      eventId: omitted.label || omitted.id,
+      topRange: winner ? `${winner.startTime}–${winner.endTime}` : "none",
+    });
+  }
+  try {
+    await c.env.DB.prepare(
+      "INSERT INTO security_events(id,event_type,client_hash,path,metadata_json) VALUES(?,?,?,?,?)",
+    )
+      .bind(
+        crypto.randomUUID(),
+        "btr_completed",
+        await sha256(c.req.header("cf-connecting-ip") || "anonymous"),
+        "/api/btr/run",
+        JSON.stringify({
+          eventCount: session.events.length,
+          precisions: session.events.map((event) => event.precision),
+          conclusive: spread >= 8,
+        }),
+      )
+      .run();
+  } catch {}
+  return c.json({
+    ...result,
+    diagnostics: {
+      conclusive: spread >= 8,
+      spread,
+      eventCount: session.events.length,
+      leaveOneOut,
+      precisionNotice:
+        "Month, year, and range dates are evaluated at their midpoint and never represented as exact remembered dates.",
+    },
+  });
+});
+
 app.post("/api/depth", async (c) => {
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
   if (limited) return limited;
@@ -6159,12 +10101,20 @@ app.post("/api/chat", async (c) => {
     .json<{
       profile?: Record<string, unknown>;
       partner?: Record<string, unknown>;
-      mode?: { prashna?: boolean; muhurta?: { activity?: string } };
+      mode?: {
+        prashna?: boolean;
+        muhurta?: { activity?: string };
+        fullProfile?: boolean;
+      };
+      clientSurface?: "web" | "mobile";
+      responseDepth?: "standard" | "deep";
       messages?: Array<{ role?: string; content?: string }>;
     }>()
     .catch(() => null);
   if (!body?.profile)
     return c.json({ error: "Birth details are required" }, 400);
+  const deepMobile =
+    body.clientSurface === "mobile" && body.responseDepth === "deep";
   const parsed = birthInputSchema.safeParse({
     ...body.profile,
     methodology: "parashari",
@@ -6179,20 +10129,70 @@ app.post("/api/chat", async (c) => {
     : null;
   if (body.partner && !partnerParsed?.success)
     return c.json({ error: "Invalid partner birth details" }, 400);
-  const history = (Array.isArray(body.messages) ? body.messages : [])
-    .filter(
-      (item): item is { role: "user" | "assistant"; content: string } =>
-        (item?.role === "user" || item?.role === "assistant") &&
-        typeof item?.content === "string" &&
-        item.content.trim().length > 0,
-    )
-    .slice(-12)
-    .map((item) => ({ role: item.role, content: item.content.slice(0, 4000) }));
+  const history = compactChatHistory(
+    (Array.isArray(body.messages) ? body.messages : [])
+      .filter(
+        (item): item is { role: "user" | "assistant"; content: string } =>
+          (item?.role === "user" || item?.role === "assistant") &&
+          typeof item?.content === "string" &&
+          item.content.trim().length > 0,
+      )
+      .map((item) => ({ role: item.role, content: item.content })),
+  );
+  const btrChat = handleBtrChat(history, parsed.data);
+  if (btrChat.active) {
+    if (!btrChat.request) return c.json({ response: btrChat.response });
+    try {
+      const result = rectifyBirthTime(btrChat.request);
+      const best = result.rankedClusters.slice(0, 3);
+      const response = [
+        "Birth-time rectification result",
+        `I tested ${result.rankedCandidates.length} candidate times from ${result.interval.earliestTime} to ${result.interval.latestTime}.`,
+        ...best.map(
+          (row, index) =>
+            `${index + 1}. ${row.startTime}–${row.endTime} · training ${row.bestScore} · held-out ${row.holdoutScore ?? "—"}`,
+        ),
+        result.notice,
+      ].join("\n\n");
+      return c.json({ response, rectification: result });
+    } catch {
+      return c.json({
+        response:
+          "I could not run BTR with those details. Please check that the event dates are valid and that the birth-time range stays within the same day.",
+      });
+    }
+  }
   try {
     const chart = await calculateChartCached(c.env, parsed.data),
       asOf = new Date().toISOString(),
       current = queryDashaAt(chart, asOf),
       reading = buildEverydayReading(chart, current, parsed.data.language),
+      latestQuestion =
+        [...history].reverse().find((message) => message.role === "user")
+          ?.content || "",
+      fullProfileRequested =
+        body.mode?.fullProfile === true || requestsFullProfile(latestQuestion),
+      questionSignals = routeChatEvidence(latestQuestion),
+      retrospectiveEventQuestion =
+        /\b(?:which|what)\s+(?:year|month|period)|\bwhen did\b|fractur|accident|injur|hospital|జరిగిన|ఏ సంవత్సరం|ఎప్పుడు జరిగింది/i.test(
+          latestQuestion,
+        ),
+      inferredTopic = consultationTopic(latestQuestion, parsed.data.focus),
+      judgmentTopic: JudgmentTopic | null =
+        inferredTopic === "career" ||
+        inferredTopic === "education" ||
+        inferredTopic === "property" ||
+        inferredTopic === "spirituality"
+          ? inferredTopic
+          : inferredTopic === "marriage"
+            ? "relationships"
+            : null,
+      focusedJudgment = judgmentTopic
+        ? await attachJudgmentCitations(
+            buildTopicJudgment(chart, judgmentTopic, asOf),
+            c.env.DB,
+          )
+        : null,
       lagna = chart.placements.find((item) => item.name === "Lagna")!,
       moon = chart.placements.find((item) => item.name === "Moon")!,
       strengths = chart.advanced.planetaryStates.avasthas
@@ -6201,9 +10201,86 @@ app.post("/api/chat", async (c) => {
           (a, b) =>
             Number(b.requiredStrengthRatio) - Number(a.requiredStrengthRatio),
         )
-        .slice(0, 5),
+        .slice(0, fullProfileRequested ? 9 : 5),
+      fullProfileEvidence = fullProfileRequested
+        ? (() => {
+            const doshas = calculateDoshas(chart),
+              jaimini = calculateJaimini(chart),
+              kp = calculateKpPreview(chart);
+            return {
+              mode: "complete-profile",
+              calculationManifest: [
+                "all major life domains",
+                "cross-Varga synthesis",
+                "natal promise gates",
+                "Doshas and cancellations",
+                "Jaimini structural anchors",
+                "KP preview boundaries",
+                "measured strengths",
+                "current and upcoming Vimshottari periods",
+                "birth-time uncertainty",
+              ],
+              completeLifeReading: completeDomainReading(chart),
+              doshas: {
+                summary: doshas.summary,
+                patterns: doshas.patterns.map((pattern) => ({
+                  id: pattern.id,
+                  label: pattern.label,
+                  detected: pattern.detected,
+                  rawSeverity: pattern.rawSeverity,
+                  effectiveSeverity: pattern.severity,
+                  mitigations: pattern.cancellationsOrMitigations.map(
+                    (item) => item.evidence,
+                  ),
+                  sourceKey: pattern.sourceKey,
+                })),
+                rulebookStatus: doshas.rulebook.reviewStatus,
+                safety: doshas.safety,
+              },
+              advancedAnchors: {
+                jaimini: {
+                  status: jaimini.status,
+                  atmakaraka: jaimini.charaKarakas.sevenKaraka[0],
+                  karakamsha: jaimini.karakamsha,
+                  arudhaLagna: jaimini.arudhaPadas.arudhaLagna,
+                  upapadaLagna: jaimini.arudhaPadas.upapadaLagna,
+                  rulebookStatus: jaimini.rulebook.reviewStatus,
+                },
+                kp: {
+                  status: kp.status,
+                  rulingPlanets: kp.rulingPlanets,
+                  validationBoundaries: {
+                    ayanamsa: kp.zodiac.kpAyanamsa.status,
+                    cusps: kp.cusps.status,
+                  },
+                  rulebookStatus: kp.rulebook.reviewStatus,
+                },
+                uncertainty: chart.advanced.uncertainty,
+              },
+              safeSupport: {
+                rule: "Offer only optional, free or low-burden reflection and practical routines. Never prescribe gemstones, costly rituals, medical treatment or guaranteed remedies.",
+                examples: [
+                  "written decision check",
+                  "sustainable sleep, movement, budgeting or study routine",
+                  "voluntary prayer or reflection consistent with the user's beliefs",
+                ],
+              },
+            };
+          })()
+        : null,
       evidence = {
         subject: { name: parsed.data.name, place: parsed.data.place },
+        questionContext: {
+          exactQuestion: latestQuestion || null,
+          inferredTopic,
+          requestedDepth: fullProfileRequested
+            ? "complete-life-profile"
+            : latestQuestion
+              ? "detailed-focused-reading"
+              : "orientation",
+        },
+        fullProfile: fullProfileEvidence,
+        focusedJudgment,
         placements: chart.placements.map((item) => ({
           name: item.name,
           sign: item.signName,
@@ -6284,18 +10361,34 @@ app.post("/api/chat", async (c) => {
             };
           })(),
         },
-        readingSections: reading.sections.map((section) => ({
-          id: section.id,
-          title: section.title,
-          message: section.message,
-          evidence: section.evidence,
-        })),
+        readingSections: !latestQuestion
+          ? reading.sections.map((section) => ({
+              id: section.id,
+              title: section.title,
+              message: section.message,
+              evidence: section.evidence,
+            }))
+          : undefined,
         measuredStrengths: strengths.map((item) => ({
           planet: item.name,
           ratio: item.requiredStrengthRatio,
           avastha: item.balaadiAvastha,
         })),
         confidence: chart.advanced.guidance.confidence,
+        eventVerification: retrospectiveEventQuestion
+          ? {
+              status: "confirmation-required",
+              claimBoundary:
+                "The chart cannot establish that a factual past event occurred or recover its exact date independently.",
+              supportedWorkflow: [
+                "Offer only bounded candidate periods when a reviewed event-timing model supplies them.",
+                "Ask the user to confirm the real date from memory or records.",
+                "Store a confirmed date only through birth-time rectification; never rewrite it as an astrological discovery.",
+              ],
+              candidatePeriods: [],
+              rectificationAvailable: true,
+            }
+          : undefined,
         transits: (() => {
           try {
             const now = new Date(
@@ -6335,19 +10428,20 @@ app.post("/api/chat", async (c) => {
                 [...history].reverse().find((m) => m.role === "user")
                   ?.content || "General question";
               const lower = question.toLowerCase();
-              const category = /career|job|work|promotion|business|ఉద్యోగ|వృత్తి/.test(lower)
-                ? "career"
-                : /marri|love|partner|relationship|పెళ్లి|వివాహ/.test(lower)
-                  ? "relationship"
-                  : /money|loan|debt|salary|డబ్బు/.test(lower)
-                    ? "money"
-                    : /house|property|land|home|ఇల్లు|స్థలం/.test(lower)
-                      ? "property"
-                      : /travel|trip|abroad|visa|ప్రయాణ/.test(lower)
-                        ? "travel"
-                        : /lost|missing|పోయి/.test(lower)
-                          ? "lost-object"
-                          : "general";
+              const category =
+                /career|job|work|promotion|business|ఉద్యోగ|వృత్తి/.test(lower)
+                  ? "career"
+                  : /marri|love|partner|relationship|పెళ్లి|వివాహ/.test(lower)
+                    ? "relationship"
+                    : /money|loan|debt|salary|డబ్బు/.test(lower)
+                      ? "money"
+                      : /house|property|land|home|ఇల్లు|స్థలం/.test(lower)
+                        ? "property"
+                        : /travel|trip|abroad|visa|ప్రయాణ/.test(lower)
+                          ? "travel"
+                          : /lost|missing|పోయి/.test(lower)
+                            ? "lost-object"
+                            : "general";
               try {
                 const prashna = buildPrashnaConsultation(
                   {
@@ -6435,45 +10529,47 @@ app.post("/api/chat", async (c) => {
               }
             })()
           : {}),
-        today: (() => {
-          try {
-            const dayIso = (offsetDays: number) =>
-              new Date(
-                Date.now() +
-                  (parsed.data.timezoneOffset * 3600 + offsetDays * 86400) *
-                    1000,
-              )
-                .toISOString()
-                .slice(0, 10);
-            const base = {
-              ...parsed.data,
-              name: "Today",
-              time: "12:00",
-              birthTimeAccuracyMinutes: 0,
-            };
-            const daily = buildDailyPanchanga(
-              calculateChart({ ...base, date: dayIso(0) }),
-              calculateChart({ ...base, date: dayIso(1) }),
-              chart,
-            ) as {
-              date?: string;
-              fiveLimbs?: unknown;
-              solar?: { sunrise?: string; sunset?: string };
-              inauspicious?: { rahuKaal?: unknown };
-              personalized?: unknown;
-            };
-            return {
-              date: daily.date,
-              fiveLimbs: daily.fiveLimbs,
-              sunrise: daily.solar?.sunrise,
-              sunset: daily.solar?.sunset,
-              rahuKaal: daily.inauspicious?.rahuKaal,
-              personalized: daily.personalized,
-            };
-          } catch {
-            return null;
-          }
-        })(),
+        today: questionSignals.daily
+          ? (() => {
+              try {
+                const dayIso = (offsetDays: number) =>
+                  new Date(
+                    Date.now() +
+                      (parsed.data.timezoneOffset * 3600 + offsetDays * 86400) *
+                        1000,
+                  )
+                    .toISOString()
+                    .slice(0, 10);
+                const base = {
+                  ...parsed.data,
+                  name: "Today",
+                  time: "12:00",
+                  birthTimeAccuracyMinutes: 0,
+                };
+                const daily = buildDailyPanchanga(
+                  calculateChart({ ...base, date: dayIso(0) }),
+                  calculateChart({ ...base, date: dayIso(1) }),
+                  chart,
+                ) as {
+                  date?: string;
+                  fiveLimbs?: unknown;
+                  solar?: { sunrise?: string; sunset?: string };
+                  inauspicious?: { rahuKaal?: unknown };
+                  personalized?: unknown;
+                };
+                return {
+                  date: daily.date,
+                  fiveLimbs: daily.fiveLimbs,
+                  sunrise: daily.solar?.sunrise,
+                  sunset: daily.solar?.sunset,
+                  rahuKaal: daily.inauspicious?.rahuKaal,
+                  personalized: daily.personalized,
+                };
+              } catch {
+                return null;
+              }
+            })()
+          : undefined,
         ...(partnerParsed?.success
           ? await (async () => {
               const partnerChart = await calculateChartCached(
@@ -6491,12 +10587,21 @@ app.post("/api/chat", async (c) => {
           : {}),
       },
       system = [
-        "You are Sahadeva, a warm, careful Jyotish companion chatting on a phone.",
+        "You are Sahadeva, a warm, careful, traditionally structured Jyotisha explaining a chart to a real person.",
         "Use only the supplied calculated facts. Never invent placements, timings, yogas, remedies, or certainty.",
         "The placements list is the only truth about planet positions. If the user asserts a placement that contradicts it, gently correct them with the calculated position before interpreting.",
         "For dasha sequence, use only currentTiming (including nextAntardasha and nextMahadasha). For periods beyond those, say the exact sequence would need to be calculated instead of guessing.",
         "House positions are given in wholeSignHouses (whole-sign from the lagna) — use them instead of recomputing. Mention detectedYogas only when relevant, always with their evidence; never claim a yoga that is not listed.",
-        "Follow the evidence order: lagna, relevant house and its lord, natural karaka, dignity, varga, then dasha timing.",
+        "For every focused question, follow the practitioner sequence: (1) restate the exact question and identify the relevant house/topic, (2) establish natal promise from the house, lord and occupants, (3) assess the lord's dignity, measured strength, combustion/retrogression and relevant relationships that are actually supplied, (4) check the natural karakas, (5) confirm or contradict through the relevant varga, (6) state supporting and opposing evidence separately, (7) only then discuss current dasha and transit activation, (8) explain birth-time or source-review uncertainty, and (9) end with practical reflection rather than a guaranteed prediction.",
+        "When `focusedJudgment` is present, treat it as the controlling evidence ledger. Preserve its status and conclusion, explain both supportingEvidence and opposingEvidence, identify its vargaConfirmation and timingActivation, and state when citations are absent or source keys remain unresolved. Never turn its score into a probability.",
+        "Do not merely list placements. Synthesize why each cited factor matters to the exact question, how factors reinforce or weaken one another, and what the chart does not establish.",
+        "Assume the reader has no astrology background. Lead with short, plain sentences. Explain every Sanskrit or technical term immediately in everyday language, never stack unexplained terms, and use one concrete example when an idea is difficult. Keep the full reasoning available without making the reader decode jargon.",
+        deepMobile
+          ? "This is a premium mobile full reading. When the question supports it, produce a cohesive 1000-1600 word consultation: begin with a crisp answer, integrate rather than list the evidence, explicitly reconcile contradictions, connect natal promise to Varga and timing, explain what could change the judgment, and end with memorable practical guidance plus two excellent follow-up questions. Depth must come from supplied evidence, never filler."
+          : "",
+        fullProfileRequested
+          ? "This is an explicit complete-profile request. Use `fullProfile` as the controlling dossier and finish every section. Produce a cohesive 2200-4000 word reading in this order: executive overview; identity and temperament; education; employment and business; money and resources; love, marriage and partnerships; family, home and property; children, mentoring and creativity; health routines and resilience without diagnosis; spirituality and meaning; major strengths, Yogas and Doshas with cancellations; current Dasha and the supplied next periods; contradictions, uncertainty and verification limits; optional safe practical supports; concise final synthesis. Do not stop after the focused topic. Do not claim a golden age, guaranteed event, disease, lifespan, gemstone effect or remedy result. If output space becomes tight, shorten each section evenly but always provide the final synthesis."
+          : "",
         "If a `compatibility` object is supplied, the user is comparing charts with partnerSubject: explain the calculated guna/kuta scores and dosha findings from it faithfully, note that matching is one traditional input among many, and never declare a match doomed or guaranteed.",
         "If a `prashna` object is supplied, this is a horary (Prashna) consultation: explain its judgment (direction, tier, observations, uncertainty) faithfully and never change its direction or score. Present it as a bounded traditional judgment, not a prediction.",
         "If a `muhurta` object is supplied, the user asked for auspicious timing: present the topWindows with their local times and scores, explain the strongest reasons, and note these are traditional quality windows, not guarantees.",
@@ -6505,7 +10610,8 @@ app.post("/api/chat", async (c) => {
         "Separate observation from traditional interpretation. Astrology is a cultural practice, not scientific fact; say so briefly when relevant, not in every message.",
         "Use Parashari methodology only. Never blend KP, Western, Nadi, or other systems.",
         "Do not present medical, death, fertility, legal, or financial outcomes as facts. Do not frighten the user. Do not prescribe guaranteed remedies.",
-        "Keep replies short and conversational: 2-4 short paragraphs or a compact list. No long headers. Plain language first; cite the evidence (dasha, lagna, Moon) naturally inline.",
+        "When `eventVerification` is present, clearly separate remembered facts from chart inference. Never invent a year or candidate period when candidatePeriods is empty. Explain that the user can confirm the real date and use Birth Time Rectification with several dated events.",
+        "For a focused Jyotisha question, give a detailed but readable answer with these compact sections: Direct answer; Natal promise; Strength and relationships; Varga confirmation; Timing; Contrary evidence and uncertainty; Practical guidance. Usually 700-1200 words when the evidence supports that depth. For greetings or simple factual questions, remain brief. Plain language comes first, with technical Sanskrit/Jyotisha terms explained once in parentheses.",
         "If the user has not asked anything yet, greet them by name, give a two-line orientation of the chart, note the running mahadasha/antardasha, and invite a question.",
         `Respond in ${parsed.data.language === "te" ? "Telugu" : "English"}.`,
         `Evidence JSON (immutable): ${JSON.stringify(evidence)}`,
@@ -6522,12 +10628,139 @@ app.post("/api/chat", async (c) => {
               },
             ]),
       ],
+      estimatedInputTokens = Math.ceil(
+        chatMessages.reduce((sum, message) => sum + message.content.length, 0) /
+          3.6,
+      ),
+      profileRef = `chart_${(await sha256(JSON.stringify({ date: parsed.data.date, time: parsed.data.time, latitude: parsed.data.latitude, longitude: parsed.data.longitude, timezone: parsed.data.timezone, engine: chart.engine.version }))).slice(0, 20)}`,
       summary = {
+        profileRef,
+        generatedAt: asOf,
+        engineVersion: chart.engine.version,
+        readingMode: fullProfileRequested
+          ? "complete-profile"
+          : latestQuestion
+            ? "focused"
+            : "orientation",
         anchors: evidence.anchors,
         panchanga: evidence.panchanga,
         currentTiming: evidence.currentTiming,
         measuredStrengths: evidence.measuredStrengths,
         confidence: evidence.confidence,
+        focusedJudgment: evidence.focusedJudgment
+          ? {
+              topic: evidence.focusedJudgment.topic,
+              status: evidence.focusedJudgment.status,
+              conclusion: evidence.focusedJudgment.conclusion,
+              citations: evidence.focusedJudgment.citations.length,
+              unresolvedSources:
+                evidence.focusedJudgment.unresolvedSourceKeys.length,
+            }
+          : null,
+        fullProfile: fullProfileEvidence
+          ? {
+              requiredSections: [
+                "executive overview",
+                "identity and temperament",
+                "education",
+                "employment and business",
+                "money and resources",
+                "love, marriage and partnerships",
+                "family, home and property",
+                "children, mentoring and creativity",
+                "health routines and resilience",
+                "spirituality and meaning",
+                "major strengths, yogas and doshas",
+                "current dasha",
+                "contradictions, uncertainty and verification limits",
+                "practical supports",
+                "final synthesis",
+              ],
+              coverage: (
+                fullProfileEvidence.completeLifeReading as {
+                  domainCoverage?: unknown;
+                }
+              ).domainCoverage,
+              domainEvidence: fullProfileEvidence.completeLifeReading,
+              atAGlance: {
+                strongestPlanets: strengths
+                  .slice(0, 3)
+                  .map((item) => ({
+                    planet: item.name,
+                    ratio: item.requiredStrengthRatio,
+                  })),
+                lagna: evidence.anchors.lagna,
+                moon: evidence.anchors.moon,
+                currentPeriod: [
+                  current.mahadasha,
+                  current.antardasha,
+                  current.pratyantardasha,
+                ].filter(Boolean),
+                confidence: chart.advanced.guidance.confidence,
+              },
+              timeline: [
+                current.boundaries.mahadasha && current.mahadasha
+                  ? {
+                      level: "Mahadasha",
+                      lord: current.mahadasha,
+                      ...current.boundaries.mahadasha,
+                      current: true,
+                    }
+                  : null,
+                current.boundaries.antardasha && current.antardasha
+                  ? {
+                      level: "Antardasha",
+                      lord: current.antardasha,
+                      ...current.boundaries.antardasha,
+                      current: true,
+                    }
+                  : null,
+                evidence.currentTiming.nextAntardasha
+                  ? {
+                      level: "Next antardasha",
+                      lord: evidence.currentTiming.nextAntardasha.lord,
+                      startIso: evidence.currentTiming.nextAntardasha.startIso,
+                      endIso: evidence.currentTiming.nextAntardasha.endIso,
+                      current: false,
+                    }
+                  : null,
+                evidence.currentTiming.nextMahadasha
+                  ? {
+                      level: "Next mahadasha",
+                      lord: evidence.currentTiming.nextMahadasha.lord,
+                      startIso: evidence.currentTiming.nextMahadasha.startIso,
+                      endIso: evidence.currentTiming.nextMahadasha.endIso,
+                      current: false,
+                    }
+                  : null,
+              ].filter(Boolean),
+              nextQuestions: [
+                "Explain the strongest career factor in this chart.",
+                "Which conclusions are most sensitive to birth time?",
+                "Show how the current period activates the natal promise.",
+                "Help me add a confirmed life event for rectification.",
+              ],
+            }
+          : null,
+        context: {
+          estimatedInputTokens,
+          historyMessages: history.length,
+          included: {
+            transits: Boolean(evidence.transits),
+            dailyPanchanga: Boolean(evidence.today),
+            navamsa: Boolean(evidence.navamsa),
+            yogas: Boolean(evidence.detectedYogas),
+          },
+          qualityContract: {
+            coreChartAlwaysIncluded: true,
+            focusedJudgmentAlwaysIncluded: Boolean(focusedJudgment),
+            timingAlwaysIncluded: true,
+            olderContextCompressedNotDropped: true,
+            outputCapUnchanged: true,
+          },
+          notice:
+            "Optimization removes repeated prose and conditionally omits only daily Panchanga. Core chart, Vargas, Yogas, timing, transits and focused evidence remain available.",
+        },
       };
 
     // Preferred brain: OpenAI (gpt-5.6-luna) with reasoning disabled for
@@ -6550,7 +10783,11 @@ app.post("/api/chat", async (c) => {
             body: JSON.stringify({
               model: openaiModel,
               messages: chatMessages,
-              max_completion_tokens: 2800,
+              max_completion_tokens: fullProfileRequested
+                ? 7500
+                : deepMobile
+                  ? 4200
+                  : 2800,
               reasoning_effort: "none",
               stream: true,
             }),
@@ -6584,13 +10821,16 @@ app.post("/api/chat", async (c) => {
         ? configuredModel
         : "@cf/meta/llama-4-scout-17b-16e-instruct";
       provider = "cloudflare-workers-ai";
-      aiStream = (await c.env.AI.run(model as Parameters<Ai["run"]>[0], {
-        messages: chatMessages,
-        // Telugu output is token-dense; too small a cap yields an empty reply.
-        max_tokens: 2800,
-        temperature: 0.4,
-        stream: true,
-      } as never)) as ReadableStream<Uint8Array> | Record<string, unknown>;
+      aiStream = (await c.env.AI.run(
+        model as Parameters<Ai["run"]>[0],
+        {
+          messages: chatMessages,
+          // Telugu output is token-dense; too small a cap yields an empty reply.
+          max_tokens: fullProfileRequested ? 7000 : deepMobile ? 3600 : 2800,
+          temperature: 0.4,
+          stream: true,
+        } as never,
+      )) as ReadableStream<Uint8Array> | Record<string, unknown>;
     }
 
     // Stream protocol: one JSON line with the summary, then a record
@@ -6652,7 +10892,9 @@ app.post("/api/chat", async (c) => {
   } catch (error) {
     console.error(
       "chat endpoint failed:",
-      error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : String(error),
     );
     return c.json(
       {
@@ -6668,9 +10910,10 @@ app.post("/api/chat", async (c) => {
 app.get("/mcp", (c) =>
   c.json({
     name: "Sahadeva MCP",
-    protocolVersion: "2026-07-28",
-    transport: "stateless HTTP",
-    tools: mcpTools.map((tool) => tool.name),
+    protocolVersion: MCP_PROTOCOL_VERSION,
+    transport: "Streamable HTTP (JSON response profile)",
+    tools: publicMcpTools.map((tool) => tool.name),
+    expertToolsResource: "sahadeva://expert-tools",
   }),
 );
 app.post("/mcp", async (c) => {
@@ -6703,8 +10946,7 @@ app.post("/mcp", async (c) => {
   if (response === null) return c.body(null, 202);
   const durationMs = performance.now() - requestStartedAt;
   return c.json(response, 200, {
-    "MCP-Protocol-Version":
-      c.req.header("MCP-Protocol-Version") || "2026-07-28",
+    "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
     "Server-Timing": `sahadeva;dur=${durationMs.toFixed(1)}`,
     "X-Sahadeva-Response-Profile":
       request.params?.name === "consult_jyotishya" ? "compact" : "expert",
@@ -6739,9 +10981,7 @@ async function scheduled(
         env.VAPID_PRIVATE_KEY,
       );
       if (status === 404 || status === 410) {
-        await env.DB.prepare(
-          "DELETE FROM push_subscriptions WHERE endpoint=?",
-        )
+        await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?")
           .bind(row.endpoint)
           .run();
       } else {

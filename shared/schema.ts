@@ -61,6 +61,10 @@ export type ChartResult = {
       avasthas: Array<{
         name: string;
         balaadiAvastha: string;
+        diptadiAvastha: string;
+        diptadiCandidates: string[];
+        lajjitadiAvasthas: string[];
+        avasthaSource: { work: string; sections: string[]; selectionPrecedence: string[] };
         avasthaStrengthPercent: number;
         naisargikaBalaVirupas: number;
         uchchaBalaVirupas: number;

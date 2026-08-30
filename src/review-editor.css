@@ -1,0 +1,94 @@
+.review-editor {
+  margin-top: 12px;
+  border: 1px solid #e4ddd1;
+  border-radius: 14px;
+  padding: 16px;
+}
+.review-editor > p {
+  color: #6f665b;
+}
+.review-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 330px;
+  padding: 12px;
+  border: 1px solid #d7cfc1;
+  border-radius: 10px;
+  background: #26231f;
+  color: #f5ecdf;
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  resize: vertical;
+}
+.review-editor label {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  color: #6f665b;
+}
+.review-editor textarea.chart-json {
+  min-height: 105px;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.review-actions button {
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 13px;
+  background: #735034;
+  color: white;
+  cursor: pointer;
+}
+.review-actions button.warn {
+  background: #8a543f;
+}
+.review-editor output {
+  display: block;
+  margin-top: 10px;
+  color: #496447;
+}
+.review-example {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e4ddd1;
+}
+.review-passage {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e4ddd1;
+}
+.review-passage > p,
+.review-example > p {
+  color: #6f665b;
+}
+.review-example input:not([type="checkbox"]),
+.review-example select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #d7cfc1;
+  border-radius: 9px;
+  background: #fff;
+  color: #2f2922;
+}
+.review-example label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.review-studio aside button.sync-rules {
+  width: 100%;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #735034;
+  border-radius: 9px;
+  background: #fff8ef;
+  color: #604027;
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -16,6 +16,10 @@ import { calculateDoshas } from "./doshas";
 import { calculateStrengthLineage } from "./strengthLineage";
 import { synthesizeVargas } from "./vargaSynthesis";
 import { additionalDashaStatus } from "./additionalDashas";
+import { buildTopicJudgment, JUDGMENT_TOPICS } from "./judgment";
+import { analyzeAllHouses } from "./houseJudgment";
+import { analyzeNatalPanchanga } from "./natalPanchanga";
+import { buildPlanetaryRelationshipGraph } from "./practitioner";
 
 export function buildFullLifeReport(
   chart: ChartResult,
@@ -207,6 +211,7 @@ export function buildFullLifeReport(
     notice:
       "No classical verse is attached until its passage, translation, rule extraction, and reviewer approval are present. Structural evidence is returned separately and must not be represented as a classical citation.",
   };
+  const judgmentLedger=Object.fromEntries(JUDGMENT_TOPICS.map(topic=>[topic,buildTopicJudgment(chart,topic,asOfIso)]));
   return {
     schemaVersion: "sahadeva-full-life-report-1",
     subject: {
@@ -226,6 +231,8 @@ export function buildFullLifeReport(
       houseSystem: chart.advanced.houses.selectedSystem,
       zodiac: chart.engine.zodiac,
       engineVersion: chart.engine.version,
+      judgmentSchemaVersion:"sahadeva-judgment-1",
+      ruleDslVersion:"sahadeva-rule-dsl-1",
     },
     anchors: {
       lagna: {
@@ -244,6 +251,10 @@ export function buildFullLifeReport(
       birthDasha: chart.vimshottari,
     },
     plainLanguageReading: reading,
+    judgmentLedger,
+    houseExplorer:analyzeAllHouses(chart),
+    natalPanchanga:analyzeNatalPanchanga(chart),
+    planetaryRelationshipGraph:buildPlanetaryRelationshipGraph(chart),
     placements,
     measuredStrengths: strengths,
     structuralYogaCandidates: chart.advanced.yogas.filter(

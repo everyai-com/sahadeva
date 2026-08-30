@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import ChatApp, { SharedChartView } from "./ChatApp";
 
 const ProApp = lazy(() => import("./App"));
+const ReviewStudio = lazy(() => import("./ReviewStudio"));
 
 function Root() {
   const [pro, setPro] = useState(
@@ -19,6 +20,7 @@ function Root() {
   }, []);
   const sharedToken = new URLSearchParams(window.location.search).get("chart");
   if (sharedToken) return <SharedChartView token={sharedToken} />;
+  if (window.location.hash === "#review") return <Suspense fallback={null}><ReviewStudio /></Suspense>;
   return pro ? (
     <Suspense fallback={null}>
       <ProApp />

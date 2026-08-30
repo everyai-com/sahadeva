@@ -36,6 +36,8 @@ describe("everyday reading", () => {
     expect(
       reading.sections.every((section) => section.evidence.length > 0),
     ).toBe(true);
+    expect(reading.sections.every(section=>section.claims.length>0&&section.claims.every(claim=>claim.evidenceRefIds.length>0))).toBe(true);
+    expect(reading.sections.flatMap(section=>section.evidenceRefs).every(ref=>ref.factId.startsWith("calculated:"))).toBe(true);
     expect(
       reading.sections.find((section) => section.id === "timing")?.message,
     ).toContain("not as a guaranteed event prediction");

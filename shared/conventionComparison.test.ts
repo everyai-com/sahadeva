@@ -1,0 +1,3 @@
+import{describe,expect,it}from"vitest";import{calculateChart}from"./jyotish";import{compareConventions}from"./conventionComparison";
+const input={name:"A",date:"2000-01-28",time:"08:05",place:"Ravulapalem",latitude:16.7607,longitude:81.833,timezoneOffset:5.5,timezone:"Asia/Kolkata",language:"en",methodology:"parashari",focus:"career",birthTimeAccuracyMinutes:5}as const;
+describe("convention comparison",()=>{it("keeps alternative projections from masquerading as full judgments",()=>{const result=compareConventions(calculateChart(input),"career");expect(result.variants).toHaveLength(3);expect(result.traditionBoundary.status).toBe("not-silently-mixed");expect(result.judgmentChangeAnalysis.notice).toMatch(/judgment|interpretive/i);});});

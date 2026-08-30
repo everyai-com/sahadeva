@@ -1,6 +1,7 @@
-// Splits knowledge/texts/*.md into retrieval chunks and emits SQL batches
-// for the knowledge_fts D1 table (FTS5). Excerpt-sized chunks only — the
-// corpus is grounding material, never republished verbatim.
+// Splits knowledge/texts/*.md into review/discovery records. The former D1
+// FTS table was intentionally removed in migration 0023, so this script emits
+// local JSONL rather than stale SQL. Records are restricted research inputs;
+// they are not deployable or publishable knowledge until passage review.
 import fs from "node:fs";
 import path from "node:path";
 
@@ -79,24 +80,34 @@ function chunkBook(book) {
   return chunks;
 }
 
-const esc = (value) => value.replace(/'/g, "''");
-let statements = [];
+let records = [];
 let total = 0;
 for (const book of BOOKS) {
   const chunks = chunkBook(book);
   total += chunks.length;
-  for (const chunk of chunks) {
-    statements.push(
-      `INSERT INTO knowledge_fts (work, author, section, body) VALUES ('${esc(book.work)}','${esc(book.author)}','${esc(chunk.section).slice(0, 120)}','${esc(chunk.text)}');`,
-    );
+  for (const [index, chunk] of chunks.entries()) {
+    records.push({
+      id: `${path.basename(book.file, ".md")}-chunk-${String(index + 1).padStart(4, "0")}`,
+      file: book.file,
+      work: book.work,
+      author: book.author,
+      section: chunk.section.slice(0, 120),
+      body: chunk.text,
+      rightsStatus: "restricted",
+      reviewStatus: "draft",
+      allowedUse: "internal-discovery-only",
+    });
   }
   console.log(`${book.work}: ${chunks.length} chunks`);
 }
 
 const BATCH = 250;
 let fileIndex = 0;
-for (let i = 0; i < statements.length; i += BATCH) {
-  const file = path.join(outDir, `knowledge-${String(fileIndex++).padStart(2, "0")}.sql`);
-  fs.writeFileSync(file, statements.slice(i, i + BATCH).join("\n") + "\n");
+for (let i = 0; i < records.length; i += BATCH) {
+  const file = path.join(outDir, `knowledge-${String(fileIndex++).padStart(2, "0")}.jsonl`);
+  fs.writeFileSync(
+    file,
+    records.slice(i, i + BATCH).map((record) => JSON.stringify(record)).join("\n") + "\n",
+  );
 }
-console.log(`total ${total} chunks -> ${fileIndex} SQL files in ${outDir}`);
+console.log(`total ${total} restricted draft chunks -> ${fileIndex} JSONL files in ${outDir}`);

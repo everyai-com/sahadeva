@@ -1,0 +1,7 @@
+export type ChatMessage={role:"user"|"assistant";content:string};
+export function requestsFullProfile(question:string){
+  const normalized=question.toLowerCase().replace(/[’']/g,"").replace(/[^a-z\u0C00-\u0C7F]+/g," ").trim();
+  return /\b(?:entire|entore|complete|complet|full|ful|whole)\b(?:\s+\w+){0,4}\s+\b(?:profile|profil|reading|report|analysis|horoscope|chart)\b|\beverything\b|\ball about (?:me|my chart)\b|సంపూర్ణ|పూర్తి.*(?:జాతక|ప్రొఫైల్)|అన్నింటితో సహా/i.test(normalized);
+}
+export function routeChatEvidence(question:string){return{transits:/\b(now|current|today|when|next|soon|future|upcoming|this (?:week|month|year)|transit|gochara|sade sati|dhaiya|period|timing|change)\b|ప్రస్తుతం|ఎప్పుడు|తర్వాత|భవిష్యత్తు|ఈ రోజు|గోచార|దశ/i.test(question),daily:/\b(today|daily|tonight|tomorrow|this morning|this evening|rahu kaal|panchang|muhurta|auspicious time)\b|ఈ రోజు|రేపు|పంచాంగ|రాహు కాలం|ముహూర్త/i.test(question),yogas:/\b(yoga|yogas|combination|special pattern|raja yoga|dhan yoga)\b|యోగ/i.test(question),navamsa:/\b(marriage|relationship|partner|spouse|husband|wife|navamsa|d9|agreement)\b|వివాహ|పెళ్లి|భార్య|భర్త|నవాంశ/i.test(question)};}
+export function compactChatHistory(messages:ChatMessage[]){const valid=messages.filter(item=>item.content.trim()),selected=valid.slice(-12),recentStart=Math.max(0,selected.length-8);return selected.map((item,index)=>({...item,content:item.content.slice(0,index<recentStart?600:item.role==="user"?1600:2400),contextMode:index<recentStart?"compressed-earlier-context"as const:"recent-verbatim"as const}));}

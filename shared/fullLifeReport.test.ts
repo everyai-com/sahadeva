@@ -45,6 +45,11 @@ describe("full life report", () => {
       report.consultationDepth.strengthLineage.vimsopaka.sets.shodashavarga,
     ).toHaveLength(7);
     expect(report.sourceCoverage.status).toBe("awaiting-reviewed-rules");
+    expect(report.judgmentLedger.career.schemaVersion).toBe("sahadeva-judgment-1");
+    expect(report.houseExplorer.houses).toHaveLength(12);
+    expect(report.natalPanchanga.limbs).toHaveLength(5);
+    expect(report.planetaryRelationshipGraph.dispositorChains).toHaveLength(9);
+    expect(report.methodology.ruleDslVersion).toBe("sahadeva-rule-dsl-1");
     expect(report.safety.interpretationsReviewed).toBe(false);
   });
 });

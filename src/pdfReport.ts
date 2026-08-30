@@ -197,7 +197,7 @@ function iso(jd: number) {
 
 export async function buildChartPdf(
   chart: ChartResult,
-  options: { privacySafe?: boolean } = {},
+  options: { privacySafe?: boolean; readingText?: string } = {},
 ) {
   const te = chart.input.language === "te",
     fontBytes = await fetch("/fonts/NotoSansTelugu.ttf").then((response) =>
@@ -590,6 +590,18 @@ export async function buildChartPdf(
       );
     }
     footer(page, chart);
+  }
+  if(options.readingText?.trim()){
+    const blocks=options.readingText.split(/\n{2,}/).map(value=>value.trim()).filter(Boolean);
+    page=createPage(pages.length+1);pages.push(page);heading(page,te?"వ్యక్తిగత సంప్రదింపు":"Personal consultation");
+    for(const block of blocks){
+      if(page.y>HEIGHT-220){footer(page,chart);page=createPage(pages.length+1);pages.push(page);heading(page,te?"సంప్రదింపు కొనసాగింపు":"Consultation continued");}
+      const headingMatch=/^#{1,4}\s+(.+)/.exec(block);
+      if(headingMatch){text(page,headingMatch[1].replace(/\*\*/g,""),MARGIN,page.y,29,700,ACCENT);page.y+=42;continue;}
+      const clean=block.replace(/^\s*[-*•]\s+/gm,"• ").replace(/\*\*/g,"").replace(/`/g,"");
+      wrap(page,clean,MARGIN,20,30);page.y+=18;
+    }
+    footer(page,chart);
   }
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);

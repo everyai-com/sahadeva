@@ -18,6 +18,13 @@
     "fixtures:panchanga": "node scripts/generate-panchanga-transition-fixtures.mjs",
     "fixtures:vsop87": "node scripts/generate-vsop87-truncated.mjs",
     "knowledge:catalog": "node scripts/build-knowledge-catalog.mjs",
+    "knowledge:chunks": "node scripts/build-knowledge-chunks.mjs",
+    "knowledge:books": "node scripts/build-book-coverage.mjs",
+    "knowledge:books:verify": "node scripts/verify-book-coverage.mjs",
+    "knowledge:books:sections": "node scripts/build-book-section-migration.mjs",
+    "knowledge:books:fixtures": "node scripts/export-book-rule-fixtures.mjs",
+    "migrations:verify": "node scripts/verify-migrations.mjs",
+    "mobile:verify": "npm --prefix ios-app run lint && npm --prefix ios-app exec tsc -- --noEmit && npm --prefix ios-app exec expo export -- --platform web",
     "locations:geonames": "node scripts/import-geonames.mjs",
     "report:sample": "node scripts/generate-client-report-sample.mjs"
   },

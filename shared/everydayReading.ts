@@ -14,11 +14,15 @@ export type EverydayReading = {
     title: string;
     message: string;
     evidence: string[];
+    evidenceRefs: Array<{id:string;factId:string;text:string;sourceStatus:"calculated"}>;
+    claims: Array<{id:string;text:string;evidenceRefIds:string[]}>;
     status: "observation" | "traditional-lens" | "outlook";
   }>;
   confidence: { label: string; score: number; message: string };
   notice: string;
 };
+
+function traceReading(reading:Omit<EverydayReading,"sections">&{sections:Array<Omit<EverydayReading["sections"][number],"evidenceRefs"|"claims">>}):EverydayReading{return{...reading,sections:reading.sections.map(section=>{const evidenceRefs=section.evidence.map((text,index)=>({id:`evidence:${section.id}:${index+1}`,factId:`calculated:${section.id}:${index+1}`,text,sourceStatus:"calculated" as const})),sentences=section.message.split(/(?<=[.!?।])\s+/u).map(text=>text.trim()).filter(Boolean);return{...section,evidenceRefs,claims:sentences.map((text,index)=>({id:`claim:${section.id}:${index+1}`,text,evidenceRefIds:evidenceRefs.map(ref=>ref.id)}))}})}}
 
 const SIGN_LENS = [
   "direct action, initiative and learning through experience",
@@ -240,7 +244,7 @@ export function buildEverydayReading(
   const warningCount = chart.advanced.uncertainty.boundaryWarnings.length;
 
   if (language === "te") {
-    return {
+    return traceReading({
       title: "సాధారణ జాతక వివరణ",
       summary: `${SIGNS[lagna.sign]} లగ్నం, ${moon.nakshatra} నక్షత్రంలో చంద్రుడు. ఇది గణించిన స్థితుల ఆధారంగా ఇచ్చే సరళమైన సాంప్రదాయ దృష్టి; ఖచ్చితమైన వ్యక్తిత్వ నిర్ధారణ కాదు.`,
       sections: [
@@ -321,10 +325,10 @@ export function buildEverydayReading(
       },
       notice:
         "ఇది సమీక్షించని సాంప్రదాయ వివరణ పొర. వైద్య, న్యాయ, ఆర్థిక లేదా ఖచ్చితమైన భవిష్యవాణిగా ఉపయోగించవద్దు.",
-    };
+    });
   }
 
-  return {
+  return traceReading({
     title: "Everyday chart reading",
     summary: `${SIGNS[lagna.sign]} rising with the Moon in ${moon.nakshatra}. This is a plain-language traditional lens grounded in the calculated chart—not a diagnosis or a fixed description of the person.`,
     sections: [
@@ -405,5 +409,5 @@ export function buildEverydayReading(
     },
     notice:
       "This is an unreviewed traditional interpretation layer for reflection. Do not use it as medical, legal, financial or deterministic life advice.",
-  };
+  });
 }
