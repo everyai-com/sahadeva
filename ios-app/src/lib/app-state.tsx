@@ -59,6 +59,7 @@ type AppState = {
   resetProfile: () => void;
   switchLanguage: (language: Language) => void;
   send: (text: string, mode?: ChatMode) => Promise<void>;
+  refreshChart: () => Promise<void>;
   newThread: () => void;
   switchThread: (id: string) => void;
   renameThread: (id: string, title: string) => void;
@@ -459,6 +460,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const clearPartner = useCallback(() => setPartner(null), []);
   const clearError = useCallback(() => setError(""), []);
 
+  const refreshChart = useCallback(async () => {
+    if (profileRef.current) {
+      const result = await fetchChart(profileRef.current);
+      if (result) setChart(result);
+    }
+  }, []);
+
   const value: AppState = {
     hydrated,
     profile,
@@ -481,6 +489,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     resetProfile,
     switchLanguage,
     send,
+    refreshChart,
     newThread,
     switchThread,
     renameThread,

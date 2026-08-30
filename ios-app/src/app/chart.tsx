@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SouthChart } from "@/components/south-chart";
@@ -34,6 +34,7 @@ export default function ChartScreen() {
   const [judgments, setJudgments] = useState<Partial<Record<JudgmentTopic, TopicJudgment>>>({});
   const [judgmentBusy, setJudgmentBusy] = useState(false);
   const [judgmentError, setJudgmentError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const { t, profile, chart, summary } = state;
   const te = state.language === "te";
@@ -98,7 +99,19 @@ export default function ChartScreen() {
   return (
     <ThemedView style={styles.screen}>
       <SafeAreaView style={styles.flex} edges={["top"]}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              tintColor={theme.accent}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await state.refreshChart();
+                setRefreshing(false);
+              }}
+            />
+          }>
           <ThemedText style={styles.eyebrow}>{t.yourChart.toUpperCase()}</ThemedText>
           <ThemedText type="subtitle">{profile.name}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
