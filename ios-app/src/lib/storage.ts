@@ -89,3 +89,23 @@ export async function clearThreads(): Promise<void> {
     /* storage unavailable */
   }
 }
+
+const REMINDER_KEY = "sahadeva.reminder.v1";
+
+export async function loadReminder(): Promise<{ enabled: boolean; token?: string }> {
+  try {
+    const raw = await AsyncStorage.getItem(REMINDER_KEY);
+    if (!raw) return { enabled: false };
+    return JSON.parse(raw) as { enabled: boolean; token?: string };
+  } catch {
+    return { enabled: false };
+  }
+}
+
+export async function saveReminder(value: { enabled: boolean; token?: string }): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REMINDER_KEY, JSON.stringify(value));
+  } catch {
+    /* storage unavailable */
+  }
+}

@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Share,
   StyleSheet,
+  Switch,
   TextInput,
   View,
 } from "react-native";
@@ -19,6 +20,8 @@ import { BottomTabInset } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { API_URL, createShareLink } from "@/lib/api";
 import { useAppState } from "@/lib/app-state";
+import { disableDailyReminder, enableDailyReminder } from "@/lib/notifications";
+import { loadReminder, saveReminder } from "@/lib/storage";
 
 export default function MoreScreen() {
   const state = useAppState();
@@ -32,9 +35,56 @@ export default function MoreScreen() {
   const [shareState, setShareState] = useState<"idle" | "busy" | "done" | "need-account">("idle");
   const [editOpen, setEditOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [reminderOn, setReminderOn] = useState(false);
+  const [reminderToken, setReminderToken] = useState<string | undefined>();
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderMsg, setReminderMsg] = useState("");
 
   const { t, profile, account } = state;
   const te = state.language === "te";
+
+  useEffect(() => {
+    void loadReminder().then((value) => {
+      setReminderOn(value.enabled);
+      setReminderToken(value.token);
+    });
+  }, []);
+
+  async function toggleReminder(next: boolean) {
+    setReminderMsg("");
+    if (!account) {
+      setReminderMsg(t.remindersNeedsAccount);
+      return;
+    }
+    if (!next) {
+      setReminderOn(false);
+      setReminderBusy(true);
+      await disableDailyReminder(reminderToken);
+      await saveReminder({ enabled: false });
+      setReminderToken(undefined);
+      setReminderBusy(false);
+      return;
+    }
+    setReminderBusy(true);
+    const result = await enableDailyReminder(7, profile?.timezoneOffset ?? 5.5);
+    setReminderBusy(false);
+    if (result.ok) {
+      setReminderOn(true);
+      setReminderToken(result.token);
+      await saveReminder({ enabled: true, token: result.token });
+    } else {
+      setReminderOn(false);
+      setReminderMsg(
+        result.reason === "denied"
+          ? t.remindersDenied
+          : result.reason === "unsupported"
+            ? t.remindersUnsupported
+            : result.reason === "unconfigured"
+              ? t.remindersUnconfigured
+              : t.remindersFailed,
+      );
+    }
+  }
 
   const methodLayers = te
     ? [
@@ -224,6 +274,32 @@ export default function MoreScreen() {
             </View>
           )}
 
+          {/* Daily reminder */}
+          {profile && (
+            <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+              <View style={styles.reminderRow}>
+                <View style={styles.reminderCopy}>
+                  <ThemedText type="smallBold">{t.reminders}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {reminderOn ? t.remindersOn : t.remindersDesc}
+                  </ThemedText>
+                </View>
+                {reminderBusy ? (
+                  <ActivityIndicator color={theme.accent} />
+                ) : (
+                  <Switch
+                    value={reminderOn}
+                    onValueChange={(next) => void toggleReminder(next)}
+                    trackColor={{ true: theme.accent, false: theme.border }}
+                  />
+                )}
+              </View>
+              {reminderMsg ? (
+                <ThemedText type="small" themeColor="textSecondary">{reminderMsg}</ThemedText>
+              ) : null}
+            </View>
+          )}
+
           {/* Method */}
           <ThemedText style={styles.eyebrow}>{t.method.toUpperCase()}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">{t.methodIntro}</ThemedText>
@@ -318,6 +394,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   personMain: { flex: 1, gap: 2 },
+  reminderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  reminderCopy: { flex: 1, gap: 3 },
   langRow: { flexDirection: "row", gap: 10 },
   langButton: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   methodCard: { borderRadius: 18, padding: 16, flexDirection: "row", gap: 14 },

@@ -120,6 +120,17 @@ import {
   BOOK_RULE_CATALOG_META,
 } from "../shared/bookRuleCatalog";
 import bookRuleFixtures from "../shared/bookRuleFixtures.json";
+import {
+  getLalKitabSourceCatalog,
+  inspectLalKitabStructure,
+} from "../shared/lalKitab";
+import {
+  PREDICTION_QUALITY_METHOD,
+  auditPredictionClaim,
+  compareTraditionLedgers,
+  validationReportFromCounts,
+  type TraditionLedger,
+} from "../shared/predictionQualityMcp";
 
 type RateLimiter = {
   limit(input: { key: string }): Promise<{ success: boolean }>;
@@ -140,6 +151,7 @@ type Env = {
   BETTER_AUTH_SECRET?: string;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
+  EXPO_ACCESS_TOKEN?: string;
 };
 const app = new Hono<{ Bindings: Env }>();
 const safetyEnvelope = () => ({
@@ -847,6 +859,20 @@ const mcpTools = [
     },
   },
   {
+    name: "reconstruct_worked_example",
+    title: "Reconstruct a local rule worked example",
+    description:
+      "Lists or deterministically replays a local book-rule fixture, comparing expected matches, exceptions and source locators. Passing validates software consistency only; examples remain unpublishable until independent scan adjudication and review.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fixtureId: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "compare_conventions",
     title: "Compare chart conventions without silent mixing",
     description:
@@ -952,6 +978,34 @@ const mcpTools = [
     },
   },
   {
+    name: "analyze_lal_kitab",
+    title: "Inspect Lal Kitab house structure and source sections",
+    description:
+      "Converts verified natal placements to Lal Kitab fixed houses and returns source locators for all nine planet-house sections. Prediction prose, annual-chart emulation and remedies remain withheld until atomic extraction, scan verification and lineage review.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        time: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+        birthTimeAccuracyMinutes: {
+          type: "number",
+          minimum: 0,
+          maximum: 1440,
+          default: 5,
+        },
+      },
+    },
+  },
+  {
+    name: "explore_lal_kitab_sources",
+    title: "Explore complete Lal Kitab source coverage",
+    description:
+      "Returns all source families, locators, coverage counts, lexical risk signals and graduated disclosure policy without republishing source body text.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
     name: "suggest_safe_practice",
     title: "Suggest belief-compatible low-burden support",
     description:
@@ -981,7 +1035,7 @@ const mcpTools = [
           properties: {
             beliefMode: {
               type: "string",
-              enum: ["secular", "spiritual", "tradition-specific"],
+              enum: ["hindu", "spiritual", "tradition-specific"],
             },
             tradition: { type: "string" },
             maximumBurden: { type: "string", enum: ["minimal", "moderate"] },
@@ -1069,7 +1123,7 @@ const mcpTools = [
           properties: {
             beliefMode: {
               type: "string",
-              enum: ["secular", "spiritual", "tradition-specific"],
+              enum: ["hindu", "spiritual", "tradition-specific"],
             },
             tradition: { type: "string" },
             maximumBurden: { type: "string", enum: ["minimal", "moderate"] },
@@ -1703,6 +1757,34 @@ const mcpTools = [
     inputSchema: { type: "object", properties: {} },
   },
   {
+    name: "assess_prediction_readiness",
+    title: "Assess prediction and tradition readiness",
+    description:
+      "Reports independent readiness gates for calculations, executable rules, worked examples, practitioner review and outcome calibration. It explicitly reports Lal Kitab as source-only until a dedicated reviewed engine exists.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "audit_chart_calculation",
+    title: "Audit chart calculation provenance and sensitivity",
+    description:
+      "Checks engine certification, timezone provenance, conventions and important sign/Nakshatra/Pada boundary distances before interpretation. It does not claim an external ephemeris recomputation.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        time: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+        birthTimeAccuracyMinutes: {
+          type: "number",
+          minimum: 0,
+          maximum: 1440,
+          default: 5,
+        },
+      },
+    },
+  },
+  {
     name: "list_rule_review_queue",
     title: "List source-linked rule review work",
     description:
@@ -2156,6 +2238,48 @@ const mcpTools = [
       },
     },
   },
+  {
+    name: "search_reviewed_rules",
+    title: "Search independently approved rules",
+    description: "Returns only publication-gated rules and rights-safe source metadata. Drafts and open contradictions are excluded.",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, tradition: { type: "string" }, topic: { type: "string" }, harmClass: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 50 } } },
+  },
+  {
+    name: "search_source_passages",
+    title: "Search source passages with rights controls",
+    description: "Searches passage metadata and returns text only when display rights permit it. Results never become executable rules automatically.",
+    inputSchema: { type: "object", required: ["query"], properties: { query: { type: "string" }, tradition: { type: "string" }, reviewStatus: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 50 } } },
+  },
+  {
+    name: "compare_traditions",
+    title: "Compare traditions without blending them",
+    description: "Compares explicitly supplied tradition ledgers while preserving separate methods, evidence, contradictions and readiness states.",
+    inputSchema: { type: "object", required: ["ledgers"], properties: { ledgers: { type: "array", minItems: 2, items: { type: "object" } } } },
+  },
+  {
+    name: "audit_prediction_claim",
+    title: "Audit one prediction claim before narration",
+    description: "Applies calculation, approved-rule, opposition, calibration and harm gates and returns publish, caution or abstain.",
+    inputSchema: { type: "object", required: ["claim"], properties: { claim: { type: "string" }, claimClass: { type: "string" }, supportingEvidence: { type: "array" }, opposingEvidence: { type: "array" }, approvedRules: { type: "array" }, unresolvedSourceKeys: { type: "array", items: { type: "string" } }, calculationCertified: { type: "boolean" }, nearBoundary: { type: "boolean" }, empiricallyCalibrated: { type: "boolean" }, harmClass: { type: "string", enum: ["general-cultural", "sensitive-reflective", "high-impact-restricted", "prohibited-output"] } } },
+  },
+  {
+    name: "record_consultation_outcome",
+    title: "Record a versioned prediction claim and later outcome",
+    description: "Stores one atomic claim and a consent-scoped outcome for descriptive validation without training on narration.",
+    inputSchema: { type: "object", required: ["claimId", "claim", "claimClass", "tradition", "chartVersion", "rulesetVersion", "outcome", "consentScope"], properties: { claimId: { type: "string" }, claim: { type: "string" }, claimClass: { type: "string" }, tradition: { type: "string" }, chartVersion: { type: "string" }, rulesetVersion: { type: "string" }, evidence: { type: "object" }, resolutionWindowStart: { type: "string" }, resolutionWindowEnd: { type: "string" }, userSawClaim: { type: "boolean" }, outcome: { type: "string", enum: ["confirmed", "partly-confirmed", "not-confirmed", "unresolved"] }, notes: { type: "string" }, resolvedAt: { type: "string" }, consentScope: { type: "string", enum: ["service-follow-up", "descriptive-outcomes", "blind-validation"] }, outcomeBlinded: { type: "boolean" } } },
+  },
+  {
+    name: "get_validation_report",
+    title: "Get versioned calculation, knowledge, review and outcome validation status",
+    description: "Reports coverage and validation gates without converting descriptive counts into scientific or predictive validity.",
+    inputSchema: { type: "object", properties: { tradition: { type: "string" }, engineVersion: { type: "string" }, rulesetVersion: { type: "string" } } },
+  },
+  {
+    name: "review_lal_kitab_rule",
+    title: "Record a Lal Kitab specialist rule review",
+    description: "Reviewer-only mutation recording convention version, scan verification, sensitive class, remedy burden and decision.",
+    inputSchema: { type: "object", required: ["ruleId", "reviewerId", "conventionVersion", "scanVerified", "sensitiveClaimClass", "decision"], properties: { ruleId: { type: "string" }, reviewerId: { type: "string" }, conventionVersion: { type: "string" }, scanVerified: { type: "boolean" }, sensitiveClaimClass: { type: "string" }, remedyBurden: { type: "object" }, decision: { type: "string", enum: ["approve", "request_changes", "reject"] }, notes: { type: "string" } } },
+  },
 ];
 
 // All location-aware tools accept either a catalogue place or explicit verified
@@ -2200,6 +2324,8 @@ const uniformLocationTools = new Set([
   "analyze_house",
   "get_planetary_relationship_graph",
   "get_natal_panchanga",
+  "analyze_lal_kitab",
+  "audit_chart_calculation",
   "suggest_safe_practice",
   "calculate_devata_profile",
   "analyze_remedies",
@@ -2270,6 +2396,13 @@ for (const tool of mcpTools) {
     }
 }
 const mcpOutputSchemas: Record<string, unknown> = {
+  search_reviewed_rules: { type: "object", required: ["schemaVersion", "results", "publicationPolicy"], additionalProperties: true },
+  search_source_passages: { type: "object", required: ["schemaVersion", "results", "rightsPolicy"], additionalProperties: true },
+  compare_traditions: { type: "object", required: ["schemaVersion", "traditions", "agreements", "contradictions", "synthesisPolicy"], additionalProperties: true },
+  audit_prediction_claim: { type: "object", required: ["schemaVersion", "claim", "evidence", "confidence", "decision"], additionalProperties: true },
+  record_consultation_outcome: { type: "object", required: ["schemaVersion", "claimId", "outcomeId", "status"], additionalProperties: true },
+  get_validation_report: { type: "object", required: ["schemaVersion", "calculation", "knowledge", "review", "outcomes", "overallStatus"], additionalProperties: true },
+  review_lal_kitab_rule: { type: "object", required: ["schemaVersion", "ruleId", "reviewerId", "decision", "publicationStatus"], additionalProperties: true },
   compare_conventions: {
     type: "object",
     required: [
@@ -2310,6 +2443,43 @@ const mcpOutputSchemas: Record<string, unknown> = {
     type: "object",
     required: ["schemaVersion", "limbs", "paksha", "interpretation", "safety"],
     additionalProperties: true,
+  },
+  analyze_lal_kitab: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "tradition",
+      "conversion",
+      "placements",
+      "conjunctions",
+      "sourceCoverage",
+      "controlledDisclosurePolicy",
+      "blockedOutputs",
+      "safety",
+    ],
+    properties: {
+      schemaVersion: { const: "sahadeva-lal-kitab-structure-1" },
+      tradition: { type: "object" },
+      conversion: { type: "object" },
+      placements: { type: "array" },
+      conjunctions: { type: "array" },
+      sourceCoverage: { type: "object" },
+      controlledDisclosurePolicy: { type: "object" },
+      blockedOutputs: { type: "array" },
+      safety: { type: "object" },
+    },
+  },
+  explore_lal_kitab_sources: {
+    type: "object",
+    required: ["schemaVersion", "source", "coverage", "policy", "families", "notice"],
+    properties: {
+      schemaVersion: { const: "sahadeva-lal-kitab-source-catalog-1" },
+      source: { type: "object" },
+      coverage: { type: "object" },
+      policy: { type: "object" },
+      families: { type: "array" },
+      notice: { type: "string" },
+    },
   },
   suggest_safe_practice: {
     type: "object",
@@ -2481,6 +2651,10 @@ const mcpOutputSchemas: Record<string, unknown> = {
   validate_rule_spec: {
     type: "object",
     required: ["valid", "execution", "publicationGate"],
+    additionalProperties: true,
+  },
+  reconstruct_worked_example: {
+    type: "object",
     additionalProperties: true,
   },
   analyze_chart_topic: {
@@ -2878,6 +3052,50 @@ const mcpOutputSchemas: Record<string, unknown> = {
       publicationRule: { type: "string" },
     },
   },
+  assess_prediction_readiness: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "overallStatus",
+      "decision",
+      "gates",
+      "traditions",
+      "recommendedMcpBuildOrder",
+      "safety",
+    ],
+    properties: {
+      schemaVersion: { const: "sahadeva-prediction-readiness-1" },
+      overallStatus: { const: "research-preview" },
+      decision: { type: "object" },
+      gates: { type: "array" },
+      traditions: { type: "array" },
+      recommendedMcpBuildOrder: { type: "array" },
+      safety: { type: "object" },
+    },
+  },
+  audit_chart_calculation: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "engine",
+      "inputProvenance",
+      "convention",
+      "validation",
+      "boundaryAudit",
+      "decision",
+      "notice",
+    ],
+    properties: {
+      schemaVersion: { const: "sahadeva-calculation-audit-1" },
+      engine: { type: "object" },
+      inputProvenance: { type: "object" },
+      convention: { type: "object" },
+      validation: { type: "object" },
+      boundaryAudit: { type: "array" },
+      decision: { type: "object" },
+      notice: { type: "string" },
+    },
+  },
   list_rule_review_queue: {
     type: "object",
     required: ["items", "summary", "publicationRule"],
@@ -3006,6 +3224,8 @@ const mcpOutputSchemas: Record<string, unknown> = {
 };
 const stateChangingTools = new Set([
   "record_prashna_outcome",
+  "record_consultation_outcome",
+  "review_lal_kitab_rule",
   "generate_report_pdf",
 ]);
 for (const tool of mcpTools)
@@ -3024,11 +3244,21 @@ for (const tool of mcpTools)
 // calls, while the expert-tools resource documents advanced workflows.
 const publicMcpToolNames = new Set([
   "search_locations",
+  "assess_prediction_readiness",
+  "audit_chart_calculation",
   "consult_jyotishya",
   "analyze_chart_topic",
   "compare_conventions",
   "analyze_house",
   "get_natal_panchanga",
+  "analyze_lal_kitab",
+  "explore_lal_kitab_sources",
+  "search_reviewed_rules",
+  "search_source_passages",
+  "compare_traditions",
+  "audit_prediction_claim",
+  "record_consultation_outcome",
+  "get_validation_report",
   "suggest_safe_practice",
   "calculate_devata_profile",
   "analyze_remedies",
@@ -3727,6 +3957,15 @@ async function handleMcp(
             "Audit life-theme output against citation, calibration, leakage, and safety gates.",
           arguments: [{ name: "life_theme_output", required: true }],
         },
+        {
+          name: "lal_kitab_consultation",
+          description:
+            "Run a source-linked Lal Kitab structural consultation with calculation auditing and caution-led disclosure.",
+          arguments: [
+            { name: "birth_details", required: true },
+            { name: "question", required: false },
+          ],
+        },
       ],
     });
   if (request.method === "prompts/get") {
@@ -3744,6 +3983,8 @@ async function handleMcp(
           "Verify the exact location, IANA timezone, zodiac.signIndexBase, signName/Nakshatra agreement, ayanamsa and house system. Report display or input errors separately from calculation errors.",
         synthesis_validation_audit:
           "Call get_synthesis_validation_status and get_rule_citations for every sourceKey. Treat heuristic scores as within-chart rankings, never probabilities. Report missing citations, insufficient cohort gates, possible outcome leakage, and prohibited event-specific inferences.",
+        lal_kitab_consultation:
+          "Resolve the location, then call assess_prediction_readiness, audit_chart_calculation and analyze_lal_kitab. Call explore_lal_kitab_sources only when the user asks about corpus coverage or methodology. Keep Lal Kitab separate from Parashari interpretation and state whether each result is calculated, source-linked, reviewed, or calibrated. Retain sensitive source topics, but disclose them only with caution: never diagnose illness, predict certain death or fertility, issue coercive marriage verdicts, prescribe costly or harmful remedies, or recommend harm to animals. Unreviewed passages are research context, not personalized predictions.",
       };
     if (!promptName || !templates[promptName])
       return rpcError(request.id, -32602, "Unknown prompt");
@@ -3785,6 +4026,11 @@ async function handleMcp(
           name: "Specialist tools for explicit advanced workflows",
           mimeType: "application/json",
         },
+        {
+          uri: "sahadeva://lal-kitab",
+          name: "Lal Kitab coverage and controlled-disclosure policy",
+          mimeType: "application/json",
+        },
       ],
     });
   if (request.method === "resources/read") {
@@ -3816,6 +4062,12 @@ async function handleMcp(
                 ],
                 citations: ["list_rule_review_queue", "get_rule_citations"],
                 compactNarration: ["get_compact_chart_evidence"],
+                lalKitab: [
+                  "assess_prediction_readiness",
+                  "audit_chart_calculation",
+                  "analyze_lal_kitab",
+                  "explore_lal_kitab_sources for methodology questions",
+                ],
               }
             : uri === "sahadeva://rule-review-policy"
               ? {
@@ -3851,6 +4103,8 @@ async function handleMcp(
                         "These specialist tools remain callable by name for backwards compatibility, but are intentionally omitted from default model discovery to improve routing quality.",
                       tools: expertMcpTools,
                     }
+                  : uri === "sahadeva://lal-kitab"
+                    ? getLalKitabSourceCatalog()
                   : null;
     if (!data) return rpcError(request.id, -32602, "Unknown resource");
     return rpcResult(request.id, {
@@ -4973,7 +5227,9 @@ async function handleMcp(
     if (
       name === "analyze_house" ||
       name === "get_planetary_relationship_graph" ||
-      name === "get_natal_panchanga"
+      name === "get_natal_panchanga" ||
+      name === "analyze_lal_kitab" ||
+      name === "audit_chart_calculation"
     ) {
       const args = request.params?.arguments as
           Record<string, unknown> | undefined,
@@ -5013,8 +5269,33 @@ async function handleMcp(
         structuredContent =
           name === "analyze_house"
             ? analyzeHouse(chart, house)
+            : name === "audit_chart_calculation"
+              ? (await import("../shared/calculationAudit")).auditChartCalculation(chart)
+            : name === "analyze_lal_kitab"
+              ? inspectLalKitabStructure(chart)
             : name === "get_natal_panchanga"
-              ? analyzeNatalPanchanga(chart)
+              ? (() => {
+                  const analysis = analyzeNatalPanchanga(chart),
+                    evaluations = BOOK_RULE_CATALOG.filter(
+                      (rule) => rule.topic === "natal-panchanga",
+                    ).map((rule) =>
+                      executeRule(chart, rule, "2000-01-01T00:00:00.000Z"),
+                    );
+                  return {
+                    ...analysis,
+                    sourceRuleEvaluations: evaluations.map((row) => ({
+                      ruleId: row.rule.id,
+                      sourceKey: row.rule.sourceKey,
+                      matched: row.matched,
+                      effectiveEffect: row.effectiveEffect,
+                      facts: row.facts,
+                      reviewStatus: row.rule.reviewStatus,
+                      publishable: row.publishable ?? false,
+                      interpretation: row.rule.interpretation,
+                      harmClass: row.rule.harmClass,
+                    })),
+                  };
+                })()
               : (() => {
                   const graph = buildPlanetaryRelationshipGraph(chart),
                     evaluations = BOOK_RULE_CATALOG.filter(
@@ -5557,7 +5838,7 @@ async function handleMcp(
       if (
         !JUDGMENT_TOPICS.includes(topic) ||
         !prefs ||
-        !["secular", "spiritual", "tradition-specific"].includes(
+        !["hindu", "spiritual", "tradition-specific"].includes(
           String(prefs.beliefMode),
         ) ||
         !["minimal", "moderate"].includes(String(prefs.maximumBurden)) ||
@@ -5605,7 +5886,7 @@ async function handleMcp(
         ),
         preferences = {
           beliefMode: String(prefs.beliefMode) as
-            "secular" | "spiritual" | "tradition-specific",
+            "hindu" | "spiritual" | "tradition-specific",
           tradition:
             typeof prefs.tradition === "string" ? prefs.tradition : undefined,
           maximumBurden: String(prefs.maximumBurden) as "minimal" | "moderate",
@@ -5682,6 +5963,27 @@ async function handleMcp(
               : new Date().toISOString(),
           ),
         };
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "reconstruct_worked_example") {
+      const args = request.params?.arguments as
+          Record<string, unknown> | undefined,
+        fixtureId = typeof args?.fixtureId === "string" ? args.fixtureId : "",
+        limit = Math.max(1, Math.min(100, Number(args?.limit) || 25));
+      const structuredContent = fixtureId
+        ? (await import("../shared/workedExample")).reconstructWorkedExample(fixtureId)
+        : {
+            schemaVersion: "sahadeva-worked-example-catalog-1",
+            fixtureIds: (await import("../shared/workedExample")).listWorkedExampleIds().slice(0, limit),
+            total: (await import("../shared/workedExample")).listWorkedExampleIds().length,
+            adjudicationStatus: "local-regression-unreviewed",
+          };
+      if (!structuredContent)
+        return rpcError(request.id, -32602, "Unknown worked-example fixture");
       return rpcResult(request.id, {
         content: [{ type: "text", text: JSON.stringify(structuredContent) }],
         structuredContent,
@@ -6795,6 +7097,22 @@ async function handleMcp(
         isError: false,
       });
     }
+    if (name === "assess_prediction_readiness") {
+      const structuredContent = (await import("../shared/predictionReadiness")).assessPredictionReadiness();
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "explore_lal_kitab_sources") {
+      const structuredContent = getLalKitabSourceCatalog();
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
     return rpcError(request.id, -32602, `Unknown tool: ${name || "missing"}`);
   }
   return rpcError(request.id, -32601, `Method not found: ${request.method}`);
@@ -7154,6 +7472,63 @@ app.get("/api/push/key", (c) =>
   c.json({ publicKey: c.env.VAPID_PUBLIC_KEY || null }),
 );
 
+// Builds the localized daily-panchanga brief (title + body) for a stored
+// person profile. Shared by GET /api/push/brief and the Expo push cron so the
+// notification text and the in-app brief never drift apart.
+async function buildDailyBrief(
+  env: Env,
+  profile: Record<string, unknown> | null,
+): Promise<{ title: string; body: string } | null> {
+  const parsed = birthInputSchema.safeParse({
+    ...profile,
+    methodology: "parashari",
+  });
+  if (!parsed.success) return null;
+  const natal = await calculateChartCached(env, parsed.data);
+  const dayIso = (offset: number) =>
+    new Date(
+      Date.now() + (parsed.data.timezoneOffset * 3600 + offset * 86400) * 1000,
+    )
+      .toISOString()
+      .slice(0, 10);
+  const base = {
+    ...parsed.data,
+    name: "Today",
+    time: "12:00",
+    birthTimeAccuracyMinutes: 0,
+  };
+  const daily = buildDailyPanchanga(
+    calculateChart({ ...base, date: dayIso(0) }),
+    calculateChart({ ...base, date: dayIso(1) }),
+    natal,
+  ) as {
+    fiveLimbs?: { vara: string; tithi: string; nakshatra: string };
+    personalized?: {
+      taraBala?: { favorable: boolean };
+      chandraBala?: { favorable: boolean };
+    } | null;
+    inauspicious?: { rahuKaal?: { startIso: string; endIso: string } | null };
+  };
+  const te = parsed.data.language === "te";
+  const clock = (iso?: string) =>
+    iso
+      ? new Date(iso).toLocaleTimeString(te ? "te-IN" : "en-IN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: parsed.data.timezone || "UTC",
+        })
+      : "";
+  const tara = daily.personalized?.taraBala?.favorable;
+  const chandra = daily.personalized?.chandraBala?.favorable;
+  const title = te
+    ? `నమస్తే ${parsed.data.name} — నేటి పంచాంగం`
+    : `Namaste ${parsed.data.name} — today's panchanga`;
+  const body = te
+    ? `${daily.fiveLimbs?.vara}, ${daily.fiveLimbs?.tithi}, ${daily.fiveLimbs?.nakshatra}. తారా బలం: ${tara ? "అనుకూలం" : "జాగ్రత్త"}, చంద్ర బలం: ${chandra ? "అనుకూలం" : "జాగ్రత్త"}. రాహుకాలం ${clock(daily.inauspicious?.rahuKaal?.startIso)}–${clock(daily.inauspicious?.rahuKaal?.endIso)}.`
+    : `${daily.fiveLimbs?.vara}, ${daily.fiveLimbs?.tithi}, ${daily.fiveLimbs?.nakshatra}. Tara bala: ${tara ? "favorable" : "take care"}, chandra bala: ${chandra ? "favorable" : "take care"}. Rahu kaal ${clock(daily.inauspicious?.rahuKaal?.startIso)}–${clock(daily.inauspicious?.rahuKaal?.endIso)}.`;
+  return { title, body };
+}
+
 app.get("/api/push/brief", async (c) => {
   const user = await sessionUser(c.env, c.req.raw);
   if (!user) return c.json({ error: "Sign in required" }, 401);
@@ -7162,59 +7537,56 @@ app.get("/api/push/brief", async (c) => {
     string,
     unknown
   > | null;
-  const parsed = birthInputSchema.safeParse({
-    ...profile,
-    methodology: "parashari",
-  });
-  if (!parsed.success) return c.json({ error: "No chart" }, 409);
   try {
-    const natal = await calculateChartCached(c.env, parsed.data);
-    const dayIso = (offset: number) =>
-      new Date(
-        Date.now() +
-          (parsed.data.timezoneOffset * 3600 + offset * 86400) * 1000,
-      )
-        .toISOString()
-        .slice(0, 10);
-    const base = {
-      ...parsed.data,
-      name: "Today",
-      time: "12:00",
-      birthTimeAccuracyMinutes: 0,
-    };
-    const daily = buildDailyPanchanga(
-      calculateChart({ ...base, date: dayIso(0) }),
-      calculateChart({ ...base, date: dayIso(1) }),
-      natal,
-    ) as {
-      fiveLimbs?: { vara: string; tithi: string; nakshatra: string };
-      personalized?: {
-        taraBala?: { favorable: boolean };
-        chandraBala?: { favorable: boolean };
-      } | null;
-      inauspicious?: { rahuKaal?: { startIso: string; endIso: string } | null };
-    };
-    const te = parsed.data.language === "te";
-    const clock = (iso?: string) =>
-      iso
-        ? new Date(iso).toLocaleTimeString(te ? "te-IN" : "en-IN", {
-            hour: "2-digit",
-            minute: "2-digit",
-            timeZone: parsed.data.timezone || "UTC",
-          })
-        : "";
-    const tara = daily.personalized?.taraBala?.favorable;
-    const chandra = daily.personalized?.chandraBala?.favorable;
-    const title = te
-      ? `నమస్తే ${parsed.data.name} — నేటి పంచాంగం`
-      : `Namaste ${parsed.data.name} — today's panchanga`;
-    const bodyText = te
-      ? `${daily.fiveLimbs?.vara}, ${daily.fiveLimbs?.tithi}, ${daily.fiveLimbs?.nakshatra}. తారా బలం: ${tara ? "అనుకూలం" : "జాగ్రత్త"}, చంద్ర బలం: ${chandra ? "అనుకూలం" : "జాగ్రత్త"}. రాహుకాలం ${clock(daily.inauspicious?.rahuKaal?.startIso)}–${clock(daily.inauspicious?.rahuKaal?.endIso)}.`
-      : `${daily.fiveLimbs?.vara}, ${daily.fiveLimbs?.tithi}, ${daily.fiveLimbs?.nakshatra}. Tara bala: ${tara ? "favorable" : "take care"}, chandra bala: ${chandra ? "favorable" : "take care"}. Rahu kaal ${clock(daily.inauspicious?.rahuKaal?.startIso)}–${clock(daily.inauspicious?.rahuKaal?.endIso)}.`;
-    return c.json({ title, body: bodyText });
+    const brief = await buildDailyBrief(c.env, profile);
+    if (!brief) return c.json({ error: "No chart" }, 409);
+    return c.json(brief);
   } catch {
     return c.json({ error: "Brief unavailable" }, 500);
   }
+});
+
+app.post("/api/push/expo", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const body = await c.req
+    .json<{ token?: string; hour?: number; tzOffset?: number }>()
+    .catch(() => null);
+  const token = body?.token?.trim() || "";
+  if (!(await import("./expoPush")).isExpoPushToken(token))
+    return c.json({ error: "A valid Expo push token is required" }, 400);
+  await c.env.DB.prepare(
+    "INSERT INTO expo_push_tokens (id, user_id, token, hour, tz_offset, created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id, hour=excluded.hour, tz_offset=excluded.tz_offset",
+  )
+    .bind(
+      personId(),
+      user.id,
+      token,
+      Math.min(23, Math.max(0, Math.round(Number(body?.hour ?? 7)))),
+      Math.min(14, Math.max(-14, Number(body?.tzOffset ?? 5.5))),
+      new Date().toISOString(),
+    )
+    .run();
+  return c.json({ ok: true });
+});
+
+app.delete("/api/push/expo", async (c) => {
+  const user = await sessionUser(c.env, c.req.raw);
+  if (!user) return c.json({ error: "Sign in required" }, 401);
+  const body = await c.req
+    .json<{ token?: string }>()
+    .catch(() => ({}) as { token?: string });
+  if (body.token)
+    await c.env.DB.prepare(
+      "DELETE FROM expo_push_tokens WHERE token=? AND user_id=?",
+    )
+      .bind(body.token, user.id)
+      .run();
+  else
+    await c.env.DB.prepare("DELETE FROM expo_push_tokens WHERE user_id=?")
+      .bind(user.id)
+      .run();
+  return c.json({ ok: true });
 });
 
 app.get("/api/panchanga/today", async (c) => {
@@ -7722,6 +8094,10 @@ app.post("/api/review/runtime-book-rules/sync", async (c) => {
                 ? ["book-bhasin-sarvarth-chintamani:L5541"]
               : sourceKey.includes("L1093")
                 ? ["book-larsen-fundamentals:L1093"]
+              : sourceKey.includes("L984")
+                ? ["book-larsen-fundamentals:L984"]
+              : sourceKey.includes("L2671")
+                ? ["book-larsen-fundamentals:L2671"]
               : sourceKey.includes("L5002")
                 ? ["book-larsen-fundamentals:L5002"]
                 : sourceKey.includes("L5020")
@@ -8899,6 +9275,34 @@ app.post("/api/chart", async (c) => {
   return c.json(calculateChart(parsed.data));
 });
 
+app.get("/api/lal-kitab/catalog", async (c) =>
+  c.json(getLalKitabSourceCatalog()),
+);
+
+app.post("/api/lal-kitab", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const parsed = birthInputSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid Lal Kitab chart details", issues: parsed.error.flatten() },
+      400,
+    );
+  return c.json(inspectLalKitabStructure(calculateChart(parsed.data)));
+});
+
+app.post("/api/calculation-audit", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const parsed = birthInputSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid calculation-audit details", issues: parsed.error.flatten() },
+      400,
+    );
+  return c.json((await import("../shared/calculationAudit")).auditChartCalculation(calculateChart(parsed.data)));
+});
+
 app.post("/api/judgments/topic", async (c) => {
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
   if (limited) return limited;
@@ -9302,9 +9706,10 @@ app.post("/api/practices", async (c) => {
   return c.json(
     buildRemedyProtocol(judgment, {
       beliefMode: (prefs.beliefMode === "spiritual" ||
-      prefs.beliefMode === "tradition-specific"
+      prefs.beliefMode === "tradition-specific" ||
+      prefs.beliefMode === "hindu"
         ? prefs.beliefMode
-        : "secular") as "secular" | "spiritual" | "tradition-specific",
+        : "hindu") as "hindu" | "spiritual" | "tradition-specific",
       tradition:
         typeof prefs.tradition === "string" ? prefs.tradition : undefined,
       maximumBurden:
@@ -10953,51 +11358,97 @@ app.post("/mcp", async (c) => {
   });
 });
 
-async function scheduled(
-  _event: ScheduledController,
-  env: Env,
-  _ctx: ExecutionContext,
-) {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.DB) return;
-  const nowUtcHour = new Date().getUTCHours() + new Date().getUTCMinutes() / 60;
+// True when the subscription's local clock is within the send window of its
+// chosen hour and it has not already fired today.
+function reminderDue(
+  hour: number,
+  tzOffset: number,
+  lastSentAt: string | null,
+  nowUtcHour: number,
+  todayKey: string,
+): boolean {
+  const localHour = (((nowUtcHour + tzOffset) % 24) + 24) % 24;
+  const due = Math.abs(localHour - hour) < 0.75;
+  const alreadySent = lastSentAt?.slice(0, 10) === todayKey;
+  return due && !alreadySent;
+}
+
+async function sendWebPushReminders(env: Env, nowUtcHour: number, todayKey: string) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
   const rows = await env.DB.prepare(
     "SELECT endpoint, hour, tz_offset, last_sent_at FROM push_subscriptions",
-  ).all<{
-    endpoint: string;
-    hour: number;
-    tz_offset: number;
-    last_sent_at: string | null;
-  }>();
-  const todayKey = new Date().toISOString().slice(0, 10);
+  ).all<{ endpoint: string; hour: number; tz_offset: number; last_sent_at: string | null }>();
   for (const row of rows.results || []) {
-    const localHour = (((nowUtcHour + row.tz_offset) % 24) + 24) % 24;
-    const due = Math.abs(localHour - row.hour) < 0.75;
-    const alreadySent = row.last_sent_at?.slice(0, 10) === todayKey;
-    if (!due || alreadySent) continue;
+    if (!reminderDue(row.hour, row.tz_offset, row.last_sent_at, nowUtcHour, todayKey)) continue;
     try {
-      const status = await sendPush(
-        row.endpoint,
-        env.VAPID_PUBLIC_KEY,
-        env.VAPID_PRIVATE_KEY,
-      );
+      const status = await sendPush(row.endpoint, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
       if (status === 404 || status === 410) {
         await env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint=?")
           .bind(row.endpoint)
           .run();
       } else {
-        await env.DB.prepare(
-          "UPDATE push_subscriptions SET last_sent_at=? WHERE endpoint=?",
-        )
+        await env.DB.prepare("UPDATE push_subscriptions SET last_sent_at=? WHERE endpoint=?")
           .bind(new Date().toISOString(), row.endpoint)
           .run();
       }
     } catch (error) {
-      console.error(
-        "push send failed:",
-        error instanceof Error ? error.message : "unknown",
-      );
+      console.error("web push send failed:", error instanceof Error ? error.message : "unknown");
     }
   }
+}
+
+// Native (Expo) reminders carry the brief inline, so each due token needs its
+// user's active-person profile resolved and a brief built before sending.
+async function sendExpoReminders(env: Env, nowUtcHour: number, todayKey: string) {
+  const rows = await env.DB.prepare(
+    "SELECT token, user_id, hour, tz_offset, last_sent_at FROM expo_push_tokens",
+  ).all<{
+    token: string;
+    user_id: string;
+    hour: number;
+    tz_offset: number;
+    last_sent_at: string | null;
+  }>();
+  const due = (rows.results || []).filter((row) =>
+    reminderDue(row.hour, row.tz_offset, row.last_sent_at, nowUtcHour, todayKey),
+  );
+  for (const row of due) {
+    try {
+      const active = await activePersonRow(env, row.user_id);
+      const profile = meParse(active?.profile_json) as Record<string, unknown> | null;
+      const brief = await buildDailyBrief(env, profile);
+      if (!brief) continue;
+      const [ticket] = await (await import("./expoPush")).sendExpoPush(
+        [{ to: row.token, title: brief.title, body: brief.body, sound: "default" }],
+        env.EXPO_ACCESS_TOKEN,
+      );
+      if (ticket?.status === "error" && ticket.details?.error === "DeviceNotRegistered") {
+        await env.DB.prepare("DELETE FROM expo_push_tokens WHERE token=?")
+          .bind(row.token)
+          .run();
+      } else if (ticket?.status === "ok") {
+        await env.DB.prepare("UPDATE expo_push_tokens SET last_sent_at=? WHERE token=?")
+          .bind(new Date().toISOString(), row.token)
+          .run();
+      }
+    } catch (error) {
+      console.error("expo push send failed:", error instanceof Error ? error.message : "unknown");
+    }
+  }
+}
+
+async function scheduled(
+  _event: ScheduledController,
+  env: Env,
+  _ctx: ExecutionContext,
+) {
+  if (!env.DB) return;
+  const nowUtcHour = new Date().getUTCHours() + new Date().getUTCMinutes() / 60;
+  const todayKey = new Date().toISOString().slice(0, 10);
+  await Promise.allSettled([
+    sendWebPushReminders(env, nowUtcHour, todayKey),
+    sendExpoReminders(env, nowUtcHour, todayKey),
+  ]);
 }
 
 export { app };

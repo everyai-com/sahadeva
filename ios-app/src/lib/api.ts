@@ -302,6 +302,23 @@ export async function createShareLink(): Promise<string | null> {
   }
 }
 
+export async function registerPushToken(token: string, hour: number, tzOffset: number): Promise<boolean> {
+  try {
+    const response = await post("/api/push/expo", { token, hour, tzOffset });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function unregisterPushToken(token: string): Promise<void> {
+  await fetch(`${API_URL}/api/push/expo`, {
+    method: "DELETE",
+    headers: json,
+    body: JSON.stringify({ token }),
+  }).catch(() => {});
+}
+
 export async function fetchBrief(): Promise<{ title: string; body: string } | null> {
   try {
     const response = await fetch(`${API_URL}/api/push/brief`);
