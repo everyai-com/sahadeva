@@ -1,0 +1,22 @@
+# EAS Build only needs the ios-app/ project. Exclude the rest of the monorepo
+# so the upload tarball stays small (the build server reinstalls node_modules).
+node_modules/
+tmp/
+transcript-harvester/
+vedic-astrology-transcripts/
+output/
+knowledge/
+dist/
+test-results/
+playwright-report/
+worker/
+shared/
+migrations/
+scripts/
+learnings/
+docs/
+e2e/
+public/
+src/
+*.pdf
+*.md

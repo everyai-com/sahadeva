@@ -11,7 +11,10 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.everyai.sahadeva",
       "buildNumber": "1",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -41,6 +44,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4699bff7-b9d0-4eae-9440-388c756cc8a2"
+      }
+    },
+    "owner": "phanindra_reddy"
   }
 }
