@@ -109,6 +109,24 @@ export async function saveChartStyle(style: "south" | "north"): Promise<void> {
   }
 }
 
+const PRO_KEY = "sahadeva.pro";
+
+export async function loadProMode(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(PRO_KEY)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export async function saveProMode(on: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PRO_KEY, on ? "1" : "0");
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 const REMINDER_KEY = "sahadeva.reminder.v1";
 
 export async function loadReminder(): Promise<{ enabled: boolean; token?: string }> {

@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { NorthChart } from "@/components/north-chart";
+import { ProTools } from "@/components/pro-tools";
 import { SouthChart } from "@/components/south-chart";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -11,7 +12,7 @@ import { BottomTabInset } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { fetchJudgment } from "@/lib/api";
 import { useAppState } from "@/lib/app-state";
-import { loadChartStyle, saveChartStyle } from "@/lib/storage";
+import { loadChartStyle, loadProMode, saveChartStyle, saveProMode } from "@/lib/storage";
 import type { JudgmentTopic, TopicJudgment } from "@/lib/types";
 import {
   grahaLabel,
@@ -33,6 +34,7 @@ export default function ChartScreen() {
   const router = useRouter();
   const [variant, setVariant] = useState<"d1" | "d9">("d1");
   const [chartStyle, setChartStyle] = useState<"south" | "north">("south");
+  const [proMode, setProMode] = useState(false);
   const [topic, setTopic] = useState<JudgmentTopic>("career");
   const [judgments, setJudgments] = useState<Partial<Record<JudgmentTopic, TopicJudgment>>>({});
   const [judgmentBusy, setJudgmentBusy] = useState(false);
@@ -44,6 +46,7 @@ export default function ChartScreen() {
 
   useEffect(() => {
     void loadChartStyle().then(setChartStyle);
+    void loadProMode().then(setProMode);
   }, []);
 
   if (!profile)
@@ -455,6 +458,27 @@ export default function ChartScreen() {
             </View>
           )}
 
+          {/* Pro tools */}
+          {chart && (
+            <>
+              <View style={[styles.card, styles.proToggle, { backgroundColor: theme.backgroundElement }]}>
+                <View style={styles.proCopy}>
+                  <ThemedText type="smallBold">{t.proMode}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">{t.proModeDesc}</ThemedText>
+                </View>
+                <Switch
+                  value={proMode}
+                  onValueChange={(next) => {
+                    setProMode(next);
+                    void saveProMode(next);
+                  }}
+                  trackColor={{ true: theme.accent, false: theme.border }}
+                />
+              </View>
+              {proMode && <ProTools chart={chart} language={state.language} />}
+            </>
+          )}
+
           <ThemedText type="small" themeColor="textSecondary">{t.disclaimer}</ThemedText>
         </ScrollView>
       </SafeAreaView>
@@ -513,6 +537,8 @@ const styles = StyleSheet.create({
   card: { borderRadius: 18, padding: 16, gap: 10 },
   loadingCard: { alignItems: "center", paddingVertical: 26 },
   segmentRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  proToggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10 },
+  proCopy: { flex: 1, gap: 3 },
   segment: { flex: 1, borderWidth: 1, borderRadius: 14, minHeight: 42, alignItems: "center", justifyContent: "center" },
   grid: { flexDirection: "row", flexWrap: "wrap", rowGap: 12 },
   fact: { width: "50%", gap: 2, paddingRight: 8 },

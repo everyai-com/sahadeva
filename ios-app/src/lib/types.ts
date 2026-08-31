@@ -73,6 +73,7 @@ export type Placement = {
   sign: number;
   signName?: string;
   degree: number;
+  longitude: number;
   nakshatra: string;
   pada: number;
   retrograde?: boolean;
@@ -97,7 +98,9 @@ export type FullChart = {
       subPeriods: { lord: string; startJulianDay: number; endJulianDay: number }[];
     }[];
     yogas?: { yoga: string; detected: boolean; evidence: string[] }[];
-    dignities?: { name: string; dignity: string; combust: boolean }[];
+    dignities?: { name: string; sign: number; signLord?: string; dignity: string; combust: boolean }[];
+    aspects?: { from: string; to: string; kind: string; separation: number }[];
+    ashtakavarga?: { sarva?: { signs: number[]; total: number } };
     planetaryStates?: {
       avasthas: {
         name: string;
