@@ -90,6 +90,25 @@ export async function clearThreads(): Promise<void> {
   }
 }
 
+const CHART_STYLE_KEY = "sahadeva.chartstyle";
+
+export async function loadChartStyle(): Promise<"south" | "north"> {
+  try {
+    const raw = await AsyncStorage.getItem(CHART_STYLE_KEY);
+    return raw === "north" ? "north" : "south";
+  } catch {
+    return "south";
+  }
+}
+
+export async function saveChartStyle(style: "south" | "north"): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CHART_STYLE_KEY, style);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 const REMINDER_KEY = "sahadeva.reminder.v1";
 
 export async function loadReminder(): Promise<{ enabled: boolean; token?: string }> {

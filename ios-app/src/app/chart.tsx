@@ -1,8 +1,9 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { NorthChart } from "@/components/north-chart";
 import { SouthChart } from "@/components/south-chart";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -10,6 +11,7 @@ import { BottomTabInset } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { fetchJudgment } from "@/lib/api";
 import { useAppState } from "@/lib/app-state";
+import { loadChartStyle, saveChartStyle } from "@/lib/storage";
 import type { JudgmentTopic, TopicJudgment } from "@/lib/types";
 import {
   grahaLabel,
@@ -30,6 +32,7 @@ export default function ChartScreen() {
   const theme = useTheme();
   const router = useRouter();
   const [variant, setVariant] = useState<"d1" | "d9">("d1");
+  const [chartStyle, setChartStyle] = useState<"south" | "north">("south");
   const [topic, setTopic] = useState<JudgmentTopic>("career");
   const [judgments, setJudgments] = useState<Partial<Record<JudgmentTopic, TopicJudgment>>>({});
   const [judgmentBusy, setJudgmentBusy] = useState(false);
@@ -38,6 +41,10 @@ export default function ChartScreen() {
 
   const { t, profile, chart, summary } = state;
   const te = state.language === "te";
+
+  useEffect(() => {
+    void loadChartStyle().then(setChartStyle);
+  }, []);
 
   if (!profile)
     return (
@@ -151,11 +158,45 @@ export default function ChartScreen() {
                   </Pressable>
                 ))}
               </View>
-              <SouthChart
-                placements={variant === "d1" ? chart.placements : chart.navamsa}
-                title={variant === "d1" ? t.rasiChart : t.navamsaChart}
-                te={te}
-              />
+              <View style={styles.segmentRow}>
+                {(
+                  [
+                    { key: "south", label: t.southStyle },
+                    { key: "north", label: t.northStyle },
+                  ] as const
+                ).map((option) => (
+                  <Pressable
+                    key={option.key}
+                    onPress={() => {
+                      setChartStyle(option.key);
+                      void saveChartStyle(option.key);
+                    }}
+                    style={[
+                      styles.segment,
+                      {
+                        backgroundColor: chartStyle === option.key ? theme.accent : theme.backgroundElement,
+                        borderColor: theme.border,
+                      },
+                    ]}>
+                    <ThemedText type="small" style={{ color: chartStyle === option.key ? "#fff" : theme.text }}>
+                      {option.label}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+              {chartStyle === "south" ? (
+                <SouthChart
+                  placements={variant === "d1" ? chart.placements : chart.navamsa}
+                  title={variant === "d1" ? t.rasiChart : t.navamsaChart}
+                  te={te}
+                />
+              ) : (
+                <NorthChart
+                  placements={variant === "d1" ? chart.placements : chart.navamsa}
+                  title={variant === "d1" ? t.rasiChart : t.navamsaChart}
+                  te={te}
+                />
+              )}
               <Pressable onPress={() => askInChat(t.explainQ.chart)} style={styles.explain}>
                 <ThemedText type="small" style={{ color: theme.accent }}>{t.askInChat}</ThemedText>
               </Pressable>

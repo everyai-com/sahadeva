@@ -131,6 +131,8 @@ export const STRINGS = {
     sookshma: "Sookshma",
     rasiChart: "Rasi (D1)",
     navamsaChart: "Navamsa (D9)",
+    southStyle: "South",
+    northStyle: "North",
     judgmentTitle: "Topic judgment",
     judgmentTopics: {
       career: "Career",
@@ -309,6 +311,8 @@ export const STRINGS = {
     sookshma: "సూక్ష్మ దశ",
     rasiChart: "రాశి చక్రం (D1)",
     navamsaChart: "నవాంశ (D9)",
+    southStyle: "దక్షిణ",
+    northStyle: "ఉత్తర",
     judgmentTitle: "అంశ నిర్ణయం",
     judgmentTopics: {
       career: "వృత్తి",
