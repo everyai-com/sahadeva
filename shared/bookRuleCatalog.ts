@@ -11,8 +11,9 @@ const LOCATORS = {
   sambandhaDefinition: "book-larsen-fundamentals:L4383-L4542:chapter-4",
   ninthLordSambandha:
     "book-bhasin-sarvarth-chintamani:L5541-L5571:verses-34-and-38-39",
-  argalaObstruction:
-    "book-larsen-fundamentals:L1093-L1109:worked-examples",
+  argalaObstruction: "book-larsen-fundamentals:L1093-L1109:worked-examples",
+  panchangaNandadi: "book-larsen-fundamentals:L984-L1043:tables-9-and-rikta",
+  panchangaTattva: "book-larsen-fundamentals:L2671-L2708:tables-24-26",
 } as const;
 
 const bhavaTrikRules = Array.from(
@@ -367,14 +368,87 @@ const argalaRules: ExecutableRule[] = [
     weight: 0,
     condition: {
       type: "predicate",
-      fact: { kind: "argala-status-count", status: "fully-obstructed" },
+      fact: {
+        kind: "argala-status-count",
+        status: "fully-obstructed",
+        targetHouse: 1,
+        argalaHouse: 5,
+      },
       operator: "gte",
       value: 1,
     },
     exceptions: [],
     interpretation:
-      "At least one configured Argala intervention is fully obstructed by an equal or greater opposing occupant count. This is structural context only and cannot establish denial, loss, illness, relationship failure, or an inevitable event.",
+      "The configured secondary fifth-house Argala onto Lagna is fully obstructed by an equal or greater ninth-house occupant count, matching the source's worked structural pattern. It cannot establish denial, loss, illness, relationship failure, or an inevitable event.",
     harmClass: "high-impact-restricted",
+    reviewStatus: "draft",
+  },
+];
+
+const panchangaConflictPairs = [
+  ["Vara", "Tithi"],
+  ["Tithi", "Nakshatra"],
+  ["Nakshatra", "Karana"],
+  ["Karana", "Vara"],
+] as const;
+const panchangaRules: ExecutableRule[] = [
+  {
+    id: "jf-nandadi-rikta-context",
+    version: 1,
+    sourceKey: LOCATORS.panchangaNandadi,
+    tradition: "panchanga-larsen-achyutananda",
+    topic: "natal-panchanga",
+    effect: "qualify",
+    weight: 0,
+    condition: {
+      type: "predicate",
+      fact: { kind: "natal-panchanga-tithi-class" },
+      operator: "eq",
+      value: "Rikta",
+    },
+    exceptions: [],
+    interpretation:
+      "The birth Tithi belongs to the Rikta Nandadi group. This is lineage-specific calendar context and cannot label a person, relationship, day, or life as inauspicious.",
+    harmClass: "sensitive-reflective",
+    reviewStatus: "draft",
+  },
+  ...panchangaConflictPairs.map(([first, second]): ExecutableRule => ({
+    id: `jf-panchanga-conflict-${first.toLowerCase()}-${second.toLowerCase()}`,
+    version: 1,
+    sourceKey: LOCATORS.panchangaTattva,
+    tradition: "panchanga-larsen-achyutananda",
+    topic: "natal-panchanga",
+    effect: "qualify",
+    weight: 0,
+    condition: {
+      type: "predicate",
+      fact: { kind: "natal-panchanga-tattva-conflict", first, second },
+      operator: "eq",
+      value: true,
+    },
+    exceptions: [],
+    interpretation: `${first} and ${second} share a limb lord, forming the configured Tattva-conflict candidate. House-weakness and adverse-event claims are withheld and cannot be inferred from this link alone.`,
+    harmClass: "high-impact-restricted",
+    reviewStatus: "draft",
+  })),
+  {
+    id: "jf-panchanga-akasha-resolution-context",
+    version: 1,
+    sourceKey: LOCATORS.panchangaTattva,
+    tradition: "panchanga-larsen-achyutananda",
+    topic: "natal-panchanga",
+    effect: "qualify",
+    weight: 0,
+    condition: {
+      type: "predicate",
+      fact: { kind: "natal-panchanga-akasha-resolution-count" },
+      operator: "gte",
+      value: 1,
+    },
+    exceptions: [],
+    interpretation:
+      "The Yoga lord links at least one configured Tattva-conflict pair, making an Akasha-resolution candidate. It does not automatically cancel a chart indication or prescribe worship.",
+    harmClass: "sensitive-reflective",
     reviewStatus: "draft",
   },
 ];
@@ -388,6 +462,7 @@ export const BOOK_RULE_CATALOG = [
   ...avasthaContextRules,
   ...sambandhaRules,
   ...argalaRules,
+  ...panchangaRules,
 ] as const;
 export const BOOK_RULE_CATALOG_META = {
   schemaVersion: "sahadeva-book-rule-catalog-1",

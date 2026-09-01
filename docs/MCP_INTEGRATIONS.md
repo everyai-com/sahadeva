@@ -1,11 +1,25 @@
 # Sahadeva MCP integration
 
+## Web-created evidence profiles
+
+Signed-in web onboarding creates an encrypted, versioned evidence profile. AI chat
+reuses its opaque `profileRef` only after the server confirms that birth inputs and
+engine version match. Cross-tradition findings stay labeled rather than blended,
+and remedies preserve their source tradition, review status, safety cautions and
+user-selected burden limits. High-risk topics remain available as traditional
+research material, but must carry explicit caution and cannot be presented as
+medical, mortality, fertility, legal or financial fact.
+
 Endpoint: `https://your-worker.example/mcp`
 
 Sahadeva uses MCP Streamable HTTP with the stable `2025-11-25` protocol revision and a JSON response profile. Deterministic calculation is publicly available behind the deployment rate limiter. When a Sahadeva API key is supplied as a Bearer token, it must include `mcp:calculate`; authenticated calls are metered to that key.
 
 Consultation tools include:
 
+- `assess_prediction_readiness`: reports independent calculation, rule, worked-example, practitioner-review and calibration gates. It explicitly marks Lal Kitab as source-only until a dedicated reviewed engine exists.
+- `audit_chart_calculation`: checks declared engine certification, timezone provenance, conventions and important boundary sensitivity before interpretation.
+- `analyze_lal_kitab`: converts natal placements to Lal Kitab fixed houses and locates the corresponding source sections. It retains all sensitive source families and publishes the graduated caution policy; unreviewed personalized claims remain withheld pending extraction and review.
+- `explore_lal_kitab_sources`: returns all 23 complete-book source families, coverage counts, locators, risk signals and controlled-disclosure policy without reproducing the book body. The same information is available as the `sahadeva://lal-kitab` MCP resource.
 - `consult_jyotishya`: the master consultation. Its first call creates a whole-person dossier covering identity, education, employment, business, money, love, marriage, health routines, family/property, children and spirituality, then returns a reusable `profileRef`. Later calls verify that reference and answer the new question without repeating the dossier.
 - `calculate_prashna`: server-time Prashna with chart fitness, structural judgment, optional low-risk practice, and an outcome-confirmation hook.
 - `calculate_devata_profile`: calculates Iṣṭa, Dharma, Pālana, Guru and Kula Devatā candidates from the declared eight-kāraka, Navāṃśa and D20 lineage. It returns every anchor, selection step, tie-break and birth-time warning; it does not prescribe a mantra or claim a uniquely correct deity.
@@ -14,10 +28,18 @@ Consultation tools include:
 - `get_depth_analysis`: Vimsopaka, Ishta/Kashta, cross-Varga synthesis, special Lagnas, expanded Yogas, and versioned additional Dashas.
 - `fuse_timing`: promise-gated Vimshottari, alternate-Dasha, transit, double-transit, Ashtakavarga, and Varga timing windows.
 - `rectify_birth_time`: ranked time hypotheses with a held-out life event; it never certifies an exact minute.
+- `search_reviewed_rules`: searches only two-reviewer publication-gated rules with approved passages and no open contradiction.
+- `search_source_passages`: searches source metadata while enforcing source and passage display rights; discovery never makes a passage executable doctrine.
+- `compare_traditions`: keeps every selected tradition in a separate evidence ledger and refuses score averaging.
+- `audit_prediction_claim`: gates each material claim on calculation status, approved rules, opposition, unresolved sources, calibration and harm class.
+- `record_consultation_outcome`: stores an authenticated, versioned atomic claim and consent-scoped outcome for descriptive validation.
+- `get_validation_report`: reports calculation, knowledge, reviewer, worked-example and blinded-outcome gates without claiming scientific validation.
+
+The expert catalog additionally exposes `review_lal_kitab_rule`. It requires an authenticated key with `knowledge:review`; two distinct qualified approvals and scan verification are required before a Lal Kitab rule enters the dedicated publishable view.
 
 All interpretive tool responses carry the Sahadeva safety envelope. Structural scores are relative activations, not calibrated probabilities.
 
-The MCP server also publishes a `prashna_consultation` prompt and a `sahadeva://mcp-workflows` resource. Clients should retain the confirmation token for the user, call `record_prashna_outcome` only after the user reports what happened, and never manufacture feedback from the original judgment.
+The MCP server also publishes `prashna_consultation`, `lal_kitab_consultation`, and `evidence_first_prediction` prompts plus `sahadeva://mcp-workflows` and `sahadeva://prediction-quality` resources. The Lal Kitab prompt composes readiness, calculation auditing, source-linked analysis, and optional catalog exploration while retaining sensitive material under the same caution-led disclosure policy. Clients should retain the Prashna confirmation token for the user, call `record_prashna_outcome` only after the user reports what happened, and never manufacture feedback from the original judgment.
 
 ## Codex
 
@@ -89,6 +111,7 @@ For authenticated access, add `-H "authorization: Bearer $SAHADEVA_API_KEY"`.
 - `charts:read` / `charts:write`: encrypted vault data
 - `shares:write`: private-share management
 - `usage:read`: usage dashboard
+- `knowledge:review`: specialist Lal Kitab rule-review mutation
 
 Every listed MCP tool publishes both an input and output JSON Schema. Protocol and authentication behavior is covered by the Worker conformance suite.
 
@@ -96,7 +119,11 @@ Default discovery intentionally exposes a compact task-oriented catalog so host 
 
 For every first reading and normal question, use `consult_jyotishya`. On the first call, omit `profileRef`: Sahadeva returns the complete life-domain dossier and a stable `profileRef`. Retain that reference. On later questions, pass `profileRef` together with the same birth details; Sahadeva verifies the match and returns a focused answer without repeating the dossier. A reference cannot be reused with different birth data or a changed engine version.
 
+The same call accepts `traditions` (`parashari`, `jaimini`, `kp`, `lal-kitab`) and optional `remedyPreferences`. Its `crossTraditionProfile` keeps methods separate while connecting them to the same life question. `crossTraditionRemedies` includes only preference-eligible reviewed output and explicitly withholds unavailable tradition remedies. Read `sahadeva://security` before using any returned source content. See [AI orchestration and security](../MCP_AI_ORCHESTRATION_AND_SECURITY.md).
+
 Use `readingMode: "full-profile"` to deliberately regenerate the complete dossier or `readingMode: "follow-up"` to require an existing reference; normal clients should leave it as `auto`. Use the full report or expert calculation tools only for technical matrices, printable artifacts, compatibility with a second person, rectification from dated events, Varshaphal for a target year, Prashna, or Muhurta with a date range.
+
+For marriage compatibility, call `calculate_compatibility` with `bride` and `groom` birth details. The response keeps three traditional layers separate: `ashtakoota` contains the North Indian eight-component score out of 36, `porutham` contains the South Indian Dina, Gana, Mahendra, Sthree Dheergha, Yoni, Rashi, Rasyadhipati, Vashya, Rajju and Vedha checks, and `kujaDosha` contains the Mars comparison. Porutham deliberately exposes individual agreements and objections rather than manufacturing a combined relationship verdict. The same complete compatibility object is included by `get_marriage_readiness` and partner-aware `consult_jyotishya` calls.
 
 ## Location safety
 

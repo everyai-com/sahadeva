@@ -1,0 +1,53 @@
+/* Dasha (Life periods) — ported from Web-Prototype/dasha-timeline.html, scoped. */
+.dasha-screen .nowcard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
+.dasha-screen .nowcard .lbl { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.07em; color: var(--muted); }
+.dasha-screen .nowcard h3 { margin-top: 6px; font-size: 21px; }
+.dasha-screen .nowcard .trm { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); margin-top: 5px; }
+.dasha-screen .nowcard .rem { font-size: 17px; margin-top: var(--space-4); }
+.dasha-screen .prog { height: 10px; background: var(--border-soft); border-radius: var(--radius-sm); margin-top: var(--space-4); overflow: hidden; display: flex; }
+.dasha-screen .prog i { display: block; height: 100%; background: var(--accent); }
+.dasha-screen .progscale { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--meta); }
+
+.dasha-screen .tl { margin-top: var(--space-3); }
+.dasha-screen .per { border-top: 1px solid var(--border-soft); }
+.dasha-screen .per:first-child { border-top: 0; }
+.dasha-screen .phead { display: block; width: 100%; background: transparent; border: 0; padding: 14px 0; min-height: 52px; transition: opacity var(--motion-fast) var(--ease-standard); }
+.dasha-screen .phead:hover .pname { color: var(--fg); }
+.dasha-screen .prow1 { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.dasha-screen .pname { font-size: var(--text-lg); font-weight: 600; transition: color var(--motion-fast) var(--ease-standard); }
+.dasha-screen .pname span { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); font-weight: 400; margin-top: 2px; }
+.dasha-screen .pdates { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
+.dasha-screen .pbar { height: 8px; background: var(--border-soft); border-radius: var(--radius-sm); margin-top: 11px; overflow: hidden; }
+.dasha-screen .pbar i { display: block; height: 100%; background: var(--muted); border-radius: var(--radius-sm); }
+.dasha-screen .prow2 { display: flex; justify-content: space-between; margin-top: 7px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--meta); }
+.dasha-screen .per.past .pname { color: var(--muted); }
+.dasha-screen .per.past .pbar i { background: var(--meta); }
+.dasha-screen .per.active .pbar i { background: var(--accent); }
+.dasha-screen .per.active .pname { color: var(--fg); }
+.dasha-screen .nowline { display: flex; align-items: center; gap: var(--space-3); padding: 6px 0; }
+.dasha-screen .nowline hr { flex: 1; border: 0; border-top: 1px solid var(--fg); margin: 0; }
+.dasha-screen .nowline span { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg); letter-spacing: 0.06em; }
+
+.dasha-screen .subs { display: none; padding: 0 0 var(--space-4); }
+.dasha-screen .subs.on { display: block; }
+.dasha-screen .srow { display: flex; justify-content: space-between; gap: var(--space-3); padding: 9px 12px; font-size: var(--text-base); border-left: 1px solid var(--border); margin-left: 2px; }
+.dasha-screen .srow.now { border-left-color: var(--accent); background: var(--border-soft); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.dasha-screen .srow .sn { color: var(--fg); }
+.dasha-screen .srow.done .sn { color: var(--muted); }
+.dasha-screen .srow .sd { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
+
+.dasha-screen .recall { margin-top: var(--space-2); }
+.dasha-screen .recallbtn { min-height: 44px; padding: 0 12px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--muted); font-size: var(--text-sm); transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+.dasha-screen .recallbtn:hover { background: var(--border-soft); color: var(--fg); }
+.dasha-screen .recallbox { display: none; margin-top: var(--space-3); }
+.dasha-screen .recallbox.on { display: block; }
+.dasha-screen .recallbox textarea { width: 100%; min-height: 72px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--fg); padding: 11px 13px; font-size: var(--text-base); resize: vertical; outline: none; }
+.dasha-screen .recallbox textarea:focus { border-color: var(--accent); }
+.dasha-screen .recallbox .ra { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.dasha-screen .mini { min-height: 44px; padding: 0 16px; border-radius: var(--radius-md); border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: var(--text-base); transition: background var(--motion-fast) var(--ease-standard); }
+.dasha-screen .mini:hover { background: var(--border-soft); }
+.dasha-screen .saved { font-size: var(--text-sm); color: var(--fg); align-self: center; }
+
+.dasha-screen .later { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.dasha-screen .later .lrow { display: flex; justify-content: space-between; padding: 8px 0; font-size: var(--text-base); color: var(--muted); }
+.dasha-screen .later .lrow span { font-family: var(--font-mono); font-size: var(--text-sm); }

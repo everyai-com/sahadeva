@@ -138,6 +138,54 @@ const ENEMIES: Record<string, string[]> = {
   Saturn: ["Sun", "Moon", "Mars"],
 };
 const MANGAL_HOUSES = new Set([1, 2, 4, 7, 8, 12]);
+const SOUTH_DINA_GOOD = new Set([2, 4, 6, 8, 0]);
+const MAHENDRA_GOOD = new Set([4, 7, 10, 13, 16, 19, 22, 25]);
+const RAJJU = [
+  "Pada",
+  "Kati",
+  "Nabhi",
+  "Kantha",
+  "Siro",
+  "Kantha",
+  "Nabhi",
+  "Kati",
+  "Pada",
+  "Pada",
+  "Kati",
+  "Nabhi",
+  "Kantha",
+  "Siro",
+  "Kantha",
+  "Nabhi",
+  "Kati",
+  "Pada",
+  "Pada",
+  "Kati",
+  "Nabhi",
+  "Kantha",
+  "Siro",
+  "Kantha",
+  "Nabhi",
+  "Kati",
+  "Pada",
+] as const;
+const VEDHA_PAIRS = new Set(
+  [
+    [0, 17],
+    [1, 16],
+    [2, 15],
+    [3, 14],
+    [4, 13],
+    [5, 21],
+    [6, 20],
+    [7, 19],
+    [8, 18],
+    [9, 26],
+    [10, 25],
+    [11, 24],
+    [12, 23],
+  ].flatMap(([a, b]) => [`${a}:${b}`, `${b}:${a}`]),
+);
 
 const nakIndex = (name: string) =>
   NAKSHATRAS.indexOf(name as (typeof NAKSHATRAS)[number]);
@@ -194,6 +242,127 @@ function kuja(chart: ChartResult) {
         : []),
     ],
     convention: "Mars in houses 1, 2, 4, 7, 8 or 12 from Lagna, Moon and Venus",
+  };
+}
+
+function calculatePorutham(
+  a: ChartResult["placements"][number],
+  b: ChartResult["placements"][number],
+  ai: number,
+  bi: number,
+) {
+  const starDistance = ((bi - ai + 27) % 27) + 1;
+  const signDistance = ((b.sign - a.sign + 12) % 12) + 1;
+  const aLord = LORDS[a.sign],
+    bLord = LORDS[b.sign];
+  const lordRelations = [relation(aLord, bLord), relation(bLord, aLord)];
+  const aV = vashya(a.sign, a.degree),
+    bV = vashya(b.sign, b.degree);
+  const checks = [
+    {
+      id: "dina",
+      label: "Dina",
+      compatible: SOUTH_DINA_GOOD.has(starDistance % 9),
+      evidence: { starDistance, remainder: starDistance % 9 },
+      rule: "Bride-to-groom Nakshatra distance modulo 9 is accepted at 2, 4, 6, 8 or 0.",
+    },
+    {
+      id: "gana",
+      label: "Gana",
+      compatible:
+        GANA[ai] === GANA[bi] ||
+        (new Set([GANA[ai], GANA[bi]]).size === 2 &&
+          !new Set([GANA[ai], GANA[bi]]).has("Rakshasa")),
+      evidence: { bride: GANA[ai], groom: GANA[bi] },
+      rule: "Same Gana or the Deva-Manushya pairing passes in this conservative baseline.",
+    },
+    {
+      id: "mahendra",
+      label: "Mahendra",
+      compatible: MAHENDRA_GOOD.has(starDistance),
+      evidence: { starDistance },
+      rule: "Bride-to-groom Nakshatra distance is 4, 7, 10, 13, 16, 19, 22 or 25.",
+    },
+    {
+      id: "stree-dheergha",
+      label: "Sthree Dheergha",
+      compatible: starDistance >= 14,
+      evidence: { starDistance },
+      rule: "Groom's Nakshatra is at least 14 places from the bride's, counted inclusively.",
+    },
+    {
+      id: "yoni",
+      label: "Yoni",
+      compatible: !YONI_ENEMIES.has(`${YONI[ai]}:${YONI[bi]}`),
+      evidence: {
+        bride: YONI[ai],
+        groom: YONI[bi],
+        naturalEnemies: YONI_ENEMIES.has(`${YONI[ai]}:${YONI[bi]}`),
+      },
+      rule: "The two Nakshatra Yoni animals must not be a natural-enemy pair.",
+    },
+    {
+      id: "rashi",
+      label: "Rashi",
+      compatible: signDistance === 1 || signDistance >= 7,
+      evidence: {
+        brideSign: SIGNS[a.sign],
+        groomSign: SIGNS[b.sign],
+        signDistance,
+      },
+      rule: "Same sign or groom's Moon sign at least seventh from the bride's passes this baseline; regional exceptions are not applied.",
+    },
+    {
+      id: "rasyadhipati",
+      label: "Rasyadhipati",
+      compatible: aLord === bLord || !lordRelations.includes("enemy"),
+      evidence: {
+        brideLord: aLord,
+        groomLord: bLord,
+        brideToGroom: lordRelations[0],
+        groomToBride: lordRelations[1],
+      },
+      rule: "Moon-sign lords are the same or neither directional relation is inimical.",
+    },
+    {
+      id: "vashya",
+      label: "Vashya",
+      compatible: aV === bV,
+      evidence: { bride: aV, groom: bV },
+      rule: "Both Moon placements belong to the same Vashya class; a reviewed directional matrix is still pending.",
+    },
+    {
+      id: "rajju",
+      label: "Rajju",
+      compatible: RAJJU[ai] !== RAJJU[bi],
+      evidence: { bride: RAJJU[ai], groom: RAJJU[bi] },
+      rule: "The two Nakshatras must not occupy the same Rajju group.",
+    },
+    {
+      id: "vedha",
+      label: "Vedha",
+      compatible: !VEDHA_PAIRS.has(`${ai}:${bi}`),
+      evidence: {
+        brideNakshatra: a.nakshatra,
+        groomNakshatra: b.nakshatra,
+        obstructingPair: VEDHA_PAIRS.has(`${ai}:${bi}`),
+      },
+      rule: "The Nakshatras must not form a listed mutual Vedha pair.",
+    },
+  ];
+  return {
+    profile: "south-indian-general@1.0.0",
+    status: "research-preview",
+    convention:
+      "South Indian ten-Porutham baseline; first chart is bride and second is groom",
+    checks,
+    summary: {
+      compatible: checks.filter((item) => item.compatible).length,
+      total: checks.length,
+      scoreWithheld: true,
+    },
+    notice:
+      "Individual Poruthams are reported without an aggregate verdict. Tamil, Telugu, Kannada and Kerala exception profiles require separate practitioner review.",
   };
 }
 
@@ -346,6 +515,7 @@ export function calculateCompatibility(bride: ChartResult, groom: ChartResult) {
       convention:
         "North Indian Ashtakoota research-preview; first chart is bride and second is groom",
     },
+    porutham: calculatePorutham(a, b, ai, bi),
     kujaDosha: {
       bride: brideKuja,
       groom: groomKuja,

@@ -91,6 +91,7 @@ export const factRefSchema = z.discriminatedUnion("kind", [
     limb: z.enum(["vara", "tithi", "paksha", "nakshatra", "yoga", "karana"]),
   }),
   z.object({ kind: z.literal("natal-panchanga-tithi-class") }),
+  z.object({ kind: z.literal("natal-panchanga-akasha-resolution-count") }),
   z.object({
     kind: z.literal("natal-panchanga-tattva-conflict"),
     first: z.enum(["Vara", "Tithi", "Nakshatra", "Karana"]),
@@ -138,6 +139,10 @@ export const factRefSchema = z.discriminatedUnion("kind", [
       "partially-obstructed",
       "fully-obstructed",
     ]),
+    targetHouse: z.number().int().min(1).max(12).optional(),
+    argalaHouse: z
+      .union([z.literal(2), z.literal(4), z.literal(5), z.literal(11)])
+      .optional(),
   }),
   z.object({ kind: z.literal("kendra-trikona-lord-association-count") }),
   z.object({ kind: z.literal("yoga-detected"), yoga: z.string().min(1) }),
@@ -230,6 +235,9 @@ export function resolveRuleFact(
   if (ref.kind === "panchanga-limb") return chart.panchanga[ref.limb];
   if (ref.kind === "natal-panchanga-tithi-class")
     return analyzeNatalPanchanga(chart).nandadi.class;
+  if (ref.kind === "natal-panchanga-akasha-resolution-count")
+    return analyzeNatalPanchanga(chart).tattvaRelationships
+      .akashaResolutionCandidates.length;
   if (ref.kind === "natal-panchanga-tattva-conflict")
     return Boolean(
       analyzeNatalPanchanga(chart).tattvaRelationships.conflicts.find(
@@ -290,9 +298,17 @@ export function resolveRuleFact(
         ?.netCount ?? null
     );
   if (ref.kind === "argala-status-count")
-    return calculateArgala(chart).targets
+    return calculateArgala(chart)
+      .targets.filter(
+        (item) =>
+          ref.targetHouse === undefined || item.house === ref.targetHouse,
+      )
       .flatMap((item) => item.relationships)
-      .filter((item) => item.status === ref.status).length;
+      .filter(
+        (item) =>
+          item.status === ref.status &&
+          (ref.argalaHouse === undefined || item.argala === ref.argalaHouse),
+      ).length;
   if (ref.kind === "yoga-detected")
     return chart.advanced.yogas.some(
       (item) => item.yoga === ref.yoga && item.detected,

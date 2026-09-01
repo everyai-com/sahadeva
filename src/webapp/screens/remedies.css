@@ -1,0 +1,57 @@
+/* Remedies — ported from Web-Prototype/remedies-tracker.html, scoped. */
+.remedies-screen .topbtns { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.remedies-screen .topbtn { min-height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--text-sm); font-weight: 500; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+.remedies-screen .topbtn[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.remedies-screen .topbtn:hover { background: var(--border-soft); color: var(--fg); }
+.remedies-screen .topbtn[aria-pressed=true]:hover { background: var(--fg); color: var(--bg); }
+
+.remedies-screen .why { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
+.remedies-screen .why h3 { margin-bottom: var(--space-3); }
+.remedies-screen .why p { font-size: 17px; line-height: 1.6; }
+.remedies-screen .whyev { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-4); }
+.remedies-screen .whyev span { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 9px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); }
+
+.remedies-screen .prow { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-4) 0; border-top: 1px solid var(--border-soft); }
+.remedies-screen .prow:first-child { border-top: 0; }
+.remedies-screen .pcheck { flex: 0 0 auto; width: 48px; height: 48px; border-radius: var(--radius-pill); border: 1.5px solid var(--border); background: transparent; display: grid; place-items: center; color: transparent; transition: background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+.remedies-screen .pcheck svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2.4; }
+.remedies-screen .pcheck:hover { background: var(--border-soft); border-color: var(--muted); }
+.remedies-screen .pcheck[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+.remedies-screen .ptext { min-width: 0; flex: 1; }
+.remedies-screen .ptext b { display: block; font-size: 17px; font-weight: 600; line-height: 1.35; }
+.remedies-screen .ptext p { font-size: var(--text-base); color: var(--muted); line-height: 1.6; margin-top: 5px; }
+.remedies-screen .ptag { display: inline-block; margin-top: var(--space-2); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--meta); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 7px; }
+.remedies-screen .prow.done .ptext b { color: var(--muted); }
+
+.remedies-screen .log { margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--border); }
+.remedies-screen .logstrip { display: grid; grid-template-columns: repeat(21, 1fr); gap: 3px; margin-top: var(--space-3); }
+.remedies-screen .logstrip i { display: block; aspect-ratio: 1; border-radius: 1px; background: var(--border-soft); }
+.remedies-screen .logstrip i.on { background: var(--fg); }
+.remedies-screen .logstrip i.today { box-shadow: 0 0 0 1px var(--muted); }
+.remedies-screen .logmeta { display: flex; justify-content: space-between; margin-top: var(--space-3); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--meta); }
+
+.remedies-screen .held { margin-top: var(--space-6); }
+.remedies-screen .hrow { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); padding: 13px 0; border-top: 1px solid var(--border-soft); }
+.remedies-screen .hrow:first-of-type { border-top: 0; }
+.remedies-screen .hn { font-size: var(--text-base); line-height: 1.4; }
+.remedies-screen .hn span { display: block; font-size: var(--text-sm); color: var(--muted); margin-top: 3px; line-height: 1.5; }
+.remedies-screen .hstat { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); white-space: nowrap; padding-top: 3px; }
+
+.remedies-screen .devata { margin-top: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
+.remedies-screen .devata .dlbl { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.07em; color: var(--muted); }
+.remedies-screen .devata .dv { font-size: 19px; font-weight: 600; margin-top: 8px; }
+.remedies-screen .devata .dtr { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); margin-top: 4px; }
+.remedies-screen .devata p.dn { font-size: var(--text-base); color: var(--muted); line-height: 1.65; margin-top: var(--space-4); }
+
+.remedies-screen .review { margin-top: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
+.remedies-screen .review h3 { font-size: var(--text-lg); }
+.remedies-screen .review p { font-size: var(--text-base); color: var(--muted); line-height: 1.65; margin-top: var(--space-3); }
+.remedies-screen .review textarea { width: 100%; min-height: 76px; margin-top: var(--space-4); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--fg); padding: 11px 13px; font: inherit; font-size: var(--text-base); resize: vertical; outline: none; }
+.remedies-screen .review textarea:focus { border-color: var(--accent); }
+.remedies-screen .mini { min-height: 44px; padding: 0 16px; margin-top: var(--space-3); border-radius: var(--radius-md); border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: var(--text-base); transition: background var(--motion-fast) var(--ease-standard); }
+.remedies-screen .mini:hover { background: var(--border-soft); }
+
+.remedies-screen .warnbox { margin-top: var(--space-6); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-4); }
+.remedies-screen .warnbox p { font-size: var(--text-base); line-height: 1.65; color: var(--muted); }
+.remedies-screen .warnbox ul { margin: var(--space-3) 0 0; padding-left: 18px; }
+.remedies-screen .warnbox li { font-size: var(--text-base); line-height: 1.6; color: var(--muted); margin-top: 6px; }

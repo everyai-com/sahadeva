@@ -1,0 +1,253 @@
+/* ============================================================================
+   Sahadev web app — shared design system.
+   Ported verbatim from the Web-Prototype screens so the React app matches the
+   prototypes pixel for pixel. Screen-specific rules live in ./screens/*.css,
+   each scoped under a screen-root class to avoid collisions.
+   ============================================================================ */
+:root {
+  --bg: #ffffff;
+  --surface: #f5f5f7;
+  --surface-warm: #fbfbfd;
+  --fg: #1d1d1f;
+  --fg-2: #424245;
+  --muted: #6e6e73;
+  --meta: #86868b;
+  --border: #d2d2d7;
+  --border-soft: #e8e8ed;
+  --accent: #0071e3;
+  --accent-on: #ffffff;
+  --accent-hover: #0077ed;
+  --accent-active: #0066cc;
+  --success: #16a34a;
+  --warn:    #eab308;
+  --danger:  #dc2626;
+  --font-display:
+    "SF Pro Display", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body:
+    "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono:
+    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-base: 17px;
+  --text-lg:   21px;
+  --text-xl:   28px;
+  --text-2xl:  40px;
+  --text-3xl:  56px;
+  --text-4xl:  80px;
+  --leading-body:  1.47;
+  --leading-tight: 1.05;
+  --tracking-display: -0.015em;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+  --section-y-desktop: 100px;
+  --section-y-tablet:  64px;
+  --section-y-phone:   40px;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   18px;
+  --radius-pill: 980px;
+  --elev-flat:   none;
+  --elev-ring:   0 0 0 1px var(--border);
+  --elev-raised: 0 12px 32px rgba(0, 0, 0, 0.08);
+  --focus-ring: 0 0 0 4px color-mix(in oklab, var(--accent), transparent 65%);
+  --motion-fast:   150ms;
+  --motion-base:   220ms;
+  --ease-standard: cubic-bezier(0.28, 0, 0.22, 1);
+  --container-max:            1024px;
+  --container-gutter-desktop: 22px;
+  --container-gutter-tablet:  18px;
+  --container-gutter-phone:   16px;
+}
+
+.sahadev-web *,
+.sahadev-web *::before,
+.sahadev-web *::after { box-sizing: border-box; }
+
+/* App root fills the viewport and centres the phone, like the prototype body. */
+.sahadev-web {
+  margin: 0;
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px 40px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--surface);
+}
+.sahadev-web button { font: inherit; cursor: pointer; color: inherit; text-align: left; }
+.sahadev-web a { color: inherit; text-decoration: none; }
+.sahadev-web p { margin: 0; text-wrap: pretty; }
+.sahadev-web h1,
+.sahadev-web h2,
+.sahadev-web h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+.sahadev-web h1 { font-size: var(--text-4xl); letter-spacing: var(--tracking-display); }
+.sahadev-web h2 { font-size: var(--text-xl); }
+.sahadev-web h3 { font-size: var(--text-lg); line-height: 1.25; }
+.sahadev-web textarea { font: inherit; }
+.sahadev-web input { font: inherit; }
+.sahadev-web svg { display: block; }
+.sahadev-web :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: var(--focus-ring); }
+.sahadev-web summary::-webkit-details-marker { display: none; }
+
+/* ── phone shell ─────────────────────────────────────────────────────────── */
+.phone {
+  width: 393px;
+  height: 852px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 46px;
+  box-shadow: var(--elev-raised);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.island {
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 118px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: var(--fg);
+  z-index: 5;
+}
+.statusbar {
+  flex: 0 0 auto;
+  height: 54px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 28px 6px;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.statusbar .sbr { display: flex; align-items: center; gap: 6px; }
+.statusbar svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+/* main scroll region (chart/today/etc. call it .screen; ask calls it .thread) */
+.screen {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 20px 28px;
+  scrollbar-width: none;
+}
+.screen::-webkit-scrollbar { width: 0; display: none; }
+
+/* ── tab bar ─────────────────────────────────────────────────────────────── */
+.tabbar {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  padding: 6px 10px 22px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.tab {
+  flex: 1;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  text-align: center;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+.tab:hover { background: var(--border-soft); color: var(--fg); }
+.tab[aria-current=page] { color: var(--fg); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+
+/* top bar with back button (chart/dasha/match/remedies) */
+.topbar { flex: 0 0 auto; display: flex; align-items: center; gap: var(--space-3); padding: 0 16px 8px; }
+.backbtn {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  border: 0; background: transparent; color: var(--fg);
+  border-radius: var(--radius-md);
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+.backbtn:hover { background: var(--border-soft); }
+.backbtn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+.backbtn[hidden] { display: none; }
+
+/* ── shared header / typography utilities ────────────────────────────────── */
+.shead { padding: 8px 0 14px; }
+.eyebrow { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.07em; color: var(--muted); margin: 0 0 6px; }
+.muted { color: var(--muted); }
+.small { font-size: var(--text-sm); line-height: 1.55; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sectitle { font-size: var(--text-sm); color: var(--muted); margin: 0 0 var(--space-3); font-weight: 500; }
+.foot { margin-top: var(--space-6); font-size: var(--text-xs); color: var(--meta); line-height: 1.7; font-family: var(--font-mono); }
+
+/* ── language toggle ─────────────────────────────────────────────────────── */
+.headrow { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.langtog {
+  flex: 0 0 auto; display: inline-flex; gap: 2px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 3px;
+}
+.langtog button {
+  min-width: 46px; min-height: 38px; padding: 0 10px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--muted);
+  font-size: var(--text-sm); font-weight: 600; text-align: center; line-height: 1;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+.langtog button:hover { background: var(--border-soft); color: var(--fg); }
+.langtog button[aria-pressed=true] { background: var(--bg); color: var(--fg); box-shadow: var(--elev-ring); }
+
+/* Telugu uses Anek Telugu (loaded from Google Fonts). Latin faces are listed
+   first WITHOUT a generic before "Anek Telugu", so English stays in the Latin
+   font and only Telugu glyphs (absent from those faces) fall through to Anek. */
+.sahadev-web[lang=te] {
+  font-family: "SF Pro Text", "Helvetica Neue", Helvetica, Arial, "Anek Telugu", "Noto Sans Telugu", sans-serif;
+}
+.sahadev-web[lang=te] h1,
+.sahadev-web[lang=te] h2,
+.sahadev-web[lang=te] h3 {
+  font-family: "SF Pro Display", "Helvetica Neue", Helvetica, Arial, "Anek Telugu", "Noto Sans Telugu", sans-serif;
+}
+.sahadev-web[lang=te] input,
+.sahadev-web[lang=te] textarea,
+.sahadev-web[lang=te] button { font-family: inherit; }
+.sahadev-web[lang=te] .verdict,
+.sahadev-web[lang=te] .averdict { line-height: 1.5; }
+
+/* generic loading shimmer, shared by ask + onboarding */
+@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sahadev-web *,
+  .sahadev-web *::before,
+  .sahadev-web *::after { animation-duration: 0ms !important; transition-duration: 0ms !important; }
+}
+@media (max-width: 440px) {
+  .sahadev-web { padding: 0; }
+  .phone { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
+}

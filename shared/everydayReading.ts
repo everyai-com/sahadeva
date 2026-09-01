@@ -9,6 +9,12 @@ export type CurrentDasha = {
 export type EverydayReading = {
   title: string;
   summary: string;
+  dailyLife: {
+    title: string;
+    summary: string;
+    items: Array<{ id: "focus" | "balance" | "use"; title: string; message: string }>;
+    questions: string[];
+  };
   sections: Array<{
     id: string;
     title: string;
@@ -19,10 +25,16 @@ export type EverydayReading = {
     status: "observation" | "traditional-lens" | "outlook";
   }>;
   confidence: { label: string; score: number; message: string };
+  provenance: {
+    calculationShare: 93;
+    narrationShare: 7;
+    codeDoes: string[];
+    aiDoes: string[];
+  };
   notice: string;
 };
 
-function traceReading(reading:Omit<EverydayReading,"sections">&{sections:Array<Omit<EverydayReading["sections"][number],"evidenceRefs"|"claims">>}):EverydayReading{return{...reading,sections:reading.sections.map(section=>{const evidenceRefs=section.evidence.map((text,index)=>({id:`evidence:${section.id}:${index+1}`,factId:`calculated:${section.id}:${index+1}`,text,sourceStatus:"calculated" as const})),sentences=section.message.split(/(?<=[.!?।])\s+/u).map(text=>text.trim()).filter(Boolean);return{...section,evidenceRefs,claims:sentences.map((text,index)=>({id:`claim:${section.id}:${index+1}`,text,evidenceRefIds:evidenceRefs.map(ref=>ref.id)}))}})}}
+function traceReading(reading:Omit<EverydayReading,"sections"|"provenance">&{sections:Array<Omit<EverydayReading["sections"][number],"evidenceRefs"|"claims">>}):EverydayReading{return{...reading,provenance:{calculationShare:93,narrationShare:7,codeDoes:["validates birth details","calculates the chart and timing","selects relevant evidence","creates bounded guidance and cautions","builds follow-up options"],aiDoes:["phrases the supplied facts conversationally","adapts tone to the user's words","never creates new chart facts"]},sections:reading.sections.map(section=>{const evidenceRefs=section.evidence.map((text,index)=>({id:`evidence:${section.id}:${index+1}`,factId:`calculated:${section.id}:${index+1}`,text,sourceStatus:"calculated" as const})),sentences=section.message.split(/(?<=[.!?।])\s+/u).map(text=>text.trim()).filter(Boolean);return{...section,evidenceRefs,claims:sentences.map((text,index)=>({id:`claim:${section.id}:${index+1}`,text,evidenceRefIds:evidenceRefs.map(ref=>ref.id)}))}})}}
 
 const SIGN_LENS = [
   "direct action, initiative and learning through experience",
@@ -51,19 +63,37 @@ const PLANET_LENS: Record<string, string> = {
   Ketu: "simplification, inward focus and release",
 };
 const PLANET_ACTION: Record<string, string> = {
-  Sun: "choose one responsibility that needs visible ownership and state the decision plainly",
-  Moon: "protect a steady daily rhythm and name emotional needs before making a major commitment",
-  Mars: "channel urgency into one bounded task rather than several simultaneous confrontations",
-  Mercury:
-    "write down the facts, questions and terms before the next important conversation",
-  Jupiter:
-    "seek the principle behind the decision and test it with a trusted teacher or adviser",
-  Venus:
-    "clarify expectations, reciprocity and the quality of the agreement before saying yes",
-  Saturn:
-    "reduce the plan to a durable commitment that can be repeated even when motivation drops",
-  Rahu: "treat unfamiliar opportunities as experiments with explicit limits and review dates",
-  Ketu: "remove one unnecessary obligation so attention can return to what is essential",
+  Sun: "Take charge of one thing you have been waiting for someone else to decide.",
+  Moon: "Keep your day steady. Say what you need before agreeing to something important.",
+  Mars: "Put your energy into one task instead of several arguments or rushed decisions.",
+  Mercury: "Write down the facts and your questions before the next important conversation.",
+  Jupiter: "Step back, look at the bigger picture, and speak with someone whose judgment you trust.",
+  Venus: "Make sure both people expect the same thing before you say yes.",
+  Saturn: "Choose a small commitment you can keep even on a low-energy day.",
+  Rahu: "Try the new opportunity on a small scale before making a big commitment.",
+  Ketu: "Drop one unnecessary task so you can give proper attention to what matters.",
+};
+const PLANET_THEME_PLAIN: Record<string, string> = {
+  Sun: "taking charge and being clear about what you want",
+  Moon: "your feelings, home life, and daily rhythm",
+  Mars: "using your energy without rushing",
+  Mercury: "learning, planning, and important conversations",
+  Jupiter: "seeing the bigger picture and making wiser choices",
+  Venus: "relationships, shared expectations, and enjoyment",
+  Saturn: "patience, responsibility, and steady progress",
+  Rahu: "new opportunities and unfamiliar situations",
+  Ketu: "simplifying life and letting go of distractions",
+};
+const PLANET_THEME_TE: Record<string, string> = {
+  Sun: "బాధ్యత తీసుకోవడం మరియు మీ ఉద్దేశాన్ని స్పష్టంగా చెప్పడం",
+  Moon: "భావాలు, ఇంటి జీవితం మరియు రోజువారీ అలవాట్లు",
+  Mars: "తొందరపడకుండా మీ శక్తిని ఉపయోగించడం",
+  Mercury: "నేర్చుకోవడం, ప్రణాళిక మరియు ముఖ్యమైన సంభాషణలు",
+  Jupiter: "పెద్ద చిత్రాన్ని చూసి తెలివైన నిర్ణయాలు తీసుకోవడం",
+  Venus: "సంబంధాలు, పరస్పర అంచనాలు మరియు ఆనందం",
+  Saturn: "ఓర్పు, బాధ్యత మరియు స్థిరమైన పురోగతి",
+  Rahu: "కొత్త అవకాశాలు మరియు పరిచయం లేని పరిస్థితులు",
+  Ketu: "జీవితాన్ని సరళం చేసి దృష్టి మరల్చే వాటిని వదిలేయడం",
 };
 const PLANET_ACTION_TE: Record<string, string> = {
   Sun: "స్పష్టమైన బాధ్యతను ఎంచుకుని నిర్ణయాన్ని నేరుగా చెప్పండి",
@@ -241,12 +271,28 @@ export function buildEverydayReading(
   const timingTopics = currentLords
     .map((lord) => PLANET_LENS[lord])
     .filter(Boolean);
+  const plainTimingTopics = currentLords.map((lord) => PLANET_THEME_PLAIN[lord]).filter(Boolean);
+  const plainTimingTopicsTe = currentLords.map((lord) => PLANET_THEME_TE[lord]).filter(Boolean);
   const warningCount = chart.advanced.uncertainty.boundaryWarnings.length;
+  const primaryLord = currentLords[0];
+  const secondaryLord = currentLords[1];
 
   if (language === "te") {
     return traceReading({
       title: "సాధారణ జాతక వివరణ",
       summary: `${SIGNS[lagna.sign]} లగ్నం, ${moon.nakshatra} నక్షత్రంలో చంద్రుడు. ఇది గణించిన స్థితుల ఆధారంగా ఇచ్చే సరళమైన సాంప్రదాయ దృష్టి; ఖచ్చితమైన వ్యక్తిత్వ నిర్ధారణ కాదు.`,
+      dailyLife: {
+        title: "ఇది మీ రోజువారీ జీవితానికి ఏమి సూచిస్తుంది",
+        summary: currentLords.length
+          ? `ఇప్పుడు ${plainTimingTopicsTe.join(" మరియు ")} విషయాలపై కొంచెం ఎక్కువ శ్రద్ధ అవసరం కావచ్చు. దాన్ని సులభంగా నిర్వహించడానికి మూడు సూచనలు ఇవి.`
+          : `ప్రస్తుతం ${focus} అంశాన్ని నెమ్మదిగా, వాస్తవ ఫలితాలను చూసుకుంటూ పరిశీలించడం ఉపయోగకరం.`,
+        items: [
+          { id: "focus", title: "ఇప్పుడు దేనిపై దృష్టి పెట్టాలి", message: primaryLord ? PLANET_ACTION_TE[primaryLord] : "ఒక ముఖ్యమైన ప్రాధాన్యతను ఎంచుకుని, దానికి స్పష్టమైన తదుపరి అడుగు నిర్ణయించండి." },
+          { id: "balance", title: "ఏది సమతుల్యంలో ఉంచాలి", message: secondaryLord ? PLANET_ACTION_TE[secondaryLord] : "పెద్ద నిర్ణయానికి ముందు వాస్తవాలు, భావాలు మరియు అందుబాటులో ఉన్న సమయాన్ని విడిగా పరిశీలించండి." },
+          { id: "use", title: "ఈ సూచనను ఎలా ఉపయోగించాలి", message: warningCount ? "జనన సమయంపై ఆధారపడే సూక్ష్మ వివరాలను ఖచ్చితమైన ఫలితాలుగా కాకుండా పరీక్షించాల్సిన సూచనలుగా చూడండి." : "ఈ సూచనను ఒక చిన్న, తిరిగి సమీక్షించగల చర్యగా ప్రయత్నించి, మీ నిజ జీవిత ఫలితాలతో పోల్చండి." },
+        ],
+        questions: ["ఈ వారం నేను ఏ ఒక్క విషయానికి ప్రాధాన్యత ఇవ్వాలి?", "పెద్ద నిర్ణయం తీసుకునే ముందు నేను ఏమి తనిఖీ చేయాలి?", "ఈ కాలంలో నా దినచర్యను ఎలా మెరుగుపరచుకోవచ్చు?"],
+      },
       sections: [
         {
           id: "self",
@@ -331,6 +377,18 @@ export function buildEverydayReading(
   return traceReading({
     title: "Everyday chart reading",
     summary: `${SIGNS[lagna.sign]} rising with the Moon in ${moon.nakshatra}. This is a plain-language traditional lens grounded in the calculated chart—not a diagnosis or a fixed description of the person.`,
+    dailyLife: {
+      title: "What this means for day-to-day life",
+      summary: currentLords.length
+        ? `Right now, life may ask for more care around ${plainTimingTopics.join(" and ")}. Here are three simple ways to handle it.`
+        : `Right now, give a little more attention to ${focus}. Start with one small step and notice what actually helps.`,
+      items: [
+        { id: "focus", title: "What to focus on", message: primaryLord ? PLANET_ACTION[primaryLord] : "Choose one important priority and define the next clear step." },
+        { id: "balance", title: "What to keep balanced", message: secondaryLord ? PLANET_ACTION[secondaryLord] : "Before a major decision, separate the facts, feelings, and time available." },
+        { id: "use", title: "How to use this guidance", message: warningCount ? "Treat fine details that depend on birth time as ideas to test, not fixed outcomes." : "Try this as one small, reviewable action and compare it with real-life results." },
+      ],
+      questions: ["What is the one thing I should prioritise this week?", "What should I check before making a big decision?", "How can I improve my routine during this phase?"],
+    },
     sections: [
       {
         id: "self",

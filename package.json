@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "postbuild": "node scripts/scrub-build-secrets.mjs",
     "check": "tsc -b --pretty false",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -23,6 +24,8 @@
     "knowledge:books:verify": "node scripts/verify-book-coverage.mjs",
     "knowledge:books:sections": "node scripts/build-book-section-migration.mjs",
     "knowledge:books:fixtures": "node scripts/export-book-rule-fixtures.mjs",
+    "knowledge:lal-kitab": "node scripts/build-lal-kitab-manifest.mjs",
+    "knowledge:lal-kitab:sections": "node scripts/build-lal-kitab-section-migration.mjs",
     "migrations:verify": "node scripts/verify-migrations.mjs",
     "mobile:verify": "npm --prefix ios-app run lint && npm --prefix ios-app exec tsc -- --noEmit && npm --prefix ios-app exec expo export -- --platform web",
     "locations:geonames": "node scripts/import-geonames.mjs",

@@ -34,7 +34,7 @@ const inputs = [
 ] as const;
 describe("source-located Bhava and Yoga rule catalog", () => {
   it("contains versioned, valid, non-publishable source-located rules", () => {
-    expect(BOOK_RULE_CATALOG_META.ruleCount).toBe(37);
+    expect(BOOK_RULE_CATALOG_META.ruleCount).toBe(43);
     for (const rule of BOOK_RULE_CATALOG) {
       expect(executableRuleSchema.parse(rule)).toEqual(rule);
       expect(rule.sourceKey).toMatch(/^book-.+:L\d+/);
@@ -73,6 +73,13 @@ describe("source-located Bhava and Yoga rule catalog", () => {
       resolveRuleFact(
         chart,
         { kind: "kendra-trikona-lord-association-count" },
+        "2026-08-30T00:00:00.000Z",
+      ),
+    ).toEqual(expect.any(Number));
+    expect(
+      resolveRuleFact(
+        chart,
+        { kind: "natal-panchanga-akasha-resolution-count" },
         "2026-08-30T00:00:00.000Z",
       ),
     ).toEqual(expect.any(Number));

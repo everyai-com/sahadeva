@@ -32,6 +32,55 @@ import { buildEverydayReading } from "../shared/everydayReading";
 import { PrashnaPanel } from "./PrashnaPanel";
 import { ConsultationToolsPanel } from "./ConsultationToolsPanel";
 
+type LalKitabResult = {
+  schemaVersion: string;
+  tradition: { id: string; mixingAllowed: boolean };
+  conversion: { method: string; annualChartStatus: string };
+  placements: Array<{
+    planet: string;
+    house: number;
+    source: { locator: string; publicationStatus: string };
+    interpretation: { status: string };
+  }>;
+  conjunctions: Array<{ house: number; planets: string[] }>;
+  sourceCoverage: { reviewedExecutableRules: number };
+  controlledDisclosurePolicy: {
+    retention: string;
+    reviewedSensitiveClaims: string;
+    deathAndLifespan: string;
+    healthAndFertility: string;
+    marriage: string;
+    remedies: string;
+    animalRelatedMaterial: string;
+  };
+  safety: { notice: string };
+};
+
+type CalculationAudit = {
+  schemaVersion: string;
+  engine: { version: string; productionCertified: boolean };
+  boundaryAudit: Array<{
+    fact: string;
+    distanceDegrees: number;
+    nearBoundary: boolean;
+  }>;
+  decision: {
+    safeForReviewedPrediction: boolean;
+    requiresHumanReview: boolean;
+    abstentionReasons: string[];
+  };
+  notice: string;
+};
+
+type LalKitabCatalog = {
+  coverage: {
+    headings: number;
+    planetHouseSections: number;
+    conjunctionHeadings: number;
+  };
+  families: Array<{ id: string; headingCount: number; policy: string }>;
+};
+
 const sample: BirthInput = {
   name: "Ananya",
   date: "1992-10-08",
@@ -221,6 +270,11 @@ export default function App() {
     model: string;
     hosting: string;
   } | null>(null);
+  const [lalKitab, setLalKitab] = useState<LalKitabResult | null>(null);
+  const [calculationAudit, setCalculationAudit] =
+    useState<CalculationAudit | null>(null);
+  const [lalKitabCatalog, setLalKitabCatalog] =
+    useState<LalKitabCatalog | null>(null);
 
   const lagna = useMemo(
     () => chart?.placements.find((p) => p.name === "Lagna"),
@@ -269,6 +323,10 @@ export default function App() {
       .then((response) => (response.ok ? response.json() : null))
       .then(setAiStatus)
       .catch(() => setAiStatus(null));
+    fetch("/api/lal-kitab/catalog")
+      .then((response) => (response.ok ? response.json() : null))
+      .then(setLalKitabCatalog)
+      .catch(() => setLalKitabCatalog(null));
   }, []);
   useEffect(() => {
     const match = location.pathname.match(/^\/shared\/([^/]+)$/),
@@ -410,6 +468,8 @@ export default function App() {
     setStatus("loading");
     setCalculationError("");
     setReading("");
+    setLalKitab(null);
+    setCalculationAudit(null);
     try {
       let calculationForm = form;
       if (!locationVerified) {
@@ -448,7 +508,14 @@ export default function App() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(calculationForm),
       };
-      const [response, uncertaintyResponse, ingressResponse, dashaResponse] =
+      const [
+        response,
+        uncertaintyResponse,
+        ingressResponse,
+        dashaResponse,
+        lalKitabResponse,
+        calculationAuditResponse,
+      ] =
         await Promise.all([
           fetch("/api/chart", options),
           fetch("/api/uncertainty", options),
@@ -457,6 +524,8 @@ export default function App() {
             body: JSON.stringify({ ...calculationForm, days: 30 }),
           }),
           fetch("/api/dasha/calendar", options),
+          fetch("/api/lal-kitab", options),
+          fetch("/api/calculation-audit", options),
         ]);
       if (!response.ok)
         throw new Error(
@@ -470,6 +539,14 @@ export default function App() {
       );
       setIngresses(ingressResponse.ok ? await ingressResponse.json() : null);
       setDashaCalendar(dashaResponse.ok ? await dashaResponse.json() : null);
+      setLalKitab(
+        lalKitabResponse.ok ? await lalKitabResponse.json() : null,
+      );
+      setCalculationAudit(
+        calculationAuditResponse.ok
+          ? await calculationAuditResponse.json()
+          : null,
+      );
       setChart(calculated);
       setSelectedVarga(
         calculated.advanced.guidance.focus.recommendedVarga === "D1"
@@ -1431,6 +1508,74 @@ export default function App() {
                     </small>
                   </div>
                 </div>
+                {(calculationAudit || lalKitab) && (
+                  <section className="method-insight-grid" aria-label="Method and quality inspection">
+                    {calculationAudit && (
+                      <article className="method-insight-card calculation-audit-card">
+                        <span>{te ? "గణన తనిఖీ" : "Calculation audit"}</span>
+                        <h3>
+                          {calculationAudit.engine.productionCertified
+                            ? te
+                              ? "ధృవీకరించిన గణన"
+                              : "Certified calculation"
+                            : te
+                              ? "పరిశోధన ప్రివ్యూ"
+                              : "Research-preview calculation"}
+                        </h3>
+                        <p>{calculationAudit.notice}</p>
+                        <div className="audit-facts">
+                          {calculationAudit.boundaryAudit.map((item) => (
+                            <span className={item.nearBoundary ? "is-sensitive" : ""} key={item.fact}>
+                              <strong>{item.fact}</strong>
+                              <small>{item.distanceDegrees.toFixed(4)}° from boundary</small>
+                            </span>
+                          ))}
+                        </div>
+                        {calculationAudit.decision.abstentionReasons.length > 0 && (
+                          <details>
+                            <summary>{te ? "జాగ్రత్త కారణాలు" : "Why caution is required"}</summary>
+                            {calculationAudit.decision.abstentionReasons.map((reason) => (
+                              <small key={reason}>{reason}</small>
+                            ))}
+                          </details>
+                        )}
+                      </article>
+                    )}
+                    {lalKitab && (
+                      <article className="method-insight-card lal-kitab-card">
+                        <span>Lal Kitab · source-linked</span>
+                        <h3>{te ? "స్థిర భావాల పటం" : "Fixed-house source map"}</h3>
+                        <p>{lalKitab.conversion.method}</p>
+                        <div className="lal-placement-grid">
+                          {lalKitab.placements.map((item) => (
+                            <span key={item.planet}>
+                              <strong>{grahaName(item.planet)}</strong>
+                              <small>House {item.house}</small>
+                              <code>{item.source.locator.replace("book-gosvami-lal-kitab:", "")}</code>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="caution-callout">
+                          <Warning />
+                          <p>{lalKitab.controlledDisclosurePolicy.reviewedSensitiveClaims}</p>
+                        </div>
+                        <details>
+                          <summary>{te ? "సున్నితమైన విషయాల విధానం" : "Sensitive-material policy"}</summary>
+                          <small>{lalKitab.controlledDisclosurePolicy.deathAndLifespan}</small>
+                          <small>{lalKitab.controlledDisclosurePolicy.healthAndFertility}</small>
+                          <small>{lalKitab.controlledDisclosurePolicy.marriage}</small>
+                          <small>{lalKitab.controlledDisclosurePolicy.remedies}</small>
+                          <small>{lalKitab.controlledDisclosurePolicy.animalRelatedMaterial}</small>
+                        </details>
+                        {lalKitabCatalog && (
+                          <small className="catalog-coverage">
+                            Complete corpus: {lalKitabCatalog.coverage.headings.toLocaleString()} headings · {lalKitabCatalog.coverage.planetHouseSections} planet-house sections · {lalKitabCatalog.families.length} source families
+                          </small>
+                        )}
+                      </article>
+                    )}
+                  </section>
+                )}
                 {everydayReading && (
                   <section
                     className="everyday-reading"

@@ -1,0 +1,52 @@
+/* Chart screen — ported from Web-Prototype/chart-viewer.html, scoped. */
+.chart-screen .shead { padding: 8px 0 14px; }
+
+.chart-screen .seg { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px; margin-bottom: var(--space-4); }
+.chart-screen .seg button { flex: 1; min-height: 44px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: var(--text-base); text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+.chart-screen .seg button:hover { background: var(--border-soft); color: var(--fg); }
+.chart-screen .seg button[aria-selected=true] { background: var(--border-soft); color: var(--fg); }
+.chart-screen .seg button .sub { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--meta); }
+.chart-screen .seg button[aria-selected=true] .sub { color: var(--muted); }
+
+.chart-screen .chart { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: 1px; aspect-ratio: 1; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--border); }
+.chart-screen .cell { background: var(--surface); border: 0; padding: 5px 6px; display: flex; flex-direction: column; gap: 2px; position: relative; transition: background var(--motion-fast) var(--ease-standard); outline-offset: -2px; margin: 0; }
+.chart-screen .cell:hover { background: var(--border-soft); }
+.chart-screen .cell[aria-pressed=true] { background: var(--border-soft); }
+.chart-screen .cell .top { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.02em; }
+.chart-screen .cell .sname { color: var(--muted); }
+.chart-screen .cell .hnum { color: var(--meta); }
+.chart-screen .cell .pl { font-size: 12.5px; line-height: 1.35; font-weight: 500; }
+.chart-screen .cell .pl .dg { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted); margin-left: 2px; }
+.chart-screen .cell .lg { display: inline-block; margin-top: 2px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.05em; color: var(--accent-on); background: var(--accent); border-radius: var(--radius-sm); padding: 1px 5px; }
+.chart-screen .center { grid-column: 2 / 4; grid-row: 2 / 4; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; padding: 8px; }
+.chart-screen .center .cn { font-size: var(--text-base); font-weight: 600; }
+.chart-screen .center .cm { font-family: var(--font-mono); font-size: 10px; color: var(--muted); line-height: 1.5; }
+.chart-screen .center .cv { font-family: var(--font-mono); font-size: 10px; color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 7px; margin-top: 3px; }
+
+.chart-screen .sumstrip { margin-top: var(--space-4); padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.chart-screen .sumstrip .sline { display: block; font-size: 17px; line-height: 1.5; }
+.chart-screen .sumstrip .tr { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); line-height: 1.6; margin-top: 10px; }
+
+.chart-screen .legend { margin-top: var(--space-5); }
+.chart-screen .legend .sectitle { font-size: var(--text-sm); color: var(--muted); margin: 0 0 var(--space-3); font-weight: 500; }
+.chart-screen .lgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.chart-screen .lgrid div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; font-size: var(--text-sm); line-height: 1.35; }
+.chart-screen .lgrid b { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); display: block; font-weight: 500; }
+
+/* bottom sheet */
+.chart-screen .scrim { position: absolute; inset: 0; background: var(--fg); opacity: 0; pointer-events: none; transition: opacity var(--motion-base) var(--ease-standard); z-index: 8; }
+.chart-screen .scrim.on { opacity: 0.72; pointer-events: auto; }
+.chart-screen .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; background: var(--surface); border-top: 1px solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-5) var(--space-6); transform: translateY(101%); transition: transform var(--motion-base) var(--ease-standard); max-height: 74%; overflow-y: auto; }
+.chart-screen .sheet.on { transform: translateY(0); }
+.chart-screen .grabber { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--border); margin: 0 auto var(--space-4); }
+.chart-screen .sheet h3 { margin-bottom: 6px; }
+.chart-screen .sheet .strn { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); margin-bottom: var(--space-4); }
+.chart-screen .sheet .sgov { font-size: 17px; line-height: 1.55; }
+.chart-screen .sheet .plist { margin-top: var(--space-4); border-top: 1px solid var(--border-soft); }
+.chart-screen .sheet .prow { display: flex; justify-content: space-between; gap: var(--space-3); padding: 11px 0; border-bottom: 1px solid var(--border-soft); font-size: var(--text-base); }
+.chart-screen .sheet .prow .pn span { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); }
+.chart-screen .sheet .prow .pd { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--muted); white-space: nowrap; align-self: center; }
+.chart-screen .sheet .empty { padding: 12px 0; color: var(--muted); font-size: var(--text-base); }
+.chart-screen .sheetact { display: flex; gap: var(--space-2); margin-top: var(--space-5); }
+.chart-screen .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 52px; padding: 0 var(--space-5); border-radius: var(--radius-md); border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: var(--text-base); font-weight: 500; flex: 1; transition: background var(--motion-fast) var(--ease-standard); }
+.chart-screen .btn:hover { background: var(--border-soft); }

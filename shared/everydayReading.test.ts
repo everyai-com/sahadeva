@@ -42,6 +42,16 @@ describe("everyday reading", () => {
       reading.sections.find((section) => section.id === "timing")?.message,
     ).toContain("not as a guaranteed event prediction");
     expect(reading.notice).toContain("unreviewed");
+    expect(reading.dailyLife.items.map((item) => item.id)).toEqual([
+      "focus",
+      "balance",
+      "use",
+    ]);
+    expect(reading.dailyLife.items[0].message).toContain("small commitment");
+    expect(reading.dailyLife.questions).toHaveLength(3);
+    expect(reading.provenance.calculationShare).toBe(93);
+    expect(reading.provenance.narrationShare).toBe(7);
+    expect(reading.provenance.aiDoes).toContain("never creates new chart facts");
   });
 
   it("provides a Telugu presentation without changing the evidence", () => {
@@ -52,6 +62,7 @@ describe("everyday reading", () => {
       "te",
     );
     expect(reading.title).toContain("సాధారణ జాతక వివరణ");
+    expect(reading.dailyLife.title).toContain("రోజువారీ");
     expect(reading.sections).toHaveLength(8);
   });
 });

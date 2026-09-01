@@ -17,6 +17,7 @@ import { NorthChart } from "./NorthChart";
 import "./chat.css";
 import { BtrWorkspace } from "./BtrWorkspace";
 import { ReadingExperience } from "./ReadingExperience";
+import type { EverydayReading } from "../shared/everydayReading";
 import { requestsFullProfile } from "../shared/chatEvidenceRouting";
 import { auditReadingCompleteness } from "../shared/readingParser";
 
@@ -45,7 +46,25 @@ type Thread = {
 
 type Account = { id: string; name: string; email: string } | null;
 
-type Person = { id: string; profile: Profile | null };
+type ProfileSnapshotMeta = {
+  profileRef?: string;
+  status: "ready" | "missing" | "stale" | "failed" | string;
+  engineVersion?: string;
+  generatedAt?: string;
+  updatedAt?: string;
+};
+type RemedyPreferences = {
+  beliefMode: "hindu" | "spiritual" | "tradition-specific";
+  maximumBurden: "minimal" | "moderate";
+  maximumCost: "free" | "low";
+  allowPrayer: boolean;
+  allowCharity: boolean;
+};
+type Person = {
+  id: string;
+  profile: Profile | null;
+  profileSnapshot?: ProfileSnapshotMeta;
+};
 
 type TodayPanchanga = {
   status?: string;
@@ -66,18 +85,58 @@ type ChatSummary = {
   generatedAt?: string;
   engineVersion?: string;
   readingMode?: "complete-profile" | "focused" | "orientation";
+  everyday?: EverydayReading;
   fullProfile?: {
     requiredSections: string[];
     coverage?: unknown;
     domainEvidence: Record<string, unknown>;
-    atAGlance: { strongestPlanets: Array<{ planet: string; ratio: number | null }>; lagna: { signName?: string; degree: number }; moon: { signName?: string; degree: number; nakshatra: string; pada: number }; currentPeriod: string[]; confidence?: { score?: number; level?: string } };
-    timeline: Array<{ level: string; lord: string; startIso: string; endIso: string; current: boolean }>;
+    atAGlance: {
+      strongestPlanets: Array<{ planet: string; ratio: number | null }>;
+      lagna: { signName?: string; degree: number };
+      moon: {
+        signName?: string;
+        degree: number;
+        nakshatra: string;
+        pada: number;
+      };
+      currentPeriod: string[];
+      confidence?: { score?: number; level?: string };
+    };
+    timeline: Array<{
+      level: string;
+      lord: string;
+      startIso: string;
+      endIso: string;
+      current: boolean;
+    }>;
     nextQuestions: string[];
   } | null;
-  context?: { estimatedInputTokens: number; historyMessages: number; included: { transits: boolean; dailyPanchanga: boolean; navamsa: boolean; yogas: boolean }; qualityContract: { coreChartAlwaysIncluded: boolean; focusedJudgmentAlwaysIncluded: boolean; timingAlwaysIncluded: boolean; olderContextCompressedNotDropped: boolean; outputCapUnchanged: boolean }; notice: string };
+  context?: {
+    estimatedInputTokens: number;
+    historyMessages: number;
+    included: {
+      transits: boolean;
+      dailyPanchanga: boolean;
+      navamsa: boolean;
+      yogas: boolean;
+    };
+    qualityContract: {
+      coreChartAlwaysIncluded: boolean;
+      focusedJudgmentAlwaysIncluded: boolean;
+      timingAlwaysIncluded: boolean;
+      olderContextCompressedNotDropped: boolean;
+      outputCapUnchanged: boolean;
+    };
+    notice: string;
+  };
   anchors: {
     lagna: { signName?: string; degree: number };
-    moon: { signName?: string; degree: number; nakshatra: string; pada: number };
+    moon: {
+      signName?: string;
+      degree: number;
+      nakshatra: string;
+      pada: number;
+    };
   };
   panchanga: {
     vara: string;
@@ -197,21 +256,131 @@ type TopicJudgment = {
   unresolvedSourceKeys: string[];
   uncertainty: { level: string; warnings: string[] };
   practitionerAnalysis: {
-    functionalLordship: { planet?: string; houses?: number[]; functionalNature?: string; yogakaraka?: boolean; reason?: string } | null;
-    relevantRelationships: Array<{ from: string; to: string; kind: string; detail: string }>;
+    functionalLordship: {
+      planet?: string;
+      houses?: number[];
+      functionalNature?: string;
+      yogakaraka?: boolean;
+      reason?: string;
+    } | null;
+    relevantRelationships: Array<{
+      from: string;
+      to: string;
+      kind: string;
+      detail: string;
+    }>;
     dispositorChain: string[];
     domainVarga: { evidence?: string[] };
   };
   safety: { notice: string };
   practicalQuestions: string[];
-  sensitivity?: { stable: boolean; rangeMinutes: number; statuses: string[]; vargaStatuses: string[]; unstableEvidenceIds: string[] };
+  sensitivity?: {
+    stable: boolean;
+    rangeMinutes: number;
+    statuses: string[];
+    vargaStatuses: string[];
+    unstableEvidenceIds: string[];
+  };
 };
-type HouseExplorer={houses:Array<{house:number;topic:string;signName:string;lord:string;status:string;supportingEvidence:string[];opposingEvidence:string[];safety:{restricted:boolean;notice:string}}>};
-type NatalPanchanga={limbs:Array<{limb:string;value:string;lord:string|null;element:string;class?:string}>;paksha:{name:string;moonPakshaBalaVirupas:number;notice:string};interpretation:{status:string;notice:string}};
-type PracticeProtocol={outcome:string;eligiblePractices:Array<{id:string;label:string;instructions:string;family:string}>;traditionalRemedyStatus:string;contraindications:string[]};
-type ConventionComparison={variants:Array<{id:string;name:string;validation:string;lord:string}>;judgmentChangeAnalysis:{status:string;material:boolean;notice:string;changes:Array<{id:string;lagnaChanged:boolean;lordChanged:boolean;anchorChanges:unknown[]}>};traditionBoundary:{notice:string}};
+type HouseExplorer = {
+  houses: Array<{
+    house: number;
+    topic: string;
+    signName: string;
+    lord: string;
+    status: string;
+    supportingEvidence: string[];
+    opposingEvidence: string[];
+    safety: { restricted: boolean; notice: string };
+  }>;
+};
+type NatalPanchanga = {
+  limbs: Array<{
+    limb: string;
+    value: string;
+    lord: string | null;
+    element: string;
+    class?: string;
+  }>;
+  paksha: { name: string; moonPakshaBalaVirupas: number; notice: string };
+  interpretation: { status: string; notice: string };
+};
+type LalKitabOverview = {
+  placements: Array<{
+    planet: string;
+    house: number;
+    source: { locator: string };
+  }>;
+  controlledDisclosurePolicy: {
+    reviewedSensitiveClaims: string;
+    remedies: string;
+  };
+  sourceCoverage: {
+    reviewedExecutableRules: number;
+    corpusPlanetHouseSections: number;
+  };
+  safety: { notice: string };
+};
+type CalculationAuditOverview = {
+  engine: { productionCertified: boolean };
+  boundaryAudit: Array<{ fact: string; nearBoundary: boolean }>;
+  decision: { requiresHumanReview: boolean; abstentionReasons: string[] };
+};
+type PracticeProtocol = {
+  outcome: string;
+  eligiblePractices: Array<{
+    id: string;
+    label: string;
+    instructions: string;
+    family: string;
+  }>;
+  traditionalRemedyStatus: string;
+  contraindications: string[];
+  availableChoices?: Array<{
+    family: string;
+    label: string;
+    availability: string;
+    choicePrompt: string;
+    examples?: Array<{
+      name: string;
+      devanagari?: string;
+      mantraText: string;
+      textAvailability: string;
+      textProvenance?: string;
+      optional: boolean;
+      guruConfirmationRequired: boolean;
+      guruConfirmationPrompt: string;
+    }>;
+  }>;
+  intakeQuestions?: Array<{
+    id: string;
+    question: string;
+    requiredFor: string[];
+  }>;
+};
+type ConventionComparison = {
+  variants: Array<{
+    id: string;
+    name: string;
+    validation: string;
+    lord: string;
+  }>;
+  judgmentChangeAnalysis: {
+    status: string;
+    material: boolean;
+    notice: string;
+    changes: Array<{
+      id: string;
+      lagnaChanged: boolean;
+      lordChanged: boolean;
+      anchorChanges: unknown[];
+    }>;
+  };
+  traditionBoundary: { notice: string };
+};
 
 const PROFILE_KEY = "sahadeva.profile.v1";
+const READING_SUMMARY_KEY = "sahadeva.reading-summary.v1";
 const THREADS_KEY = "sahadeva.threads.v1";
 
 const newThreadId = () => Math.random().toString(36).slice(2, 10);
@@ -268,7 +437,9 @@ function saveThreadsLocal(threads: Thread[], activeThreadId: string) {
 
 function loadThreadsLocal() {
   try {
-    return normalizeThreads(JSON.parse(localStorage.getItem(THREADS_KEY) || "null"));
+    return normalizeThreads(
+      JSON.parse(localStorage.getItem(THREADS_KEY) || "null"),
+    );
   } catch {
     return { threads: [] as Thread[], activeThreadId: "" };
   }
@@ -276,7 +447,8 @@ function loadThreadsLocal() {
 
 const STRINGS = {
   en: {
-    tagline: "Your Jyotish companion. Share your birth details once — then just talk.",
+    tagline:
+      "Your Jyotish companion. Share your birth details once — then just talk.",
     name: "Name",
     namePlaceholder: "Your name",
     dob: "Date of birth",
@@ -288,10 +460,24 @@ const STRINGS = {
     year: "Year",
     hour: "Hour",
     minute: "Min",
-    months: ["January","February","March","April","May","June","July","August","September","October","November","December"],
+    months: [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ],
     start: "Start the conversation",
     finding: "Finding your place…",
-    privacy: "Your details are used only to calculate your chart. Create an account to keep them across devices.",
+    privacy:
+      "Your details are used only to calculate your chart. Create an account to keep them across devices.",
     workspace: "Research workspace",
     editDetails: "Edit details",
     editBirth: "Edit birth details",
@@ -325,7 +511,8 @@ const STRINGS = {
     genericError: "Something went wrong.",
     rateError: "Too many questions at once. Wait a minute and try again.",
     replyError: "The assistant could not reply.",
-    placeError: "That place could not be found. Add district, state, or country.",
+    placeError:
+      "That place could not be found. Add district, state, or country.",
     suggestions: [
       "What am I naturally good at?",
       "Help me understand school and learning.",
@@ -334,7 +521,8 @@ const STRINGS = {
       "What should I be careful about?",
     ],
     fullProfileAction: "Create my complete reading",
-    fullProfileIntro: "A whole-chart consultation across identity, education, work, money, relationships, home, wellbeing, meaning and your current period.",
+    fullProfileIntro:
+      "A whole-chart consultation across identity, education, work, money, relationships, home, wellbeing, meaning and your current period.",
     padaShort: "P",
     // Account
     account: "Account",
@@ -348,8 +536,10 @@ const STRINGS = {
     signedInAs: "Signed in as",
     syncNote: "Your birth details and conversation are saved to your account.",
     authError: "Sign in failed. Check your email and password.",
-    signupError: "Could not create the account. Try a different email or a longer password.",
-    guestNote: "Continue without an account — details stay only on this device.",
+    signupError:
+      "Could not create the account. Try a different email or a longer password.",
+    guestNote:
+      "Continue without an account — details stay only on this device.",
     // Pro
     proTitle: "Professional detail",
     allPlacements: "Graha positions (D1)",
@@ -363,7 +553,8 @@ const STRINGS = {
     yogasTitle: "Detected yogas",
     noYogas: "No classical yoga patterns were detected structurally.",
     tools: "Tools & integrations",
-    mcpNote: "Every calculation here is also available to any AI assistant via the MCP endpoint:",
+    mcpNote:
+      "Every calculation here is also available to any AI assistant via the MCP endpoint:",
     copy: "Copy",
     copied: "Copied!",
     // People & extras
@@ -420,7 +611,8 @@ const STRINGS = {
     shareCopied: "Link copied! Valid 30 days.",
     shareNeedsAccount: "Sign in to create share links.",
     reminders: "Daily morning reminder",
-    remindersDesc: "A notification each morning with your panchanga, tara bala and rahu kaal.",
+    remindersDesc:
+      "A notification each morning with your panchanga, tara bala and rahu kaal.",
     remindersDenied: "Notifications are blocked in your browser settings.",
     dashaSystem: "System",
     rename: "Rename",
@@ -434,23 +626,31 @@ const STRINGS = {
     ownsCol: "Owns",
     lordInCol: "Lord sits in",
     proModeTitle: "Jyotishya (Pro) mode",
-    proModeDesc: "Adds a Pro tools tab with full tables for practitioners — shadbala, KP lords, significators, ashtakavarga and more.",
+    proModeDesc:
+      "Adds a Pro tools tab with full tables for practitioners — shadbala, KP lords, significators, ashtakavarga and more.",
     signifTitle: "KP significators",
-    signifLegend: "A = star lord's house · B = planet's house · C = star lord's owned houses · D = planet's owned houses",
+    signifLegend:
+      "A = star lord's house · B = planet's house · C = star lord's owned houses · D = planet's owned houses",
     rulingTitle: "Ruling planets",
     housesTitle: "Houses (whole-sign)",
     occupants: "Occupants",
     lordCol: "Lord",
     explain: "Explain",
     explainQ: {
-      dasha: "Explain my current dasha periods simply — what do they mean for daily life?",
-      placements: "Walk me through my planet placements one by one, in simple words.",
-      timeline: "Explain my upcoming dasha periods for the next few years, simply.",
+      dasha:
+        "Explain my current dasha periods simply — what do they mean for daily life?",
+      placements:
+        "Walk me through my planet placements one by one, in simple words.",
+      timeline:
+        "Explain my upcoming dasha periods for the next few years, simply.",
       yogas: "Explain the yogas detected in my chart in simple language.",
-      shadbala: "Explain my shadbala strengths simply — which planets are strong or weak and what that means.",
-      sarva: "Explain my sarvashtakavarga scores simply — which signs are strong for me?",
+      shadbala:
+        "Explain my shadbala strengths simply — which planets are strong or weak and what that means.",
+      sarva:
+        "Explain my sarvashtakavarga scores simply — which signs are strong for me?",
       kp: "Explain my KP star lords and sub lords in simple words.",
-      signif: "Explain my KP significators simply — which planets signify which houses?",
+      signif:
+        "Explain my KP significators simply — which planets signify which houses?",
       aspects: "Explain the main aspects in my chart in simple words.",
       houses: "Explain my houses simply — which areas of life are emphasized?",
     },
@@ -461,7 +661,8 @@ const STRINGS = {
     unfavorable: "take care",
   },
   te: {
-    tagline: "మీ జ్యోతిష సహచరుడు. జన్మ వివరాలు ఒక్కసారి ఇవ్వండి — ఆపై మాట్లాడండి.",
+    tagline:
+      "మీ జ్యోతిష సహచరుడు. జన్మ వివరాలు ఒక్కసారి ఇవ్వండి — ఆపై మాట్లాడండి.",
     name: "పేరు",
     namePlaceholder: "మీ పేరు",
     dob: "జన్మ తేదీ",
@@ -473,10 +674,24 @@ const STRINGS = {
     year: "సంవత్సరం",
     hour: "గంట",
     minute: "నిమి",
-    months: ["జనవరి","ఫిబ్రవరి","మార్చి","ఏప్రిల్","మే","జూన్","జూలై","ఆగస్టు","సెప్టెంబర్","అక్టోబర్","నవంబర్","డిసెంబర్"],
+    months: [
+      "జనవరి",
+      "ఫిబ్రవరి",
+      "మార్చి",
+      "ఏప్రిల్",
+      "మే",
+      "జూన్",
+      "జూలై",
+      "ఆగస్టు",
+      "సెప్టెంబర్",
+      "అక్టోబర్",
+      "నవంబర్",
+      "డిసెంబర్",
+    ],
     start: "సంభాషణ ప్రారంభించండి",
     finding: "మీ ఊరు వెతుకుతున్నాం…",
-    privacy: "వివరాలు జాతకం లెక్కించడానికి మాత్రమే. ఖాతా సృష్టిస్తే అన్ని పరికరాల్లో ఉంటాయి.",
+    privacy:
+      "వివరాలు జాతకం లెక్కించడానికి మాత్రమే. ఖాతా సృష్టిస్తే అన్ని పరికరాల్లో ఉంటాయి.",
     workspace: "పరిశోధన వేదిక",
     editDetails: "వివరాలు మార్చండి",
     editBirth: "జన్మ వివరాలు మార్చండి",
@@ -508,7 +723,8 @@ const STRINGS = {
     thinking: "ఆలోచిస్తున్నాను",
     retry: "మళ్ళీ ప్రయత్నించండి",
     genericError: "ఏదో తప్పు జరిగింది.",
-    rateError: "ఒకేసారి ఎక్కువ ప్రశ్నలు వచ్చాయి. ఒక నిమిషం ఆగి మళ్ళీ ప్రయత్నించండి.",
+    rateError:
+      "ఒకేసారి ఎక్కువ ప్రశ్నలు వచ్చాయి. ఒక నిమిషం ఆగి మళ్ళీ ప్రయత్నించండి.",
     replyError: "సహాయకుడు సమాధానం ఇవ్వలేకపోయాడు.",
     placeError: "ఆ ఊరు దొరకలేదు. జిల్లా, రాష్ట్రం లేదా దేశం కూడా రాయండి.",
     suggestions: [
@@ -519,7 +735,8 @@ const STRINGS = {
       "నేను దేని విషయంలో జాగ్రత్తగా ఉండాలి?",
     ],
     fullProfileAction: "నా పూర్తి జాతక రీడింగ్ రూపొందించండి",
-    fullProfileIntro: "వ్యక్తిత్వం, చదువు, వృత్తి, ధనం, సంబంధాలు, ఇల్లు, శ్రేయస్సు, ఆధ్యాత్మికత మరియు ప్రస్తుత దశతో కూడిన పూర్తి సంప్రదింపు.",
+    fullProfileIntro:
+      "వ్యక్తిత్వం, చదువు, వృత్తి, ధనం, సంబంధాలు, ఇల్లు, శ్రేయస్సు, ఆధ్యాత్మికత మరియు ప్రస్తుత దశతో కూడిన పూర్తి సంప్రదింపు.",
     padaShort: "పా",
     account: "ఖాతా",
     signIn: "సైన్ ఇన్",
@@ -532,7 +749,8 @@ const STRINGS = {
     signedInAs: "సైన్ ఇన్ అయినది",
     syncNote: "మీ జన్మ వివరాలు, సంభాషణ మీ ఖాతాలో భద్రంగా ఉంటాయి.",
     authError: "సైన్ ఇన్ కాలేదు. ఇమెయిల్, పాస్‌వర్డ్ చూసుకోండి.",
-    signupError: "ఖాతా సృష్టించలేకపోయాం. వేరే ఇమెయిల్ లేదా పొడవైన పాస్‌వర్డ్ ప్రయత్నించండి.",
+    signupError:
+      "ఖాతా సృష్టించలేకపోయాం. వేరే ఇమెయిల్ లేదా పొడవైన పాస్‌వర్డ్ ప్రయత్నించండి.",
     guestNote: "ఖాతా లేకుండా కొనసాగండి — వివరాలు ఈ పరికరంలో మాత్రమే ఉంటాయి.",
     proTitle: "వృత్తిపరమైన వివరాలు",
     allPlacements: "గ్రహ స్థానాలు (D1)",
@@ -546,7 +764,8 @@ const STRINGS = {
     yogasTitle: "గుర్తించిన యోగాలు",
     noYogas: "నిర్మాణాత్మకంగా ఏ శాస్త్రీయ యోగం గుర్తించబడలేదు.",
     tools: "సాధనాలు & అనుసంధానాలు",
-    mcpNote: "ఇక్కడి ప్రతి గణన MCP ఎండ్‌పాయింట్ ద్వారా ఏ AI సహాయకుడికైనా అందుబాటులో ఉంటుంది:",
+    mcpNote:
+      "ఇక్కడి ప్రతి గణన MCP ఎండ్‌పాయింట్ ద్వారా ఏ AI సహాయకుడికైనా అందుబాటులో ఉంటుంది:",
     copy: "కాపీ",
     copied: "కాపీ అయింది!",
     people: "వ్యక్తులు",
@@ -575,7 +794,10 @@ const STRINGS = {
     starLord: "నక్షత్రాధిపతి",
     subLord: "ఉప అధిపతి",
     aspectsTitle: "గ్రహ దృష్టులు",
-    dailySuggestions: ["ఈ రోజు నాకు ఎలా ఉంటుంది?", "ఈ వారం జాగ్రత్తలు ఏమైనా ఉన్నాయా?"],
+    dailySuggestions: [
+      "ఈ రోజు నాకు ఎలా ఉంటుంది?",
+      "ఈ వారం జాగ్రత్తలు ఏమైనా ఉన్నాయా?",
+    ],
     overviewTab: "అవలోకనం",
     sookshma: "సూక్ష్మ దశ",
     chats: "సంభాషణలు",
@@ -616,25 +838,32 @@ const STRINGS = {
     ownsCol: "ఆధీన భావాలు",
     lordInCol: "అధిపతి ఉన్న భావం",
     proModeTitle: "జ్యోతిష్య (ప్రో) మోడ్",
-    proModeDesc: "అభ్యాసకుల కోసం పూర్తి పట్టికలతో ప్రో టూల్స్ ట్యాబ్ చేరుస్తుంది — షడ్బలం, KP అధిపతులు, కారకత్వాలు, అష్టకవర్గ మొదలైనవి.",
+    proModeDesc:
+      "అభ్యాసకుల కోసం పూర్తి పట్టికలతో ప్రో టూల్స్ ట్యాబ్ చేరుస్తుంది — షడ్బలం, KP అధిపతులు, కారకత్వాలు, అష్టకవర్గ మొదలైనవి.",
     signifTitle: "KP కారకత్వాలు",
-    signifLegend: "A = నక్షత్రాధిపతి భావం · B = గ్రహ భావం · C = నక్షత్రాధిపతి ఆధీన భావాలు · D = గ్రహ ఆధీన భావాలు",
+    signifLegend:
+      "A = నక్షత్రాధిపతి భావం · B = గ్రహ భావం · C = నక్షత్రాధిపతి ఆధీన భావాలు · D = గ్రహ ఆధీన భావాలు",
     rulingTitle: "పాలక గ్రహాలు",
     housesTitle: "భావాలు (సమరాశి)",
     occupants: "గ్రహాలు",
     lordCol: "అధిపతి",
     explain: "వివరించండి",
     explainQ: {
-      dasha: "నా ప్రస్తుత దశలను సరళంగా వివరించండి — రోజువారీ జీవితానికి అర్థం ఏమిటి?",
+      dasha:
+        "నా ప్రస్తుత దశలను సరళంగా వివరించండి — రోజువారీ జీవితానికి అర్థం ఏమిటి?",
       placements: "నా గ్రహ స్థానాలను ఒక్కొక్కటిగా సులభమైన మాటల్లో చెప్పండి.",
       timeline: "రాబోయే కొన్నేళ్ల నా దశలను సరళంగా వివరించండి.",
       yogas: "నా జాతకంలోని యోగాలను సులభమైన భాషలో వివరించండి.",
-      shadbala: "నా షడ్బలాన్ని సరళంగా చెప్పండి — ఏ గ్రహాలు బలంగా, బలహీనంగా ఉన్నాయి?",
-      sarva: "నా సర్వాష్టకవర్గ స్కోర్లను సరళంగా వివరించండి — ఏ రాశులు బలంగా ఉన్నాయి?",
+      shadbala:
+        "నా షడ్బలాన్ని సరళంగా చెప్పండి — ఏ గ్రహాలు బలంగా, బలహీనంగా ఉన్నాయి?",
+      sarva:
+        "నా సర్వాష్టకవర్గ స్కోర్లను సరళంగా వివరించండి — ఏ రాశులు బలంగా ఉన్నాయి?",
       kp: "నా KP నక్షత్ర, ఉప అధిపతులను సులభమైన మాటల్లో వివరించండి.",
-      signif: "నా KP కారకత్వాలను సరళంగా చెప్పండి — ఏ గ్రహం ఏ భావాలను సూచిస్తుంది?",
+      signif:
+        "నా KP కారకత్వాలను సరళంగా చెప్పండి — ఏ గ్రహం ఏ భావాలను సూచిస్తుంది?",
       aspects: "నా జాతకంలోని ముఖ్య దృష్టులను సులభంగా వివరించండి.",
-      houses: "నా భావాలను సరళంగా వివరించండి — ఏ జీవిత రంగాలు ప్రధానమో చెప్పండి.",
+      houses:
+        "నా భావాలను సరళంగా వివరించండి — ఏ జీవిత రంగాలు ప్రధానమో చెప్పండి.",
     },
     proTab: "ప్రో పరికరాలు",
     taraShort: "తారా బలం",
@@ -650,11 +879,33 @@ const SIGN_TE: Record<string, string> = Object.fromEntries(
   SIGNS.map((sign, index) => [sign, TELUGU_SIGNS[index]]),
 );
 const NAKSHATRA_NAMES = [
-  "Ashwini","Bharani","Krittika","Rohini","Mrigashira","Ardra","Punarvasu",
-  "Pushya","Ashlesha","Magha","Purva Phalguni","Uttara Phalguni","Hasta",
-  "Chitra","Swati","Vishakha","Anuradha","Jyeshtha","Mula","Purva Ashadha",
-  "Uttara Ashadha","Shravana","Dhanishta","Shatabhisha","Purva Bhadrapada",
-  "Uttara Bhadrapada","Revati",
+  "Ashwini",
+  "Bharani",
+  "Krittika",
+  "Rohini",
+  "Mrigashira",
+  "Ardra",
+  "Punarvasu",
+  "Pushya",
+  "Ashlesha",
+  "Magha",
+  "Purva Phalguni",
+  "Uttara Phalguni",
+  "Hasta",
+  "Chitra",
+  "Swati",
+  "Vishakha",
+  "Anuradha",
+  "Jyeshtha",
+  "Mula",
+  "Purva Ashadha",
+  "Uttara Ashadha",
+  "Shravana",
+  "Dhanishta",
+  "Shatabhisha",
+  "Purva Bhadrapada",
+  "Uttara Bhadrapada",
+  "Revati",
 ];
 const NAKSHATRA_TE: Record<string, string> = Object.fromEntries(
   NAKSHATRA_NAMES.map((name, index) => [name, TELUGU_NAKSHATRAS[index]]),
@@ -671,11 +922,32 @@ function localize(
 
 const jdToDate = (jd: number) => new Date((jd - 2440587.5) * 86400000);
 const VIM_YEARS: Record<string, number> = {
-  Ketu: 7, Venus: 20, Sun: 6, Moon: 10, Mars: 7,
-  Rahu: 18, Jupiter: 16, Saturn: 19, Mercury: 17,
+  Ketu: 7,
+  Venus: 20,
+  Sun: 6,
+  Moon: 10,
+  Mars: 7,
+  Rahu: 18,
+  Jupiter: 16,
+  Saturn: 19,
+  Mercury: 17,
 };
-const VIM_ORDER = ["Ketu","Venus","Sun","Moon","Mars","Rahu","Jupiter","Saturn","Mercury"];
-function sookshmaPeriods(praty: { lord: string; startJulianDay: number; endJulianDay: number }) {
+const VIM_ORDER = [
+  "Ketu",
+  "Venus",
+  "Sun",
+  "Moon",
+  "Mars",
+  "Rahu",
+  "Jupiter",
+  "Saturn",
+  "Mercury",
+];
+function sookshmaPeriods(praty: {
+  lord: string;
+  startJulianDay: number;
+  endJulianDay: number;
+}) {
   const span = praty.endJulianDay - praty.startJulianDay;
   const startIndex = VIM_ORDER.indexOf(praty.lord);
   if (startIndex === -1) return [];
@@ -683,12 +955,29 @@ function sookshmaPeriods(praty: { lord: string; startJulianDay: number; endJulia
   return VIM_ORDER.map((_, offset) => {
     const lord = VIM_ORDER[(startIndex + offset) % 9];
     const length = (span * VIM_YEARS[lord]) / 120;
-    const period = { lord, startJulianDay: cursor, endJulianDay: cursor + length };
+    const period = {
+      lord,
+      startJulianDay: cursor,
+      endJulianDay: cursor + length,
+    };
     cursor += length;
     return period;
   });
 }
-const WS_LORDS = ["Mars","Venus","Mercury","Moon","Sun","Mercury","Venus","Mars","Jupiter","Saturn","Saturn","Jupiter"];
+const WS_LORDS = [
+  "Mars",
+  "Venus",
+  "Mercury",
+  "Moon",
+  "Sun",
+  "Mercury",
+  "Venus",
+  "Mars",
+  "Jupiter",
+  "Saturn",
+  "Saturn",
+  "Jupiter",
+];
 const nowJd = () => Date.now() / 86400000 + 2440587.5;
 
 function summaryFromChart(chart: NonNullable<FullChart>): ChatSummary {
@@ -696,7 +985,9 @@ function summaryFromChart(chart: NonNullable<FullChart>): ChatSummary {
   const moon = chart.placements.find((p) => p.name === "Moon");
   const jd = nowJd();
   const timeline = chart.advanced.vimshottariTimeline;
-  const maha = timeline.find((p) => jd >= p.startJulianDay && jd < p.endJulianDay);
+  const maha = timeline.find(
+    (p) => jd >= p.startJulianDay && jd < p.endJulianDay,
+  );
   const antar = maha?.subPeriods.find(
     (p) => jd >= p.startJulianDay && jd < p.endJulianDay,
   );
@@ -769,15 +1060,40 @@ function saveProfileLocal(profile: Profile) {
   }
 }
 
+function readingSummaryKey(profile: Profile) {
+  return `${READING_SUMMARY_KEY}:${profile.date}:${profile.time}:${profile.latitude.toFixed(3)}:${profile.longitude.toFixed(3)}`;
+}
+
+function loadReadingSummaryLocal(profile: Profile): ChatSummary | null {
+  try {
+    const raw = localStorage.getItem(readingSummaryKey(profile));
+    return raw ? JSON.parse(raw) as ChatSummary : null;
+  } catch { return null; }
+}
+
+function saveReadingSummaryLocal(profile: Profile, summary: ChatSummary) {
+  try {
+    const fullProfile = summary.fullProfile ? { ...summary.fullProfile, domainEvidence: {} } : summary.fullProfile;
+    localStorage.setItem(readingSummaryKey(profile), JSON.stringify({ ...summary, fullProfile }));
+  } catch { /* private mode or storage quota */ }
+}
+
 function renderAssistantText(text: string) {
   return text.split(/\n{2,}/).map((block, index) => {
     const lines = block.split("\n");
+    const heading = /^(#{2,4})\s+(.+)$/.exec(block.trim());
+    if (heading && !heading[2].includes("\n")) {
+      const content = inlineBold(heading[2]);
+      return heading[1].length === 2 ? <h2 key={index}>{content}</h2> : <h3 key={index}>{content}</h3>;
+    }
     const isList = lines.every((line) => /^\s*([-*•]|\d+[.)])\s+/.test(line));
     if (isList)
       return (
         <ul key={index}>
           {lines.map((line, i) => (
-            <li key={i}>{inlineBold(line.replace(/^\s*([-*•]|\d+[.)])\s+/, ""))}</li>
+            <li key={i}>
+              {inlineBold(line.replace(/^\s*([-*•]|\d+[.)])\s+/, ""))}
+            </li>
           ))}
         </ul>
       );
@@ -817,6 +1133,7 @@ async function fetchMe(): Promise<{
   conversation?: Message[] | null;
   people?: Person[];
   activePersonId?: string | null;
+  profileSnapshot?: ProfileSnapshotMeta | null;
 }> {
   try {
     const response = await fetch("/api/me");
@@ -833,6 +1150,26 @@ function pushProfile(profile: Profile) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ profile }),
   }).catch(() => {});
+}
+
+async function syncComputedProfile(
+  profile: Profile,
+  remedyPreferences?: RemedyPreferences | null,
+) {
+  const response = await fetch("/api/me/profile/sync", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      profile,
+      traditions: ["parashari", "jaimini", "kp", "lal-kitab"],
+      remedyPreferences: remedyPreferences ?? undefined,
+    }),
+  });
+  if (!response.ok) return null;
+  return (await response.json()) as {
+    profileRef?: string;
+    snapshot?: ProfileSnapshotMeta;
+  };
 }
 
 async function enableDailyReminder(hour: number, tzOffset: number) {
@@ -863,7 +1200,8 @@ async function enableDailyReminder(hour: number, tzOffset: number) {
 
 async function disableDailyReminder() {
   try {
-    const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    const registration =
+      await navigator.serviceWorker.getRegistration("/sw.js");
     const subscription = await registration?.pushManager.getSubscription();
     await fetch("/api/push/subscribe", {
       method: "DELETE",
@@ -914,28 +1252,46 @@ function DateField({
     <div className="picker-row" role="group" aria-label={t.dob}>
       <label className="picker">
         <span>{t.day}</span>
-        <select value={d || ""} onChange={(e) => set("d", e.target.value)} required>
+        <select
+          value={d || ""}
+          onChange={(e) => set("d", e.target.value)}
+          required
+        >
           <option value="" disabled hidden />
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
-            <option key={day} value={day}>{day}</option>
+            <option key={day} value={day}>
+              {day}
+            </option>
           ))}
         </select>
       </label>
       <label className="picker picker-wide">
         <span>{t.month}</span>
-        <select value={m || ""} onChange={(e) => set("m", e.target.value)} required>
+        <select
+          value={m || ""}
+          onChange={(e) => set("m", e.target.value)}
+          required
+        >
           <option value="" disabled hidden />
           {t.months.map((label, index) => (
-            <option key={label} value={index + 1}>{label}</option>
+            <option key={label} value={index + 1}>
+              {label}
+            </option>
           ))}
         </select>
       </label>
       <label className="picker">
         <span>{t.year}</span>
-        <select value={y || ""} onChange={(e) => set("y", e.target.value)} required>
+        <select
+          value={y || ""}
+          onChange={(e) => set("y", e.target.value)}
+          required
+        >
           <option value="" disabled hidden />
           {years.map((year) => (
-            <option key={year} value={year}>{year}</option>
+            <option key={year} value={year}>
+              {year}
+            </option>
           ))}
         </select>
       </label>
@@ -953,7 +1309,7 @@ function TimeField({
   t: Strings;
 }) {
   const [h, min] = value ? value.split(":").map(Number) : [NaN, NaN];
-  const hour12 = Number.isNaN(h) ? "" : ((h % 12) || 12);
+  const hour12 = Number.isNaN(h) ? "" : h % 12 || 12;
   const period = Number.isNaN(h) ? "" : h < 12 ? "AM" : "PM";
   const set = (part: "h" | "m" | "p", raw: string) => {
     const currentH = Number.isNaN(h) ? 6 : h;
@@ -973,25 +1329,41 @@ function TimeField({
     <div className="picker-row" role="group" aria-label={t.tob}>
       <label className="picker">
         <span>{t.hour}</span>
-        <select value={hour12} onChange={(e) => set("h", e.target.value)} required>
+        <select
+          value={hour12}
+          onChange={(e) => set("h", e.target.value)}
+          required
+        >
           <option value="" disabled hidden />
           {Array.from({ length: 12 }, (_, i) => i + 1).map((hour) => (
-            <option key={hour} value={hour}>{hour}</option>
+            <option key={hour} value={hour}>
+              {hour}
+            </option>
           ))}
         </select>
       </label>
       <label className="picker">
         <span>{t.minute}</span>
-        <select value={Number.isNaN(min) ? "" : min} onChange={(e) => set("m", e.target.value)} required>
+        <select
+          value={Number.isNaN(min) ? "" : min}
+          onChange={(e) => set("m", e.target.value)}
+          required
+        >
           <option value="" disabled hidden />
           {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
-            <option key={minute} value={minute}>{String(minute).padStart(2, "0")}</option>
+            <option key={minute} value={minute}>
+              {String(minute).padStart(2, "0")}
+            </option>
           ))}
         </select>
       </label>
       <label className="picker">
         <span>AM/PM</span>
-        <select value={period} onChange={(e) => set("p", e.target.value)} required>
+        <select
+          value={period}
+          onChange={(e) => set("p", e.target.value)}
+          required
+        >
           <option value="" disabled hidden />
           <option value="AM">AM</option>
           <option value="PM">PM</option>
@@ -1001,11 +1373,55 @@ function TimeField({
   );
 }
 
-function ConsultationProgress({language}:{language:Language}){
-  const [stage,setStage]=useState(0);
-  const stages=language==="te"?["జన్మ జాతకాన్ని లెక్కిస్తోంది","జీవిత విభాగాలను పరిశీలిస్తోంది","దశలు మరియు విరుద్ధ ఆధారాలను కలుపుతోంది","మీ పూర్తి రీడింగ్‌ను రచిస్తోంది"]:["Calculating the natal chart","Reviewing every life domain","Connecting timing and contrary evidence","Writing your complete consultation"];
-  useEffect(()=>{const timer=window.setInterval(()=>setStage(value=>Math.min(value+1,stages.length-1)),4200);return()=>window.clearInterval(timer)},[stages.length]);
-  return <section className="consultation-progress" aria-live="polite"><header><span>{language==="te"?"పూర్తి సంప్రదింపు":"Complete consultation"}</span><strong>{stages[stage]}</strong></header><ol>{stages.map((label,index)=><li key={label} className={index<stage?"done":index===stage?"active":""}><i>{index<stage?"✓":index+1}</i>{label}</li>)}</ol><div className="consultation-skeleton"><i/><i/><i/></div></section>;
+function ConsultationProgress({ language }: { language: Language }) {
+  const [stage, setStage] = useState(0);
+  const stages =
+    language === "te"
+      ? [
+          "జన్మ జాతకాన్ని లెక్కిస్తోంది",
+          "జీవిత విభాగాలను పరిశీలిస్తోంది",
+          "దశలు మరియు విరుద్ధ ఆధారాలను కలుపుతోంది",
+          "మీ పూర్తి రీడింగ్‌ను రచిస్తోంది",
+        ]
+      : [
+          "Calculating the natal chart",
+          "Reviewing every life domain",
+          "Connecting timing and contrary evidence",
+          "Writing your complete consultation",
+        ];
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setStage((value) => Math.min(value + 1, stages.length - 1)),
+      4200,
+    );
+    return () => window.clearInterval(timer);
+  }, [stages.length]);
+  return (
+    <section className="consultation-progress" aria-live="polite">
+      <header>
+        <span>
+          {language === "te" ? "పూర్తి సంప్రదింపు" : "Complete consultation"}
+        </span>
+        <strong>{stages[stage]}</strong>
+      </header>
+      <ol>
+        {stages.map((label, index) => (
+          <li
+            key={label}
+            className={index < stage ? "done" : index === stage ? "active" : ""}
+          >
+            <i>{index < stage ? "✓" : index + 1}</i>
+            {label}
+          </li>
+        ))}
+      </ol>
+      <div className="consultation-skeleton">
+        <i />
+        <i />
+        <i />
+      </div>
+    </section>
+  );
 }
 
 /* ── Main app ────────────────────────────────────────── */
@@ -1014,12 +1430,19 @@ export default function ChatApp() {
   const [profile, setProfile] = useState<Profile | null>(loadProfile);
   const [account, setAccount] = useState<Account>(null);
   const [people, setPeople] = useState<Person[]>([]);
+  const [profileSnapshot, setProfileSnapshot] =
+    useState<ProfileSnapshotMeta | null>(null);
   const [partner, setPartner] = useState<Profile | null>(null);
   const [prashnaMode, setPrashnaMode] = useState(false);
-  const [specialToolsOpen,setSpecialToolsOpen]=useState(false);
+  const [specialToolsOpen, setSpecialToolsOpen] = useState(false);
   const [muhurtaOpen, setMuhurtaOpen] = useState(false);
   const modeRef = useRef<
-    { prashna?: boolean; muhurta?: { activity?: string }; fullProfile?: boolean } | undefined
+    | {
+        prashna?: boolean;
+        muhurta?: { activity?: string };
+        fullProfile?: boolean;
+      }
+    | undefined
   >(undefined);
   const [today, setToday] = useState<TodayPanchanga | null>(null);
   const [transit, setTransit] = useState<FullChart>(null);
@@ -1035,7 +1458,10 @@ export default function ChatApp() {
   const accountRef = useRef<Account>(null);
   const messages =
     threads.find((thread) => thread.id === activeThreadId)?.messages ?? [];
-  const [summary, setSummary] = useState<ChatSummary | null>(null);
+  const [summary, setSummary] = useState<ChatSummary | null>(() => {
+    const savedProfile = loadProfile();
+    return savedProfile ? loadReadingSummaryLocal(savedProfile) : null;
+  });
   const [chart, setChart] = useState<FullChart>(null);
   const [input, setInput] = useState("");
   const [draft, setDraft] = useState<string | null>(null);
@@ -1123,7 +1549,10 @@ export default function ChatApp() {
     modeRef.current = { muhurta: { activity } };
     void (async () => {
       const question = `${t.muhurtaAsk} ${label}`;
-      const next: Message[] = [...messages, { role: "user", content: question }];
+      const next: Message[] = [
+        ...messages,
+        { role: "user", content: question },
+      ];
       commitMessages(next);
       setBusy(true);
       setError("");
@@ -1177,8 +1606,12 @@ export default function ChatApp() {
   useEffect(() => {
     const latest = messages[messages.length - 1];
     if (latest?.role === "assistant" && latest.content.length > 1200) {
-      const readings = document.querySelectorAll<HTMLElement>(".reading-experience");
-      readings.item(readings.length - 1)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const readings = document.querySelectorAll<HTMLElement>(
+        ".reading-experience",
+      );
+      readings
+        .item(readings.length - 1)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
     } else {
       endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
@@ -1196,6 +1629,7 @@ export default function ChatApp() {
       if (me.signedIn && me.user) {
         setAccount(me.user);
         setPeople(me.people ?? []);
+        setProfileSnapshot(me.profileSnapshot ?? null);
         if (me.profile?.date) {
           saveProfileLocal(me.profile);
           setProfile(me.profile);
@@ -1207,6 +1641,15 @@ export default function ChatApp() {
             activeThreadIdRef.current = restored.activeThreadId;
             void loadChart(me.profile);
           }
+          if (!me.profileSnapshot || me.profileSnapshot.status !== "ready")
+            void syncComputedProfile(me.profile).then((synced) => {
+              if (synced?.profileRef)
+                setProfileSnapshot({
+                  ...synced.snapshot,
+                  profileRef: synced.profileRef,
+                  status: synced.snapshot?.status ?? "ready",
+                });
+            });
         }
       }
       setMeLoaded(true);
@@ -1251,7 +1694,8 @@ export default function ChatApp() {
       if (!response.ok) return;
       const full = (await response.json()) as NonNullable<FullChart>;
       setChart(full);
-      setSummary(summaryFromChart(full));
+      const calculatedSummary = summaryFromChart(full);
+      setSummary((current) => current ? { ...current, ...calculatedSummary, everyday: current.everyday, fullProfile: current.fullProfile } : calculatedSummary);
     } catch {
       /* sheet simply shows less */
     }
@@ -1269,6 +1713,7 @@ export default function ChatApp() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         profile: activeProfile,
+        profileRef: profileSnapshot?.profileRef,
         partner: partner ?? undefined,
         mode: modeRef.current,
         messages: history,
@@ -1288,7 +1733,7 @@ export default function ChatApp() {
         response?: string;
         summary?: ChatSummary;
       };
-      if (data.summary) setSummary(data.summary);
+      if (data.summary) { setSummary(data.summary); saveReadingSummaryLocal(activeProfile, data.summary); }
       if (data.response) onDelta?.(data.response);
       return data.response || "";
     }
@@ -1309,7 +1754,7 @@ export default function ChatApp() {
           const parsed = JSON.parse(buffer.slice(0, split)) as {
             summary?: ChatSummary;
           };
-          if (parsed.summary) setSummary(parsed.summary);
+          if (parsed.summary) { setSummary(parsed.summary); saveReadingSummaryLocal(activeProfile, parsed.summary); }
         } catch {
           /* head was not JSON; ignore */
         }
@@ -1356,16 +1801,37 @@ export default function ChatApp() {
       setPrashnaMode(false);
     }
     try {
-      const fullProfileRun=modeRef.current?.fullProfile===true||requestsFullProfile(trimmed);
+      const fullProfileRun =
+        modeRef.current?.fullProfile === true || requestsFullProfile(trimmed);
       let reply = await callChat(profile, next, setDraft);
-      const audit=fullProfileRun?auditReadingCompleteness(reply):null;
-      if(fullProfileRun&&audit&&!audit.complete){
-        const repairPrompt=language==="te"?`మునుపటి ముసాయిదా అసంపూర్ణంగా ఉంది. మిస్సైన అంశాలు: ${audit.missing.join(", ")}. మొత్తం రీడింగ్‌ను అన్ని విభాగాలతో ఒకే పూర్తి సమాధానంగా మళ్లీ రాయండి.`:`The previous draft was incomplete. Missing themes: ${audit.missing.join(", ")}. Rewrite it as one complete reading with every required section, including contrary evidence, uncertainty, and a final synthesis.`;
-        modeRef.current={fullProfile:true};
+      const audit = fullProfileRun ? auditReadingCompleteness(reply) : null;
+      if (fullProfileRun && audit && !audit.complete) {
+        const repairPrompt =
+          language === "te"
+            ? `మునుపటి ముసాయిదా అసంపూర్ణంగా ఉంది. మిస్సైన అంశాలు: ${audit.missing.join(", ")}. మొత్తం రీడింగ్‌ను అన్ని విభాగాలతో ఒకే పూర్తి సమాధానంగా మళ్లీ రాయండి.`
+            : `The previous draft was incomplete. Missing themes: ${audit.missing.join(", ")}. Rewrite it as one complete reading with every required section, including contrary evidence, uncertainty, and a final synthesis.`;
+        modeRef.current = { fullProfile: true };
         setDraft(null);
-        reply=await callChat(profile,[...next,{role:"assistant",content:reply},{role:"user",content:repairPrompt}],setDraft);
+        reply = await callChat(
+          profile,
+          [
+            ...next,
+            { role: "assistant", content: reply },
+            { role: "user", content: repairPrompt },
+          ],
+          setDraft,
+        );
       }
-      if (fullProfileRun) void fetch("/api/readings/telemetry",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({event:"full_profile_completed",language:profile.language,characters:reply.length})}).catch(()=>{});
+      if (fullProfileRun)
+        void fetch("/api/readings/telemetry", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            event: "full_profile_completed",
+            language: profile.language,
+            characters: reply.length,
+          }),
+        }).catch(() => {});
       modeRef.current = undefined;
       commitMessages([...next, { role: "assistant", content: reply }]);
     } catch (err) {
@@ -1377,11 +1843,89 @@ export default function ChatApp() {
     }
   }
 
-  async function readingFeedback(message:Message,section:string,rating:string){await fetch("/api/readings/feedback",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({reading:message.content,section,rating,language})}).catch(()=>{});}
-  function createFullProfile(){modeRef.current={fullProfile:true};void send(language==="te"?"నా పూర్తి జాతక ప్రొఫైల్ ఇవ్వండి. అన్ని జీవిత విభాగాలు, బలాలు, విరుద్ధ ఆధారాలు, ప్రస్తుత దశ మరియు పరిమితులను వివరించండి.":"Create my complete astrological profile. Cover every life domain, strengths, contrary evidence, current timing, and important limitations.");}
-  async function downloadReading(message:Message){let blob:Blob,file=`sahadeva-${profile?.name||"reading"}.md`;if(chart){const{buildChartPdf}=await import("./pdfReport");blob=await buildChartPdf(chart as never,{readingText:message.content});file=`sahadeva-${profile?.name||"reading"}-consultation.pdf`;}else blob=new Blob([message.content],{type:"text/markdown;charset=utf-8"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=file;a.click();URL.revokeObjectURL(url);void fetch("/api/readings/telemetry",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({event:"reading_downloaded",language,characters:message.content.length})});}
-  async function shareReading(message:Message){const data={title:`Sahadeva · ${profile?.name||"Reading"}`,text:message.content};if(navigator.share)await navigator.share(data).catch(()=>{});else await navigator.clipboard.writeText(message.content).catch(()=>{});void fetch("/api/readings/telemetry",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({event:"reading_shared",language,characters:message.content.length})});}
-  function followUpReading(section?:string){setInput(language==="te"?`ఈ రీడింగ్‌లో “${section||"ఈ విషయం"}” గురించి మరింత వివరంగా చెప్పండి: `:`Explain “${section||"this part"}” of the reading in more detail: `);inputRef.current?.focus();void fetch("/api/readings/telemetry",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({event:"follow_up_started",language,section})});}
+  async function readingFeedback(
+    message: Message,
+    section: string,
+    rating: string,
+  ) {
+    await fetch("/api/readings/feedback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        reading: message.content,
+        section,
+        rating,
+        language,
+      }),
+    }).catch(() => {});
+  }
+  function createFullProfile() {
+    modeRef.current = { fullProfile: true };
+    void send(
+      language === "te"
+        ? "నా పూర్తి జాతక ప్రొఫైల్ ఇవ్వండి. అన్ని జీవిత విభాగాలు, బలాలు, విరుద్ధ ఆధారాలు, ప్రస్తుత దశ మరియు పరిమితులను వివరించండి."
+        : "Create my complete astrological profile. Cover every life domain, strengths, contrary evidence, current timing, and important limitations.",
+    );
+  }
+  async function downloadReading(message: Message) {
+    let blob: Blob,
+      file = `sahadeva-${profile?.name || "reading"}.md`;
+    if (chart) {
+      const { buildChartPdf } = await import("./pdfReport");
+      blob = await buildChartPdf(chart as never, {
+        readingText: message.content,
+      });
+      file = `sahadeva-${profile?.name || "reading"}-consultation.pdf`;
+    } else
+      blob = new Blob([message.content], {
+        type: "text/markdown;charset=utf-8",
+      });
+    const url = URL.createObjectURL(blob),
+      a = document.createElement("a");
+    a.href = url;
+    a.download = file;
+    a.click();
+    URL.revokeObjectURL(url);
+    void fetch("/api/readings/telemetry", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        event: "reading_downloaded",
+        language,
+        characters: message.content.length,
+      }),
+    });
+  }
+  async function shareReading(message: Message) {
+    const data = {
+      title: `Sahadeva · ${profile?.name || "Reading"}`,
+      text: message.content,
+    };
+    if (navigator.share) await navigator.share(data).catch(() => {});
+    else await navigator.clipboard.writeText(message.content).catch(() => {});
+    void fetch("/api/readings/telemetry", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        event: "reading_shared",
+        language,
+        characters: message.content.length,
+      }),
+    });
+  }
+  function followUpReading(section?: string) {
+    setInput(
+      language === "te"
+        ? `ఈ రీడింగ్‌లో “${section || "ఈ విషయం"}” గురించి మరింత వివరంగా చెప్పండి: `
+        : `Explain “${section || "this part"}” of the reading in more detail: `,
+    );
+    inputRef.current?.focus();
+    void fetch("/api/readings/telemetry", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event: "follow_up_started", language, section }),
+    });
+  }
 
   function switchLanguage(next: Language) {
     if (!profile || next === profile.language) return;
@@ -1395,6 +1939,7 @@ export default function ChatApp() {
     localStorage.removeItem(PROFILE_KEY);
     startedRef.current = false;
     setProfile(null);
+    setProfileSnapshot(null);
     setThreads([]);
     setActiveThreadId("");
     activeThreadIdRef.current = "";
@@ -1405,18 +1950,45 @@ export default function ChatApp() {
     setError("");
   }
 
-  function adoptProfile(next: Profile) {
-    saveProfileLocal(next);
-    setProfile(next);
-    if (account)
-      void fetch("/api/me/people", {
+  async function adoptProfile(
+    next: Profile,
+    remedyPreferences?: RemedyPreferences | null,
+  ) {
+    if (account) {
+      const response = await fetch("/api/me/people", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ profile: next }),
-      })
-        .then(() => fetchMe())
-        .then((me) => setPeople(me.people ?? []))
-        .catch(() => {});
+        body: JSON.stringify({
+          profile: next,
+          traditions: ["parashari", "jaimini", "kp", "lal-kitab"],
+          remedyPreferences: remedyPreferences ?? undefined,
+        }),
+      });
+      if (!response.ok)
+        throw new Error("The profile could not be created. Please try again.");
+      const created = (await response.json()) as {
+        profileRef?: string;
+        snapshotStatus?: string;
+      };
+      if (created.snapshotStatus !== "ready") {
+        const repaired = await syncComputedProfile(next, remedyPreferences);
+        if (!repaired?.profileRef)
+          throw new Error(
+            "Your details were saved, but the evidence profile is not ready yet. Please retry.",
+          );
+        created.profileRef = repaired.profileRef;
+        created.snapshotStatus = repaired.snapshot?.status ?? "ready";
+      }
+      setProfileSnapshot({
+        profileRef: created.profileRef,
+        status: created.snapshotStatus ?? "missing",
+      });
+      const me = await fetchMe();
+      setPeople(me.people ?? []);
+      setProfileSnapshot(me.profileSnapshot ?? null);
+    }
+    saveProfileLocal(next);
+    setProfile(next);
   }
 
   async function switchPerson(person: Person) {
@@ -1428,11 +2000,13 @@ export default function ChatApp() {
     const data = (await response.json()) as {
       profile?: Profile;
       conversation?: Message[] | null;
+      profileSnapshot?: ProfileSnapshotMeta;
     };
     const nextProfile = data.profile || person.profile;
     saveProfileLocal(nextProfile);
     setPartner(null);
-    setSummary(null);
+    setSummary(loadReadingSummaryLocal(nextProfile));
+    setProfileSnapshot(data.profileSnapshot ?? person.profileSnapshot ?? null);
     setChart(null);
     setError("");
     setAccountOpen(false);
@@ -1537,12 +2111,20 @@ export default function ChatApp() {
       const restored = normalizeThreads(me.conversation);
       startedRef.current = restored.threads.length > 0;
       setProfile(me.profile);
+      setProfileSnapshot(me.profileSnapshot ?? null);
       setThreads(restored.threads);
       setActiveThreadId(restored.activeThreadId);
       activeThreadIdRef.current = restored.activeThreadId;
       void loadChart(me.profile);
     } else if (profile) {
-      pushProfile(profile);
+      void syncComputedProfile(profile).then((synced) => {
+        if (synced?.profileRef)
+          setProfileSnapshot({
+            ...synced.snapshot,
+            profileRef: synced.profileRef,
+            status: synced.snapshot?.status ?? "ready",
+          });
+      });
       if (threads.length) pushThreads(threads, activeThreadId);
     }
     setAccountOpen(false);
@@ -1552,12 +2134,15 @@ export default function ChatApp() {
     await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => {});
     setAccount(null);
     setPeople([]);
+    setProfileSnapshot(null);
     setPartner(null);
     setAccountOpen(false);
   }
 
   const uiLanguage: Language = profile ? language : "en";
-  const hasLongReading = messages.some((message) => message.role === "assistant" && message.content.length > 1200);
+  const hasLongReading = messages.some(
+    (message) => message.role === "assistant" && message.content.length > 1200,
+  );
 
   if (!profile)
     return (
@@ -1580,7 +2165,9 @@ export default function ChatApp() {
     );
 
   return (
-    <div className={`chat-shell dock-${wide && !hasLongReading ? dockSize : "normal"}${detailsOpen ? " chart-open" : ""}`}>
+    <div
+      className={`chat-shell dock-${wide && !hasLongReading ? dockSize : "normal"}${detailsOpen ? " chart-open" : ""}`}
+    >
       <header className="chat-header">
         <button
           className="chat-header-btn"
@@ -1597,7 +2184,11 @@ export default function ChatApp() {
         >
           <strong>Sahadeva</strong>
           <span>
-            {profile.name} · {threads.length > 1 ? `${threads.length} ${t.chats.toLowerCase()}` : profile.date} ▾
+            {profile.name} ·{" "}
+            {threads.length > 1
+              ? `${threads.length} ${t.chats.toLowerCase()}`
+              : profile.date}{" "}
+            ▾
           </span>
         </button>
         <button
@@ -1625,17 +2216,51 @@ export default function ChatApp() {
                 {message.content}
               </div>
             ) : message.content.length > 1200 ? (
-              <ReadingExperience key={index} text={message.content} name={profile.name} language={language} summary={summary} onAsk={followUpReading} onFeedback={(section,rating)=>void readingFeedback(message,section,rating)} onRegenerate={()=>{void fetch("/api/readings/telemetry",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({event:"regenerated",language})});void send(language==="te"?"ఈ పూర్తి జాతక ప్రొఫైల్‌ను మళ్లీ రూపొందించండి. ప్రతి విభాగాన్ని పూర్తి చేసి, స్పష్టమైన సహజ తెలుగులో రాయండి.":"Regenerate this complete profile. Finish every section with clearer, more natural language.")}} onDownload={()=>downloadReading(message)} onShare={()=>void shareReading(message)} onOpenChart={()=>setDetailsOpen(true)}/>
+              <ReadingExperience
+                key={index}
+                text={message.content}
+                name={profile.name}
+                language={language}
+                summary={summary}
+                onAsk={followUpReading}
+                onFeedback={(section, rating) =>
+                  void readingFeedback(message, section, rating)
+                }
+                onRegenerate={() => {
+                  void fetch("/api/readings/telemetry", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ event: "regenerated", language }),
+                  });
+                  void send(
+                    language === "te"
+                      ? "ఈ పూర్తి జాతక ప్రొఫైల్‌ను మళ్లీ రూపొందించండి. ప్రతి విభాగాన్ని పూర్తి చేసి, స్పష్టమైన సహజ తెలుగులో రాయండి."
+                      : "Regenerate this complete profile. Finish every section with clearer, more natural language.",
+                  );
+                }}
+                onDownload={() => downloadReading(message)}
+                onShare={() => void shareReading(message)}
+                onOpenChart={() => setDetailsOpen(true)}
+              />
             ) : (
-              <div key={index} className="bubble-assistant">{renderAssistantText(message.content)}</div>
+              <div key={index} className="bubble-assistant">
+                {renderAssistantText(message.content)}
+              </div>
             ),
           )}
           {draft && (
             <div className="bubble-assistant">{renderAssistantText(draft)}</div>
           )}
-          {busy && !draft && (
-            modeRef.current?.fullProfile?<ConsultationProgress language={language}/>:<div className="bubble-assistant typing" aria-label={t.thinking}><span /><em>{t.thinking} · checking the evidence ledger</em></div>
-          )}
+          {busy &&
+            !draft &&
+            (modeRef.current?.fullProfile ? (
+              <ConsultationProgress language={language} />
+            ) : (
+              <div className="bubble-assistant typing" aria-label={t.thinking}>
+                <span />
+                <em>{t.thinking} · checking the evidence ledger</em>
+              </div>
+            ))}
           {error && (
             <div className="chat-error" role="alert">
               {error}
@@ -1651,22 +2276,50 @@ export default function ChatApp() {
       </main>
 
       {!busy && !partner && (
-        <div className={`chip-row${messages.length <= 1 ? " consultation-start" : ""}`} role="list">
-          {messages.length <= 1 && <div className="full-profile-invite">
-            <div><span>{language === "te" ? "ప్రారంభించడానికి ఉత్తమ మార్గం" : "Best place to begin"}</span><strong>{t.fullProfileAction}</strong><p>{t.fullProfileIntro}</p></div>
-            <button onClick={createFullProfile}>{t.fullProfileAction}<b aria-hidden="true">→</b></button>
-          </div>}
-          <button className="chip chip-more" onClick={()=>setSpecialToolsOpen(value=>!value)} aria-expanded={specialToolsOpen}>{specialToolsOpen?"Fewer choices":"More choices"}</button>
-          {specialToolsOpen&&<><button
-            className={prashnaMode ? "chip on" : "chip"}
-            onClick={() => setPrashnaMode(!prashnaMode)}
+        <div
+          className={`chip-row${messages.length <= 1 ? " consultation-start" : ""}`}
+          role="list"
+        >
+          {messages.length <= 1 && (
+            <div className="full-profile-invite">
+              <div>
+                <span>
+                  {language === "te"
+                    ? "ప్రారంభించడానికి ఉత్తమ మార్గం"
+                    : "Best place to begin"}
+                </span>
+                <strong>{t.fullProfileAction}</strong>
+                <p>{t.fullProfileIntro}</p>
+              </div>
+              <button onClick={createFullProfile}>
+                {t.fullProfileAction}
+                <b aria-hidden="true">→</b>
+              </button>
+            </div>
+          )}
+          <button
+            className="chip chip-more"
+            onClick={() => setSpecialToolsOpen((value) => !value)}
+            aria-expanded={specialToolsOpen}
           >
-            {t.prashnaChip}
+            {specialToolsOpen ? "Fewer choices" : "More choices"}
           </button>
-          <button className="chip" onClick={() => setMuhurtaOpen(true)}>
-            {t.muhurtaChip}
-          </button></>}
-          <button className="chip" onClick={() => setBtrOpen(true)}>BTR</button>
+          {specialToolsOpen && (
+            <>
+              <button
+                className={prashnaMode ? "chip on" : "chip"}
+                onClick={() => setPrashnaMode(!prashnaMode)}
+              >
+                {t.prashnaChip}
+              </button>
+              <button className="chip" onClick={() => setMuhurtaOpen(true)}>
+                {t.muhurtaChip}
+              </button>
+            </>
+          )}
+          <button className="chip" onClick={() => setBtrOpen(true)}>
+            BTR
+          </button>
           {[
             ...t.dailySuggestions,
             ...(messages.length <= 1 ? t.suggestions : []),
@@ -1685,7 +2338,9 @@ export default function ChatApp() {
       {prashnaMode && (
         <div className="compare-banner">
           🔮 {t.prashnaBanner}
-          <button onClick={() => setPrashnaMode(false)}>{t.prashnaOff} ✕</button>
+          <button onClick={() => setPrashnaMode(false)}>
+            {t.prashnaOff} ✕
+          </button>
         </div>
       )}
       {partner && (
@@ -1711,11 +2366,21 @@ export default function ChatApp() {
           enterKeyHint="send"
           autoFocus={wide}
         />
-        <button type="submit" disabled={busy || !input.trim()} aria-label={t.send}>
+        <button
+          type="submit"
+          disabled={busy || !input.trim()}
+          aria-label={t.send}
+        >
           ↑
         </button>
       </form>
-      {btrOpen&&<BtrWorkspace profile={profile} language={language} onClose={()=>setBtrOpen(false)}/>}
+      {btrOpen && (
+        <BtrWorkspace
+          profile={profile}
+          language={language}
+          onClose={() => setBtrOpen(false)}
+        />
+      )}
 
       {muhurtaOpen && (
         <div className="sheet-backdrop" onClick={() => setMuhurtaOpen(false)}>
@@ -1728,7 +2393,12 @@ export default function ChatApp() {
             <div className="sheet-handle" />
             <div className="sheet-head">
               <h2>{t.muhurtaTitle}</h2>
-              <button onClick={() => setMuhurtaOpen(false)} aria-label={t.closeDetails}>✕</button>
+              <button
+                onClick={() => setMuhurtaOpen(false)}
+                aria-label={t.closeDetails}
+              >
+                ✕
+              </button>
             </div>
             <div className="sheet-body">
               <div className="people-list">
@@ -1759,7 +2429,12 @@ export default function ChatApp() {
             <div className="sheet-handle" />
             <div className="sheet-head">
               <h2>{t.chats}</h2>
-              <button onClick={() => setThreadsOpen(false)} aria-label={t.closeDetails}>✕</button>
+              <button
+                onClick={() => setThreadsOpen(false)}
+                aria-label={t.closeDetails}
+              >
+                ✕
+              </button>
             </div>
             <div className="sheet-body">
               <div className="people-list">
@@ -1769,7 +2444,9 @@ export default function ChatApp() {
                     <div
                       key={thread.id}
                       className={
-                        thread.id === activeThreadId ? "person active" : "person"
+                        thread.id === activeThreadId
+                          ? "person active"
+                          : "person"
                       }
                     >
                       <button
@@ -1841,6 +2518,7 @@ export default function ChatApp() {
           dockSize={dockSize}
           onCycleDock={wide ? cycleDock : undefined}
           profile={profile}
+          profileSnapshot={profileSnapshot}
           summary={summary}
           chart={chart}
           transit={transit}
@@ -1950,7 +2628,9 @@ function AccountSheet({
     setError("");
     try {
       const path =
-        mode === "signup" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email";
+        mode === "signup"
+          ? "/api/auth/sign-up/email"
+          : "/api/auth/sign-in/email";
       const body =
         mode === "signup"
           ? { email, password, name: name.trim() || email.split("@")[0] }
@@ -1989,7 +2669,9 @@ function AccountSheet({
         <div className="sheet-handle" />
         <div className="sheet-head">
           <h2>{t.account}</h2>
-          <button onClick={onClose} aria-label={t.closeDetails}>✕</button>
+          <button onClick={onClose} aria-label={t.closeDetails}>
+            ✕
+          </button>
         </div>
         <div className="sheet-body">
           {account ? (
@@ -2017,7 +2699,9 @@ function AccountSheet({
                         >
                           <button
                             className="person-main"
-                            onClick={() => !isActive && onSwitchPerson?.(person)}
+                            onClick={() =>
+                              !isActive && onSwitchPerson?.(person)
+                            }
                           >
                             <strong>{person.profile?.name || "—"}</strong>
                             <em>
@@ -2062,7 +2746,9 @@ function AccountSheet({
                   <input
                     type="checkbox"
                     checked={reminderOn}
-                    onChange={(event) => void toggleReminder(event.target.checked)}
+                    onChange={(event) =>
+                      void toggleReminder(event.target.checked)
+                    }
                   />
                   <i aria-hidden="true" />
                 </label>
@@ -2111,10 +2797,16 @@ function AccountSheet({
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={8}
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  autoComplete={
+                    mode === "signup" ? "new-password" : "current-password"
+                  }
                 />
               </label>
-              {error && <div className="chat-error" role="alert">{error}</div>}
+              {error && (
+                <div className="chat-error" role="alert">
+                  {error}
+                </div>
+              )}
               <button className="cta" type="submit" disabled={busy}>
                 {mode === "signup" ? t.signUp : t.signIn}
               </button>
@@ -2138,6 +2830,7 @@ function AccountSheet({
 
 function DetailsSheet({
   profile,
+  profileSnapshot,
   summary,
   chart,
   transit = null,
@@ -2153,6 +2846,7 @@ function DetailsSheet({
   onAsk,
 }: {
   profile: Profile;
+  profileSnapshot: ProfileSnapshotMeta | null;
   summary: ChatSummary | null;
   chart: FullChart;
   transit?: FullChart;
@@ -2167,18 +2861,51 @@ function DetailsSheet({
   onLanguage: (next: Language) => void;
   onAsk?: (question: string) => void;
 }) {
-
   const [copied, setCopied] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
-  const [judgmentTopic, setJudgmentTopic] = useState<TopicJudgment["topic"]>("career");
+  const [judgmentTopic, setJudgmentTopic] =
+    useState<TopicJudgment["topic"]>("career");
   const [judgment, setJudgment] = useState<TopicJudgment | null>(null);
   const [judgmentBusy, setJudgmentBusy] = useState(false);
-  const [houseExplorer,setHouseExplorer]=useState<HouseExplorer|null>(null);
-  const [natalPanchanga,setNatalPanchanga]=useState<NatalPanchanga|null>(null);
-  const [beliefMode,setBeliefMode]=useState<"secular"|"spiritual">("secular");
-  const [practiceProtocol,setPracticeProtocol]=useState<PracticeProtocol|null>(null);
-  const [conventionComparison,setConventionComparison]=useState<ConventionComparison|null>(null);
-  async function loadPractices(){const response=await fetch("/api/practices",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...profile,topic:judgmentTopic,preferences:{beliefMode,maximumBurden:"minimal",maximumCost:"free",allowPrayer:beliefMode==="spiritual",allowCharity:true}})});if(response.ok)setPracticeProtocol(await response.json() as PracticeProtocol);}
+  const [houseExplorer, setHouseExplorer] = useState<HouseExplorer | null>(
+    null,
+  );
+  const [natalPanchanga, setNatalPanchanga] = useState<NatalPanchanga | null>(
+    null,
+  );
+  const [lalKitabOverview, setLalKitabOverview] =
+    useState<LalKitabOverview | null>(null);
+  const [calculationAuditOverview, setCalculationAuditOverview] =
+    useState<CalculationAuditOverview | null>(null);
+  const [beliefMode, setBeliefMode] = useState<"hindu" | "tradition-specific">(
+    "hindu",
+  );
+  const [includePrayer, setIncludePrayer] = useState(true);
+  const [includeCharity, setIncludeCharity] = useState(true);
+  const [remedyCost, setRemedyCost] = useState<"free" | "low">("free");
+  const [practiceProtocol, setPracticeProtocol] =
+    useState<PracticeProtocol | null>(null);
+  const [conventionComparison, setConventionComparison] =
+    useState<ConventionComparison | null>(null);
+  async function loadPractices() {
+    const response = await fetch("/api/practices", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...profile,
+        topic: judgmentTopic,
+        preferences: {
+          beliefMode,
+          maximumBurden: "moderate",
+          maximumCost: remedyCost,
+          allowPrayer: includePrayer,
+          allowCharity: includeCharity,
+        },
+      }),
+    });
+    if (response.ok)
+      setPracticeProtocol((await response.json()) as PracticeProtocol);
+  }
   useEffect(() => {
     let active = true;
     setJudgmentBusy(true);
@@ -2203,9 +2930,105 @@ function DetailsSheet({
       active = false;
     };
   }, [profile, judgmentTopic]);
-  useEffect(()=>{let active=true;void fetch("/api/judgments/conventions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...profile,topic:judgmentTopic,conventions:["lahiri","krishnamurti","raman"]})}).then(async response=>response.ok?(await response.json())as ConventionComparison:null).then(result=>{if(active)setConventionComparison(result)}).catch(()=>{if(active)setConventionComparison(null)});return()=>{active=false}},[profile,judgmentTopic]);
-  useEffect(()=>{let active=true;void fetch("/api/judgments/houses",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(profile)}).then(async response=>response.ok?(await response.json()) as HouseExplorer:null).then(result=>{if(active)setHouseExplorer(result)}).catch(()=>{});return()=>{active=false}},[profile]);
-  useEffect(()=>{let active=true;void fetch("/api/panchanga/natal",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(profile)}).then(async response=>response.ok?(await response.json()) as NatalPanchanga:null).then(result=>{if(active)setNatalPanchanga(result)}).catch(()=>{});return()=>{active=false}},[profile]);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/judgments/conventions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...profile,
+        topic: judgmentTopic,
+        conventions: ["lahiri", "krishnamurti", "raman"],
+      }),
+    })
+      .then(async (response) =>
+        response.ok ? ((await response.json()) as ConventionComparison) : null,
+      )
+      .then((result) => {
+        if (active) setConventionComparison(result);
+      })
+      .catch(() => {
+        if (active) setConventionComparison(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [profile, judgmentTopic]);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/judgments/houses", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(profile),
+    })
+      .then(async (response) =>
+        response.ok ? ((await response.json()) as HouseExplorer) : null,
+      )
+      .then((result) => {
+        if (active) setHouseExplorer(result);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [profile]);
+  useEffect(() => {
+    let active = true;
+    const request = (path: string) =>
+      fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+    void Promise.all([
+      request("/api/lal-kitab"),
+      request("/api/calculation-audit"),
+    ])
+      .then(
+        async ([lalResponse, auditResponse]) =>
+          [
+            lalResponse.ok
+              ? ((await lalResponse.json()) as LalKitabOverview)
+              : null,
+            auditResponse.ok
+              ? ((await auditResponse.json()) as CalculationAuditOverview)
+              : null,
+          ] as const,
+      )
+      .then(([lal, audit]) => {
+        if (active) {
+          setLalKitabOverview(lal);
+          setCalculationAuditOverview(audit);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setLalKitabOverview(null);
+          setCalculationAuditOverview(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [profile]);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/panchanga/natal", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(profile),
+    })
+      .then(async (response) =>
+        response.ok ? ((await response.json()) as NatalPanchanga) : null,
+      )
+      .then((result) => {
+        if (active) setNatalPanchanga(result);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [profile]);
   const [proEnabled, setProEnabled] = useState(() => {
     try {
       return localStorage.getItem("sahadeva.pro") === "1";
@@ -2243,7 +3066,9 @@ function DetailsSheet({
   const [dashaSystem, setDashaSystem] = useState<"vimshottari" | "yogini">(
     "vimshottari",
   );
-  const [shareState, setShareState] = useState<"idle" | "busy" | "copied" | "need-account">("idle");
+  const [shareState, setShareState] = useState<
+    "idle" | "busy" | "copied" | "need-account"
+  >("idle");
   async function shareChart() {
     if (shareState === "busy") return;
     setShareState("busy");
@@ -2353,7 +3178,8 @@ function DetailsSheet({
     URL.revokeObjectURL(url);
   }
   const jd = nowJd();
-  const detectedYogas = chart?.advanced.yogas.filter((item) => item.detected) ?? [];
+  const detectedYogas =
+    chart?.advanced.yogas.filter((item) => item.detected) ?? [];
   const kp = (() => {
     if (!chart) return null;
     try {
@@ -2403,28 +3229,30 @@ function DetailsSheet({
             </button>
           )}
           {!docked && (
-            <button onClick={onClose} aria-label={t.closeDetails}>✕</button>
+            <button onClick={onClose} aria-label={t.closeDetails}>
+              ✕
+            </button>
           )}
         </div>
         {proEnabled && (
-        <div className="sheet-tabs" role="tablist">
-          <button
-            role="tab"
-            aria-selected={tab === "overview"}
-            className={tab === "overview" ? "on" : ""}
-            onClick={() => pickTab("overview")}
-          >
-            {t.overviewTab}
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === "pro"}
-            className={tab === "pro" ? "on" : ""}
-            onClick={() => pickTab("pro")}
-          >
-            ✦ {t.proTab}
-          </button>
-        </div>
+          <div className="sheet-tabs" role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === "overview"}
+              className={tab === "overview" ? "on" : ""}
+              onClick={() => pickTab("overview")}
+            >
+              {t.overviewTab}
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "pro"}
+              className={tab === "pro" ? "on" : ""}
+              onClick={() => pickTab("pro")}
+            >
+              ✦ {t.proTab}
+            </button>
+          </div>
         )}
         <div className="sheet-body">
           <section hidden={tab === "pro"}>
@@ -2453,35 +3281,176 @@ function DetailsSheet({
               <div className="fact-grid">
                 <div>
                   <span>{t.vara}</span>
-                  <strong>{localize(today.fiveLimbs.vara, language, TELUGU_VARAS)}</strong>
+                  <strong>
+                    {localize(today.fiveLimbs.vara, language, TELUGU_VARAS)}
+                  </strong>
                 </div>
                 <div>
                   <span>{t.tithi}</span>
-                  <strong>{localize(today.fiveLimbs.tithi, language, TELUGU_TITHIS)}</strong>
+                  <strong>
+                    {localize(today.fiveLimbs.tithi, language, TELUGU_TITHIS)}
+                  </strong>
                 </div>
                 <div>
                   <span>{t.nakshatra}</span>
-                  <strong>{localize(today.fiveLimbs.nakshatra, language, NAKSHATRA_TE)}</strong>
+                  <strong>
+                    {localize(
+                      today.fiveLimbs.nakshatra,
+                      language,
+                      NAKSHATRA_TE,
+                    )}
+                  </strong>
                 </div>
                 <div>
                   <span>{t.yoga}</span>
-                  <strong>{localize(today.fiveLimbs.yoga, language, TELUGU_YOGAS)}</strong>
+                  <strong>
+                    {localize(today.fiveLimbs.yoga, language, TELUGU_YOGAS)}
+                  </strong>
                 </div>
                 <div>
-                  <span>{t.sunrise} / {t.sunset}</span>
-                  <strong>{clock(today.solar?.sunrise)} · {clock(today.solar?.sunset)}</strong>
+                  <span>
+                    {t.sunrise} / {t.sunset}
+                  </span>
+                  <strong>
+                    {clock(today.solar?.sunrise)} · {clock(today.solar?.sunset)}
+                  </strong>
                 </div>
                 <div>
                   <span>{t.rahuKaal}</span>
                   <strong>
-                    {clock(today.inauspicious?.rahuKaal?.startIso)} – {clock(today.inauspicious?.rahuKaal?.endIso)}
+                    {clock(today.inauspicious?.rahuKaal?.startIso)} –{" "}
+                    {clock(today.inauspicious?.rahuKaal?.endIso)}
                   </strong>
                 </div>
               </div>
             </section>
           )}
 
-          {natalPanchanga&&<section hidden={tab === "pro"}><h3>{language==="te"?"జన్మ పంచాంగం":"Natal Panchanga"}</h3><div className="fact-grid">{natalPanchanga.limbs.map(limb=><div key={limb.limb}><span>{limb.limb} · {limb.element}</span><strong>{limb.value}</strong><em>{[limb.lord,limb.class].filter(Boolean).join(" · ")}</em></div>)}</div><p className="muted small">{natalPanchanga.paksha.name} Paksha · Moon Paksha Bala {natalPanchanga.paksha.moonPakshaBalaVirupas.toFixed(1)} Virupas. {natalPanchanga.interpretation.notice}</p></section>}
+          {natalPanchanga && (
+            <section hidden={tab === "pro"}>
+              <h3>{language === "te" ? "జన్మ పంచాంగం" : "Natal Panchanga"}</h3>
+              <div className="fact-grid">
+                {natalPanchanga.limbs.map((limb) => (
+                  <div key={limb.limb}>
+                    <span>
+                      {limb.limb} · {limb.element}
+                    </span>
+                    <strong>{limb.value}</strong>
+                    <em>
+                      {[limb.lord, limb.class].filter(Boolean).join(" · ")}
+                    </em>
+                  </div>
+                ))}
+              </div>
+              <p className="muted small">
+                {natalPanchanga.paksha.name} Paksha · Moon Paksha Bala{" "}
+                {natalPanchanga.paksha.moonPakshaBalaVirupas.toFixed(1)}{" "}
+                Virupas. {natalPanchanga.interpretation.notice}
+              </p>
+            </section>
+          )}
+
+          {lalKitabOverview && (
+            <section hidden={tab === "pro"} className="lal-kitab-overview">
+              <div className="section-head">
+                <h3>{language === "te" ? "లాల్ కితాబ్" : "Lal Kitab"}</h3>
+                <span className="judgment-status mixed">source-linked</span>
+              </div>
+              <p className="muted small">
+                {language === "te"
+                  ? "జన్మ లగ్నం నుండి స్థిర భావాలుగా మార్చిన గ్రహ స్థానాలు. సంప్రదాయాలను కలపలేదు."
+                  : "Natal placements converted to Lal Kitab fixed houses. This method remains separate from the Parashari reading."}
+              </p>
+              <div className="fact-grid">
+                {lalKitabOverview.placements.map((item) => (
+                  <div key={item.planet}>
+                    <span>{item.planet}</span>
+                    <strong>House {item.house}</strong>
+                    <em>
+                      {item.source.locator.replace(
+                        "book-gosvami-lal-kitab:",
+                        "",
+                      )}
+                    </em>
+                  </div>
+                ))}
+              </div>
+              <details className="sensitive-policy">
+                <summary>
+                  {language === "te"
+                    ? "సున్నితమైన విషయాల జాగ్రత్త"
+                    : "How sensitive material is handled"}
+                </summary>
+                <p className="muted small">
+                  {
+                    lalKitabOverview.controlledDisclosurePolicy
+                      .reviewedSensitiveClaims
+                  }
+                </p>
+                <p className="muted small">
+                  {lalKitabOverview.controlledDisclosurePolicy.remedies}
+                </p>
+              </details>
+              <small className="muted">
+                {lalKitabOverview.sourceCoverage.corpusPlanetHouseSections}{" "}
+                planet-house sections retained ·{" "}
+                {lalKitabOverview.sourceCoverage.reviewedExecutableRules}{" "}
+                currently reviewed executable rules
+              </small>
+            </section>
+          )}
+
+          {calculationAuditOverview && (
+            <section
+              hidden={tab === "pro"}
+              className="calculation-audit-overview"
+            >
+              <div className="section-head">
+                <h3>
+                  {language === "te" ? "గణన నాణ్యత" : "Calculation quality"}
+                </h3>
+                <span
+                  className={`judgment-status ${calculationAuditOverview.engine.productionCertified ? "supported" : "mixed"}`}
+                >
+                  {calculationAuditOverview.engine.productionCertified
+                    ? "certified"
+                    : "research preview"}
+                </span>
+              </div>
+              <p className="muted small">
+                {
+                  calculationAuditOverview.boundaryAudit.filter(
+                    (item) => item.nearBoundary,
+                  ).length
+                }{" "}
+                configured boundary sensitivities detected.{" "}
+                {calculationAuditOverview.decision.requiresHumanReview
+                  ? "Human review remains appropriate before high-impact interpretation."
+                  : "No configured audit blocker was detected."}
+              </p>
+            </section>
+          )}
+
+          <section hidden={tab === "pro"} className="profile-snapshot-status">
+            <div className="section-head">
+              <h3>Reusable evidence profile</h3>
+              <span
+                className={`judgment-status ${profileSnapshot?.status === "ready" ? "supported" : "mixed"}`}
+              >
+                {profileSnapshot?.status ?? "guest session"}
+              </span>
+            </div>
+            <p className="muted small">
+              {profileSnapshot?.status === "ready"
+                ? "Your encrypted, versioned whole-person evidence profile is reused for later questions."
+                : "Sign in and sync this person to reuse the complete cross-tradition evidence profile."}
+            </p>
+            {profileSnapshot?.profileRef && (
+              <small className="muted">
+                Reference {profileSnapshot.profileRef}
+              </small>
+            )}
+          </section>
 
           <section hidden={tab === "pro"}>
             <h3>{t.birthDetails}</h3>
@@ -2497,11 +3466,27 @@ function DetailsSheet({
 
           <section hidden={tab === "pro"} className="judgment-card">
             <div className="section-head">
-              <h3>{language === "te" ? "ఆధారాలతో విశ్లేషణ" : "Judgment with evidence"}</h3>
-              {judgment && <span className={`judgment-status ${judgment.status}`}>{judgment.status}</span>}
+              <h3>
+                {language === "te"
+                  ? "ఆధారాలతో విశ్లేషణ"
+                  : "Judgment with evidence"}
+              </h3>
+              {judgment && (
+                <span className={`judgment-status ${judgment.status}`}>
+                  {judgment.status}
+                </span>
+              )}
             </div>
             <div className="judgment-topics" aria-label="Judgment topic">
-              {(["career", "education", "property", "relationships", "spirituality"] as const).map((topic) => (
+              {(
+                [
+                  "career",
+                  "education",
+                  "property",
+                  "relationships",
+                  "spirituality",
+                ] as const
+              ).map((topic) => (
                 <button
                   type="button"
                   key={topic}
@@ -2513,54 +3498,263 @@ function DetailsSheet({
               ))}
             </div>
             {judgmentBusy ? (
-              <p className="muted small">{language === "te" ? "గణిస్తోంది…" : "Building the evidence ledger…"}</p>
+              <p className="muted small">
+                {language === "te"
+                  ? "గణిస్తోంది…"
+                  : "Building the evidence ledger…"}
+              </p>
             ) : judgment ? (
               <div className="judgment-body">
                 <p>{judgment.conclusion}</p>
                 <div className="judgment-meta">
-                  <span>{judgment.vargaConfirmation.varga}: {judgment.vargaConfirmation.status}</span>
-                  <span>{language === "te" ? "దశ" : "Timing"}: {judgment.timingActivation.status}</span>
-                  <span>{language === "te" ? "అనిశ్చితి" : "Uncertainty"}: {judgment.uncertainty.level}</span>
-                  {judgment.sensitivity&&<span>{judgment.sensitivity.stable?"Stable across":"Changes within"} ±{judgment.sensitivity.rangeMinutes}m</span>}
+                  <span>
+                    {judgment.vargaConfirmation.varga}:{" "}
+                    {judgment.vargaConfirmation.status}
+                  </span>
+                  <span>
+                    {language === "te" ? "దశ" : "Timing"}:{" "}
+                    {judgment.timingActivation.status}
+                  </span>
+                  <span>
+                    {language === "te" ? "అనిశ్చితి" : "Uncertainty"}:{" "}
+                    {judgment.uncertainty.level}
+                  </span>
+                  {judgment.sensitivity && (
+                    <span>
+                      {judgment.sensitivity.stable
+                        ? "Stable across"
+                        : "Changes within"}{" "}
+                      ±{judgment.sensitivity.rangeMinutes}m
+                    </span>
+                  )}
                 </div>
                 <details open>
-                  <summary>{language === "te" ? "మద్దతు" : "Supporting evidence"} ({judgment.supportingEvidence.length})</summary>
-                  <ul>{judgment.supportingEvidence.map((item) => <li key={item.id}><strong>{item.label}</strong><span>{item.detail}</span></li>)}</ul>
+                  <summary>
+                    {language === "te" ? "మద్దతు" : "Supporting evidence"} (
+                    {judgment.supportingEvidence.length})
+                  </summary>
+                  <ul>
+                    {judgment.supportingEvidence.map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.label}</strong>
+                        <span>{item.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </details>
                 <details open={judgment.opposingEvidence.length > 0}>
-                  <summary>{language === "te" ? "వ్యతిరేక ఆధారాలు" : "Opposing evidence"} ({judgment.opposingEvidence.length})</summary>
+                  <summary>
+                    {language === "te"
+                      ? "వ్యతిరేక ఆధారాలు"
+                      : "Opposing evidence"}{" "}
+                    ({judgment.opposingEvidence.length})
+                  </summary>
                   {judgment.opposingEvidence.length ? (
-                    <ul>{judgment.opposingEvidence.map((item) => <li key={item.id}><strong>{item.label}</strong><span>{item.detail}</span></li>)}</ul>
-                  ) : <p className="muted small">No opposing factor matched this structural screen.</p>}
+                    <ul>
+                      {judgment.opposingEvidence.map((item) => (
+                        <li key={item.id}>
+                          <strong>{item.label}</strong>
+                          <span>{item.detail}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="muted small">
+                      No opposing factor matched this structural screen.
+                    </p>
+                  )}
                 </details>
                 <details>
-                  <summary>{language === "te" ? "గ్రహ సంబంధాలు" : "Functional role and relationships"}</summary>
+                  <summary>
+                    {language === "te"
+                      ? "గ్రహ సంబంధాలు"
+                      : "Functional role and relationships"}
+                  </summary>
                   {judgment.practitionerAnalysis.functionalLordship && (
-                    <p className="muted small">{judgment.practitionerAnalysis.functionalLordship.reason}</p>
+                    <p className="muted small">
+                      {judgment.practitionerAnalysis.functionalLordship.reason}
+                    </p>
                   )}
                   {judgment.practitionerAnalysis.dispositorChain.length > 1 && (
-                    <p className="muted small">Dispositor chain: {judgment.practitionerAnalysis.dispositorChain.join(" → ")}</p>
+                    <p className="muted small">
+                      Dispositor chain:{" "}
+                      {judgment.practitionerAnalysis.dispositorChain.join(
+                        " → ",
+                      )}
+                    </p>
                   )}
-                  <ul>{judgment.practitionerAnalysis.relevantRelationships.slice(0,6).map((item,index)=><li key={`${item.from}-${item.to}-${item.kind}-${index}`}><strong>{item.kind}</strong><span>{item.detail}</span></li>)}</ul>
+                  <ul>
+                    {judgment.practitionerAnalysis.relevantRelationships
+                      .slice(0, 6)
+                      .map((item, index) => (
+                        <li
+                          key={`${item.from}-${item.to}-${item.kind}-${index}`}
+                        >
+                          <strong>{item.kind}</strong>
+                          <span>{item.detail}</span>
+                        </li>
+                      ))}
+                  </ul>
                 </details>
                 <details>
-                  <summary>{language === "te" ? "మూలాలు" : "Sources and review state"}</summary>
+                  <summary>
+                    {language === "te" ? "మూలాలు" : "Sources and review state"}
+                  </summary>
                   {judgment.citations.length ? (
-                    <ul>{judgment.citations.map((item) => <li key={item.ruleId}><strong>{item.sourceTitle}</strong><span>{item.author ? `${item.author} · ` : ""}{item.locator}</span></li>)}</ul>
+                    <ul>
+                      {judgment.citations.map((item) => (
+                        <li key={item.ruleId}>
+                          <strong>{item.sourceTitle}</strong>
+                          <span>
+                            {item.author ? `${item.author} · ` : ""}
+                            {item.locator}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
-                    <p className="muted small">No publishable rule is attached yet. {judgment.unresolvedSourceKeys.length} source key(s) await passage review and two approvals.</p>
+                    <p className="muted small">
+                      No publishable rule is attached yet.{" "}
+                      {judgment.unresolvedSourceKeys.length} source key(s) await
+                      passage review and two approvals.
+                    </p>
                   )}
                 </details>
-                {conventionComparison&&<details><summary>{language==="te"?"పద్ధతి పోలిక":"Convention comparison"}</summary><p className="muted small">{conventionComparison.judgmentChangeAnalysis.notice}</p><ul>{conventionComparison.variants.map(item=><li key={item.id}><strong>{item.name}</strong><span>Topic lord {item.lord} · {item.validation}</span></li>)}</ul><p className="muted small">{conventionComparison.traditionBoundary.notice}</p></details>}
+                {conventionComparison && (
+                  <details>
+                    <summary>
+                      {language === "te"
+                        ? "పద్ధతి పోలిక"
+                        : "Convention comparison"}
+                    </summary>
+                    <p className="muted small">
+                      {conventionComparison.judgmentChangeAnalysis.notice}
+                    </p>
+                    <ul>
+                      {conventionComparison.variants.map((item) => (
+                        <li key={item.id}>
+                          <strong>{item.name}</strong>
+                          <span>
+                            Topic lord {item.lord} · {item.validation}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="muted small">
+                      {conventionComparison.traditionBoundary.notice}
+                    </p>
+                  </details>
+                )}
                 <details>
-                  <summary>{language==="te"?"ఐచ్ఛిక ఆచరణ":"Optional safe practice"}</summary>
-                  <div className="judgment-topics"><button className={beliefMode==="secular"?"on":""} onClick={()=>setBeliefMode("secular")}>Secular</button><button className={beliefMode==="spiritual"?"on":""} onClick={()=>setBeliefMode("spiritual")}>Spiritual</button><button onClick={()=>void loadPractices()}>Build preferences</button></div>
-                  {practiceProtocol&&<><p className="muted small">{practiceProtocol.outcome} · {practiceProtocol.traditionalRemedyStatus}</p><ul>{practiceProtocol.eligiblePractices.map(item=><li key={item.id}><strong>{item.label}</strong><span>{item.instructions}</span></li>)}</ul></>}
+                  <summary>
+                    {language === "te"
+                      ? "ఐచ్ఛిక ఆచరణ"
+                      : "Optional safe practice"}
+                  </summary>
+                  <div className="judgment-topics">
+                    <button
+                      className={beliefMode === "hindu" ? "on" : ""}
+                      onClick={() => setBeliefMode("hindu")}
+                    >
+                      Hindu options
+                    </button>
+                    <button
+                      className={
+                        beliefMode === "tradition-specific" ? "on" : ""
+                      }
+                      onClick={() => setBeliefMode("tradition-specific")}
+                    >
+                      My family / Guru tradition
+                    </button>
+                    <button
+                      className={includePrayer ? "on" : ""}
+                      onClick={() => setIncludePrayer((value) => !value)}
+                    >
+                      Prayer {includePrayer ? "✓" : ""}
+                    </button>
+                    <button
+                      className={includeCharity ? "on" : ""}
+                      onClick={() => setIncludeCharity((value) => !value)}
+                    >
+                      Charity {includeCharity ? "✓" : ""}
+                    </button>
+                    <button
+                      className={remedyCost === "free" ? "on" : ""}
+                      onClick={() => setRemedyCost("free")}
+                    >
+                      Free only
+                    </button>
+                    <button
+                      className={remedyCost === "low" ? "on" : ""}
+                      onClick={() => setRemedyCost("low")}
+                    >
+                      Free + low cost
+                    </button>
+                    <button onClick={() => void loadPractices()}>
+                      Show my choices
+                    </button>
+                  </div>
+                  {practiceProtocol && (
+                    <>
+                      <p className="muted small">
+                        {practiceProtocol.outcome} · Nothing below is forced;
+                        choose what fits your tradition.
+                      </p>
+                      <ul>
+                        {practiceProtocol.availableChoices?.map((item) => (
+                          <li key={item.family}>
+                            <strong>{item.label}</strong>
+                            <span>
+                              {item.availability} · {item.choicePrompt}
+                            </span>
+                            {item.examples?.map((example) => (
+                              <small key={example.name}>
+                                <strong>{example.name}</strong>
+                                {example.devanagari ? (
+                                  <span lang="sa-Deva">
+                                    {example.devanagari}
+                                  </span>
+                                ) : null}
+                                <span>{example.mantraText}</span>
+                                <span>{example.guruConfirmationPrompt}</span>
+                              </small>
+                            ))}
+                          </li>
+                        ))}
+                      </ul>
+                      {practiceProtocol.intakeQuestions?.length ? (
+                        <details>
+                          <summary>
+                            Questions before personalizing a remedy
+                          </summary>
+                          <ol>
+                            {practiceProtocol.intakeQuestions.map((item) => (
+                              <li key={item.id}>{item.question}</li>
+                            ))}
+                          </ol>
+                        </details>
+                      ) : null}
+                      <h4>Selected low-burden practices</h4>
+                      <ul>
+                        {practiceProtocol.eligiblePractices.map((item) => (
+                          <li key={item.id}>
+                            <strong>{item.label}</strong>
+                            <span>{item.instructions}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
                 </details>
-                <p className="muted small">{judgment.timingActivation.notice}</p>
+                <p className="muted small">
+                  {judgment.timingActivation.notice}
+                </p>
               </div>
             ) : (
-              <p className="muted small">Judgment evidence is temporarily unavailable; calculated chart facts remain available.</p>
+              <p className="muted small">
+                Judgment evidence is temporarily unavailable; calculated chart
+                facts remain available.
+              </p>
             )}
           </section>
 
@@ -2572,15 +3766,28 @@ function DetailsSheet({
                   <div>
                     <span>{t.lagna}</span>
                     <strong>
-                      {localize(summary.anchors.lagna.signName, language, SIGN_TE)}{" "}
+                      {localize(
+                        summary.anchors.lagna.signName,
+                        language,
+                        SIGN_TE,
+                      )}{" "}
                       {summary.anchors.lagna.degree.toFixed(1)}°
                     </strong>
                   </div>
                   <div>
                     <span>{t.moon}</span>
                     <strong>
-                      {localize(summary.anchors.moon.signName, language, SIGN_TE)} ·{" "}
-                      {localize(summary.anchors.moon.nakshatra, language, NAKSHATRA_TE)}{" "}
+                      {localize(
+                        summary.anchors.moon.signName,
+                        language,
+                        SIGN_TE,
+                      )}{" "}
+                      ·{" "}
+                      {localize(
+                        summary.anchors.moon.nakshatra,
+                        language,
+                        NAKSHATRA_TE,
+                      )}{" "}
                       {t.padaShort}
                       {summary.anchors.moon.pada}
                     </strong>
@@ -2603,7 +3810,9 @@ function DetailsSheet({
                     return (
                       <div key={key}>
                         <span>{label}</span>
-                        <strong>{localize(lord, language, TELUGU_GRAHAS)}</strong>
+                        <strong>
+                          {localize(lord, language, TELUGU_GRAHAS)}
+                        </strong>
                         {bounds && (
                           <em>
                             {formatMonth(bounds.startIso, language)} –{" "}
@@ -2620,27 +3829,55 @@ function DetailsSheet({
                 <div className="fact-grid">
                   <div>
                     <span>{t.vara}</span>
-                    <strong>{localize(summary.panchanga.vara, language, TELUGU_VARAS)}</strong>
+                    <strong>
+                      {localize(summary.panchanga.vara, language, TELUGU_VARAS)}
+                    </strong>
                   </div>
                   <div>
                     <span>{t.tithi}</span>
-                    <strong>{localize(summary.panchanga.tithi, language, TELUGU_TITHIS)}</strong>
+                    <strong>
+                      {localize(
+                        summary.panchanga.tithi,
+                        language,
+                        TELUGU_TITHIS,
+                      )}
+                    </strong>
                   </div>
                   <div>
                     <span>{t.paksha}</span>
-                    <strong>{localize(summary.panchanga.paksha, language, TELUGU_PAKSHAS)}</strong>
+                    <strong>
+                      {localize(
+                        summary.panchanga.paksha,
+                        language,
+                        TELUGU_PAKSHAS,
+                      )}
+                    </strong>
                   </div>
                   <div>
                     <span>{t.nakshatra}</span>
-                    <strong>{localize(summary.panchanga.nakshatra, language, NAKSHATRA_TE)}</strong>
+                    <strong>
+                      {localize(
+                        summary.panchanga.nakshatra,
+                        language,
+                        NAKSHATRA_TE,
+                      )}
+                    </strong>
                   </div>
                   <div>
                     <span>{t.yoga}</span>
-                    <strong>{localize(summary.panchanga.yoga, language, TELUGU_YOGAS)}</strong>
+                    <strong>
+                      {localize(summary.panchanga.yoga, language, TELUGU_YOGAS)}
+                    </strong>
                   </div>
                   <div>
                     <span>{t.karana}</span>
-                    <strong>{localize(summary.panchanga.karana, language, TELUGU_KARANAS)}</strong>
+                    <strong>
+                      {localize(
+                        summary.panchanga.karana,
+                        language,
+                        TELUGU_KARANAS,
+                      )}
+                    </strong>
                   </div>
                 </div>
               </section>
@@ -2650,7 +3887,9 @@ function DetailsSheet({
                   <div className="strength-list">
                     {summary.measuredStrengths.map((item) => (
                       <div key={item.planet}>
-                        <span>{localize(item.planet, language, TELUGU_GRAHAS)}</span>
+                        <span>
+                          {localize(item.planet, language, TELUGU_GRAHAS)}
+                        </span>
                         <div className="strength-bar">
                           <i
                             style={{
@@ -2664,7 +3903,20 @@ function DetailsSheet({
                   </div>
                 </section>
               )}
-              {summary.context&&<section hidden={tab === "overview"}><h3>Response context</h3><p className="muted small">≈{summary.context.estimatedInputTokens.toLocaleString()} input tokens · {summary.context.historyMessages} recent messages · {Object.entries(summary.context.included).filter(([,included])=>included).map(([name])=>name).join(", ")||"core chart evidence only"}</p></section>}
+              {summary.context && (
+                <section hidden={tab === "overview"}>
+                  <h3>Response context</h3>
+                  <p className="muted small">
+                    ≈{summary.context.estimatedInputTokens.toLocaleString()}{" "}
+                    input tokens · {summary.context.historyMessages} recent
+                    messages ·{" "}
+                    {Object.entries(summary.context.included)
+                      .filter(([, included]) => included)
+                      .map(([name]) => name)
+                      .join(", ") || "core chart evidence only"}
+                  </p>
+                </section>
+              )}
             </>
           )}
 
@@ -2705,13 +3957,17 @@ function DetailsSheet({
                 {chartStyle === "south" ? (
                   <SouthChart
                     placements={chart.navamsa as never}
-                    title={language === "te" ? "నవాంశ చక్రం (D9)" : "Navamsa (D9)"}
+                    title={
+                      language === "te" ? "నవాంశ చక్రం (D9)" : "Navamsa (D9)"
+                    }
                     language={language}
                   />
                 ) : (
                   <NorthChart
                     placements={chart.navamsa as never}
-                    title={language === "te" ? "నవాంశ చక్రం (D9)" : "Navamsa (D9)"}
+                    title={
+                      language === "te" ? "నవాంశ చక్రం (D9)" : "Navamsa (D9)"
+                    }
                     language={language}
                   />
                 )}
@@ -2858,41 +4114,54 @@ function DetailsSheet({
                                     : ""}
                                 </strong>
                                 <em>
-                                  {formatDay(jdToDate(period.startJulianDay), language)} –{" "}
-                                  {formatDay(jdToDate(period.endJulianDay), language)}
+                                  {formatDay(
+                                    jdToDate(period.startJulianDay),
+                                    language,
+                                  )}{" "}
+                                  –{" "}
+                                  {formatDay(
+                                    jdToDate(period.endJulianDay),
+                                    language,
+                                  )}
                                 </em>
                                 {active && <i className="running-dot" />}
                               </summary>
                               <div className="timeline-sub">
-                                {(period.subPeriods ?? []).map((sub, subIndex) => {
-                                  const subActive =
-                                    jd >= sub.startJulianDay &&
-                                    jd < sub.endJulianDay;
-                                  return (
-                                    <div
-                                      key={subIndex}
-                                      className={subActive ? "active" : ""}
-                                    >
-                                      <span>
-                                        {sub.lord}
-                                        {sub.planet
-                                          ? ` (${localize(sub.planet, language, TELUGU_GRAHAS)})`
-                                          : ""}
-                                      </span>
-                                      <em>
-                                        {formatMonth(
-                                          jdToDate(sub.startJulianDay).toISOString(),
-                                          language,
-                                        )}{" "}
-                                        –{" "}
-                                        {formatMonth(
-                                          jdToDate(sub.endJulianDay).toISOString(),
-                                          language,
-                                        )}
-                                      </em>
-                                    </div>
-                                  );
-                                })}
+                                {(period.subPeriods ?? []).map(
+                                  (sub, subIndex) => {
+                                    const subActive =
+                                      jd >= sub.startJulianDay &&
+                                      jd < sub.endJulianDay;
+                                    return (
+                                      <div
+                                        key={subIndex}
+                                        className={subActive ? "active" : ""}
+                                      >
+                                        <span>
+                                          {sub.lord}
+                                          {sub.planet
+                                            ? ` (${localize(sub.planet, language, TELUGU_GRAHAS)})`
+                                            : ""}
+                                        </span>
+                                        <em>
+                                          {formatMonth(
+                                            jdToDate(
+                                              sub.startJulianDay,
+                                            ).toISOString(),
+                                            language,
+                                          )}{" "}
+                                          –{" "}
+                                          {formatMonth(
+                                            jdToDate(
+                                              sub.endJulianDay,
+                                            ).toISOString(),
+                                            language,
+                                          )}
+                                        </em>
+                                      </div>
+                                    );
+                                  },
+                                )}
                               </div>
                             </details>
                           );
@@ -2903,24 +4172,35 @@ function DetailsSheet({
                     })()}
                   </div>
                 )}
-                <div className="timeline" hidden={dashaSystem !== "vimshottari"}>
+                <div
+                  className="timeline"
+                  hidden={dashaSystem !== "vimshottari"}
+                >
                   {chart.advanced.vimshottariTimeline.map((maha) => {
                     const active =
                       jd >= maha.startJulianDay && jd < maha.endJulianDay;
                     return (
-                      <details key={`${maha.lord}-${maha.startJulianDay}`} open={active}>
+                      <details
+                        key={`${maha.lord}-${maha.startJulianDay}`}
+                        open={active}
+                      >
                         <summary className={active ? "active" : ""}>
-                          <strong>{localize(maha.lord, language, TELUGU_GRAHAS)}</strong>
+                          <strong>
+                            {localize(maha.lord, language, TELUGU_GRAHAS)}
+                          </strong>
                           <em>
-                            {formatDay(jdToDate(maha.startJulianDay), language)} –{" "}
-                            {formatDay(jdToDate(maha.endJulianDay), language)}
+                            {formatDay(jdToDate(maha.startJulianDay), language)}{" "}
+                            – {formatDay(jdToDate(maha.endJulianDay), language)}
                           </em>
-                          {active && <i className="running-dot" title={t.running} />}
+                          {active && (
+                            <i className="running-dot" title={t.running} />
+                          )}
                         </summary>
                         <div className="timeline-sub">
                           {maha.subPeriods.map((antar) => {
                             const antarActive =
-                              jd >= antar.startJulianDay && jd < antar.endJulianDay;
+                              jd >= antar.startJulianDay &&
+                              jd < antar.endJulianDay;
                             return (
                               <details
                                 key={`${antar.lord}-${antar.startJulianDay}`}
@@ -2929,16 +4209,24 @@ function DetailsSheet({
                               >
                                 <summary>
                                   <span>
-                                    {localize(antar.lord, language, TELUGU_GRAHAS)}
+                                    {localize(
+                                      antar.lord,
+                                      language,
+                                      TELUGU_GRAHAS,
+                                    )}
                                   </span>
                                   <em>
                                     {formatMonth(
-                                      jdToDate(antar.startJulianDay).toISOString(),
+                                      jdToDate(
+                                        antar.startJulianDay,
+                                      ).toISOString(),
                                       language,
                                     )}{" "}
                                     –{" "}
                                     {formatMonth(
-                                      jdToDate(antar.endJulianDay).toISOString(),
+                                      jdToDate(
+                                        antar.endJulianDay,
+                                      ).toISOString(),
                                       language,
                                     )}
                                   </em>
@@ -2956,7 +4244,11 @@ function DetailsSheet({
                                       >
                                         <summary>
                                           <span>
-                                            {localize(praty.lord, language, TELUGU_GRAHAS)}
+                                            {localize(
+                                              praty.lord,
+                                              language,
+                                              TELUGU_GRAHAS,
+                                            )}
                                           </span>
                                           <em>
                                             {formatDay(
@@ -2974,32 +4266,44 @@ function DetailsSheet({
                                           <i className="sookshma-label">
                                             {t.sookshma}
                                           </i>
-                                          {sookshmaPeriods(praty).map((sook) => {
-                                            const sookActive =
-                                              jd >= sook.startJulianDay &&
-                                              jd < sook.endJulianDay;
-                                            return (
-                                              <div
-                                                key={`${sook.lord}-${sook.startJulianDay}`}
-                                                className={sookActive ? "active" : ""}
-                                              >
-                                                <span>
-                                                  {localize(sook.lord, language, TELUGU_GRAHAS)}
-                                                </span>
-                                                <em>
-                                                  {formatDay(
-                                                    jdToDate(sook.startJulianDay),
-                                                    language,
-                                                  )}{" "}
-                                                  –{" "}
-                                                  {formatDay(
-                                                    jdToDate(sook.endJulianDay),
-                                                    language,
-                                                  )}
-                                                </em>
-                                              </div>
-                                            );
-                                          })}
+                                          {sookshmaPeriods(praty).map(
+                                            (sook) => {
+                                              const sookActive =
+                                                jd >= sook.startJulianDay &&
+                                                jd < sook.endJulianDay;
+                                              return (
+                                                <div
+                                                  key={`${sook.lord}-${sook.startJulianDay}`}
+                                                  className={
+                                                    sookActive ? "active" : ""
+                                                  }
+                                                >
+                                                  <span>
+                                                    {localize(
+                                                      sook.lord,
+                                                      language,
+                                                      TELUGU_GRAHAS,
+                                                    )}
+                                                  </span>
+                                                  <em>
+                                                    {formatDay(
+                                                      jdToDate(
+                                                        sook.startJulianDay,
+                                                      ),
+                                                      language,
+                                                    )}{" "}
+                                                    –{" "}
+                                                    {formatDay(
+                                                      jdToDate(
+                                                        sook.endJulianDay,
+                                                      ),
+                                                      language,
+                                                    )}
+                                                  </em>
+                                                </div>
+                                              );
+                                            },
+                                          )}
                                         </div>
                                       </details>
                                     );
@@ -3049,11 +4353,17 @@ function DetailsSheet({
                     </thead>
                     <tbody>
                       {chart.advanced.planetaryStates.avasthas
-                        .filter((item) => item.shadbalaTotalVirupas !== undefined)
+                        .filter(
+                          (item) => item.shadbalaTotalVirupas !== undefined,
+                        )
                         .map((item) => (
                           <tr key={item.name}>
-                            <td>{localize(item.name, language, TELUGU_GRAHAS)}</td>
-                            <td>{Math.round(item.shadbalaTotalVirupas ?? 0)}</td>
+                            <td>
+                              {localize(item.name, language, TELUGU_GRAHAS)}
+                            </td>
+                            <td>
+                              {Math.round(item.shadbalaTotalVirupas ?? 0)}
+                            </td>
                             <td>{Math.round(item.requiredVirupas ?? 0)}</td>
                             <td>
                               {item.requiredStrengthRatio !== null
@@ -3070,14 +4380,18 @@ function DetailsSheet({
               <section hidden={tab === "overview"}>
                 {proHead(t.sarva, "sarva")}
                 <div className="sarva-grid">
-                  {chart.advanced.ashtakavarga.sarva.signs.map((bindus, index) => (
-                    <div key={index}>
-                      <span>
-                        {language === "te" ? TELUGU_SIGNS[index] : SIGNS[index]}
-                      </span>
-                      <strong>{bindus}</strong>
-                    </div>
-                  ))}
+                  {chart.advanced.ashtakavarga.sarva.signs.map(
+                    (bindus, index) => (
+                      <div key={index}>
+                        <span>
+                          {language === "te"
+                            ? TELUGU_SIGNS[index]
+                            : SIGNS[index]}
+                        </span>
+                        <strong>{bindus}</strong>
+                      </div>
+                    ),
+                  )}
                 </div>
                 <p className="muted small">
                   {t.sarvaTotal}: {chart.advanced.ashtakavarga.sarva.total}
@@ -3100,10 +4414,16 @@ function DetailsSheet({
                       <tbody>
                         {kp.significators.map((row) => (
                           <tr key={row.planet}>
-                            <td>{localize(row.planet, language, TELUGU_GRAHAS)}</td>
+                            <td>
+                              {localize(row.planet, language, TELUGU_GRAHAS)}
+                            </td>
                             <td>{row.occupiedHouse}</td>
-                            <td>{localize(row.starLord, language, TELUGU_GRAHAS)}</td>
-                            <td>{localize(row.subLord, language, TELUGU_GRAHAS)}</td>
+                            <td>
+                              {localize(row.starLord, language, TELUGU_GRAHAS)}
+                            </td>
+                            <td>
+                              {localize(row.subLord, language, TELUGU_GRAHAS)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -3129,7 +4449,9 @@ function DetailsSheet({
                       <tbody>
                         {kp.significators.map((row) => (
                           <tr key={row.planet}>
-                            <td>{localize(row.planet, language, TELUGU_GRAHAS)}</td>
+                            <td>
+                              {localize(row.planet, language, TELUGU_GRAHAS)}
+                            </td>
                             <td>{row.starLordOccupiedHouse}</td>
                             <td>{row.occupiedHouse}</td>
                             <td>{row.starLordOwnedHouses.join(", ") || "—"}</td>
@@ -3150,7 +4472,9 @@ function DetailsSheet({
                     {kp.rulingPlanets.map((row) => (
                       <div key={row.role}>
                         <span>{row.role}</span>
-                        <strong>{localize(row.planet, language, TELUGU_GRAHAS)}</strong>
+                        <strong>
+                          {localize(row.planet, language, TELUGU_GRAHAS)}
+                        </strong>
                       </div>
                     ))}
                   </div>
@@ -3159,7 +4483,45 @@ function DetailsSheet({
 
               <section hidden={tab === "overview"}>
                 {proHead(t.housesTitle, "houses")}
-                {houseExplorer && <div className="house-explorer">{houseExplorer.houses.map(item=><details key={item.house}><summary><b>{item.house}</b><span>{item.topic}</span><em className={`judgment-status ${item.status}`}>{item.status}</em></summary><p>{item.signName} · Lord {item.lord}</p>{item.supportingEvidence.length>0&&<><strong>Support</strong><ul>{item.supportingEvidence.map((line,index)=><li key={`s-${index}`}>{line}</li>)}</ul></>}{item.opposingEvidence.length>0&&<><strong>Opposition</strong><ul>{item.opposingEvidence.map((line,index)=><li key={`o-${index}`}>{line}</li>)}</ul></>}<p className="muted small">{item.safety.notice}</p></details>)}</div>}
+                {houseExplorer && (
+                  <div className="house-explorer">
+                    {houseExplorer.houses.map((item) => (
+                      <details key={item.house}>
+                        <summary>
+                          <b>{item.house}</b>
+                          <span>{item.topic}</span>
+                          <em className={`judgment-status ${item.status}`}>
+                            {item.status}
+                          </em>
+                        </summary>
+                        <p>
+                          {item.signName} · Lord {item.lord}
+                        </p>
+                        {item.supportingEvidence.length > 0 && (
+                          <>
+                            <strong>Support</strong>
+                            <ul>
+                              {item.supportingEvidence.map((line, index) => (
+                                <li key={`s-${index}`}>{line}</li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        {item.opposingEvidence.length > 0 && (
+                          <>
+                            <strong>Opposition</strong>
+                            <ul>
+                              {item.opposingEvidence.map((line, index) => (
+                                <li key={`o-${index}`}>{line}</li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        <p className="muted small">{item.safety.notice}</p>
+                      </details>
+                    ))}
+                  </div>
+                )}
                 <div className="table-wrap">
                   <table className="pro-table">
                     <thead>
@@ -3177,13 +4539,43 @@ function DetailsSheet({
                           (p) => p.name === "Lagna",
                         );
                         if (!lagna) return null;
-                        const lords = ["Mars","Venus","Mercury","Moon","Sun","Mercury","Venus","Mars","Jupiter","Saturn","Saturn","Jupiter"];
-                        const roman = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+                        const lords = [
+                          "Mars",
+                          "Venus",
+                          "Mercury",
+                          "Moon",
+                          "Sun",
+                          "Mercury",
+                          "Venus",
+                          "Mars",
+                          "Jupiter",
+                          "Saturn",
+                          "Saturn",
+                          "Jupiter",
+                        ];
+                        const roman = [
+                          "I",
+                          "II",
+                          "III",
+                          "IV",
+                          "V",
+                          "VI",
+                          "VII",
+                          "VIII",
+                          "IX",
+                          "X",
+                          "XI",
+                          "XII",
+                        ];
                         return roman.map((label, index) => {
                           const sign = (lagna.sign + index) % 12;
                           const occupants = chart.placements
-                            .filter((p) => p.name !== "Lagna" && p.sign === sign)
-                            .map((p) => localize(p.name, language, TELUGU_GRAHAS))
+                            .filter(
+                              (p) => p.name !== "Lagna" && p.sign === sign,
+                            )
+                            .map((p) =>
+                              localize(p.name, language, TELUGU_GRAHAS),
+                            )
                             .join(", ");
                           const lordPlanet = chart.placements.find(
                             (p) => p.name === lords[sign],
@@ -3194,8 +4586,12 @@ function DetailsSheet({
                           return (
                             <tr key={label}>
                               <td>{label}</td>
-                              <td>{localize(SIGNS[sign], language, SIGN_TE)}</td>
-                              <td>{localize(lords[sign], language, TELUGU_GRAHAS)}</td>
+                              <td>
+                                {localize(SIGNS[sign], language, SIGN_TE)}
+                              </td>
+                              <td>
+                                {localize(lords[sign], language, TELUGU_GRAHAS)}
+                              </td>
                               <td>{lordHouse ?? "—"}</td>
                               <td>{occupants || "—"}</td>
                             </tr>
@@ -3283,14 +4679,22 @@ function DetailsSheet({
               <section hidden={tab === "overview"}>
                 <h3>{t.tools}</h3>
                 <div className="tool-buttons">
-                  <button className="cta secondary" onClick={shareChart} disabled={shareState === "busy"}>
+                  <button
+                    className="cta secondary"
+                    onClick={shareChart}
+                    disabled={shareState === "busy"}
+                  >
                     {shareState === "copied"
                       ? t.shareCopied
                       : shareState === "need-account"
                         ? t.shareNeedsAccount
                         : `🔗 ${t.shareChart}`}
                   </button>
-                  <button className="cta secondary" onClick={downloadPdf} disabled={pdfBusy}>
+                  <button
+                    className="cta secondary"
+                    onClick={downloadPdf}
+                    disabled={pdfBusy}
+                  >
                     {pdfBusy ? t.generatingPdf : t.downloadPdf}
                   </button>
                   <button className="cta secondary" onClick={downloadJson}>
@@ -3352,7 +4756,10 @@ function Onboarding({
   onOpenAccount,
   account,
 }: {
-  onReady: (profile: Profile) => void;
+  onReady: (
+    profile: Profile,
+    remedyPreferences?: RemedyPreferences | null,
+  ) => void | Promise<void>;
   onOpenAccount: () => void;
   account: Account;
 }) {
@@ -3363,9 +4770,34 @@ function Onboarding({
   const [language, setLanguage] = useState<Language>("en");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [step,setStep]=useState<1|2|3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [remedyMode, setRemedyMode] = useState<
+    "practical-only" | "spiritual" | "hindu"
+  >("practical-only");
+  const [maximumBurden, setMaximumBurden] = useState<"minimal" | "moderate">(
+    "minimal",
+  );
   const t = STRINGS[language];
-  const next=()=>{setError("");if(step===1&&!name.trim())return setError(language==="te"?"ముందుగా మీ పేరు రాయండి.":"Please add your name first.");if(step===2&&(!date||!time))return setError(language==="te"?"పుట్టిన తేదీ మరియు సమయం ఎంచుకోండి.":"Choose your birth date and time.");setStep(value=>Math.min(3,value+1)as 1|2|3)};
+  const next = () => {
+    setError("");
+    if (step === 1 && !name.trim())
+      return setError(
+        language === "te"
+          ? "ముందుగా మీ పేరు రాయండి."
+          : "Please add your name first.",
+      );
+    if (step === 2 && (!date || !time))
+      return setError(
+        language === "te"
+          ? "పుట్టిన తేదీ మరియు సమయం ఎంచుకోండి."
+          : "Choose your birth date and time.",
+      );
+    if (step === 3 && !place.trim())
+      return setError(
+        language === "te" ? "పుట్టిన స్థలం రాయండి." : "Add your birth place.",
+      );
+    setStep((value) => Math.min(4, value + 1) as 1 | 2 | 3 | 4);
+  };
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -3386,17 +4818,28 @@ function Onboarding({
         timezoneOffset: number;
       };
       if (!response.ok) throw new Error(resolved.error || t.placeError);
-      onReady({
-        name: name.trim(),
-        date,
-        time,
-        place: resolved.place,
-        latitude: resolved.latitude,
-        longitude: resolved.longitude,
-        timezone: resolved.timezone,
-        timezoneOffset: resolved.timezoneOffset,
-        language,
-      });
+      await onReady(
+        {
+          name: name.trim(),
+          date,
+          time,
+          place: resolved.place,
+          latitude: resolved.latitude,
+          longitude: resolved.longitude,
+          timezone: resolved.timezone,
+          timezoneOffset: resolved.timezoneOffset,
+          language,
+        },
+        remedyMode === "practical-only"
+          ? null
+          : {
+              beliefMode: remedyMode,
+              maximumBurden,
+              maximumCost: "free",
+              allowPrayer: true,
+              allowCharity: true,
+            },
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : t.genericError);
       setBusy(false);
@@ -3415,57 +4858,213 @@ function Onboarding({
         </button>
         <div className="onboard-mark">✳</div>
         <h1>Sahadeva</h1>
-        <p className="muted">{language==="te"?"మీ జాతకాన్ని సులభమైన మాటల్లో అర్థం చేసుకుందాం.":"Understand your chart in simple words. No astrology knowledge needed."}</p>
-        <div className="setup-progress" aria-label={`Step ${step} of 3`}><span style={{width:`${step/3*100}%`}}/></div>
-        <p className="setup-step">{language==="te"?`3 లో ${step}వ దశ`:`Step ${step} of 3`}</p>
+        <p className="muted">
+          {language === "te"
+            ? "మీ జాతకాన్ని సులభమైన మాటల్లో అర్థం చేసుకుందాం."
+            : "Understand your chart in simple words. No astrology knowledge needed."}
+        </p>
+        <div className="setup-progress" aria-label={`Step ${step} of 4`}>
+          <span style={{ width: `${(step / 4) * 100}%` }} />
+        </div>
+        <p className="setup-step">
+          {language === "te" ? `4 లో ${step}వ దశ` : `Step ${step} of 4`}
+        </p>
         <form onSubmit={submit}>
-          {step===1&&<><div className="setup-heading"><strong>{language==="te"?"మిమ్మల్ని ఏమని పిలవాలి?":"What should I call you?"}</strong><span>{language==="te"?"మీకు నచ్చిన భాషను కూడా ఎంచుకోండి.":"Choose the language that feels easiest."}</span></div><div className="lang-row" role="radiogroup" aria-label={t.language}>
-            <button
-              type="button"
-              className={language === "en" ? "on" : ""}
-              onClick={() => setLanguage("en")}
-            >
-              English
-            </button>
-            <button
-              type="button"
-              className={language === "te" ? "on" : ""}
-              onClick={() => setLanguage("te")}
-            >
-              తెలుగు
-            </button>
+          {step === 1 && (
+            <>
+              <div className="setup-heading">
+                <strong>
+                  {language === "te"
+                    ? "మిమ్మల్ని ఏమని పిలవాలి?"
+                    : "What should I call you?"}
+                </strong>
+                <span>
+                  {language === "te"
+                    ? "మీకు నచ్చిన భాషను కూడా ఎంచుకోండి."
+                    : "Choose the language that feels easiest."}
+                </span>
+              </div>
+              <div
+                className="lang-row"
+                role="radiogroup"
+                aria-label={t.language}
+              >
+                <button
+                  type="button"
+                  className={language === "en" ? "on" : ""}
+                  onClick={() => setLanguage("en")}
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  className={language === "te" ? "on" : ""}
+                  onClick={() => setLanguage("te")}
+                >
+                  తెలుగు
+                </button>
+              </div>
+              <label>
+                {t.name}
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t.namePlaceholder}
+                  required
+                  maxLength={80}
+                  autoComplete="name"
+                />
+              </label>
+            </>
+          )}
+          {step === 2 && (
+            <>
+              <div className="setup-heading">
+                <strong>
+                  {language === "te"
+                    ? "మీరు ఎప్పుడు పుట్టారు?"
+                    : "When were you born?"}
+                </strong>
+                <span>
+                  {language === "te"
+                    ? "జాతకం లెక్కించడానికి తేదీ మరియు సమయం అవసరం."
+                    : "The date and time help calculate your chart."}
+                </span>
+              </div>
+              <div className="field-label">{t.dob}</div>
+              <DateField value={date} onChange={setDate} t={t} />
+              <div className="field-label">{t.tob}</div>
+              <TimeField value={time} onChange={setTime} t={t} />
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <div className="setup-heading">
+                <strong>
+                  {language === "te"
+                    ? "మీరు ఎక్కడ పుట్టారు?"
+                    : "Where were you born?"}
+                </strong>
+                <span>
+                  {language === "te"
+                    ? "పట్టణం లేదా గ్రామం పేరు రాయండి. మేము సరైన స్థలాన్ని కనుగొంటాము."
+                    : "Type the town or village. We’ll find the correct location."}
+                </span>
+              </div>
+              <label>
+                {t.pob}
+                <input
+                  value={place}
+                  onChange={(event) => setPlace(event.target.value)}
+                  placeholder={t.pobPlaceholder}
+                  required
+                  maxLength={120}
+                />
+              </label>
+              <div className="setup-check">
+                <span>✓</span>
+                <p>
+                  <strong>{name}</strong>
+                  <br />
+                  {date} · {time}
+                </p>
+                <button type="button" onClick={() => setStep(1)}>
+                  {language === "te" ? "మార్చు" : "Change"}
+                </button>
+              </div>
+            </>
+          )}
+          {step === 4 && (
+            <>
+              <div className="setup-heading">
+                <strong>
+                  {language === "te"
+                    ? "మీకు ఎలాంటి సహాయం కావాలి?"
+                    : "How should practices be personalized?"}
+                </strong>
+                <span>
+                  {language === "te"
+                    ? "మీ ఎంపిక లేకుండా మతపరమైన పరిహారాలు సూచించము."
+                    : "Traditional remedies are included only with your explicit preference."}
+                </span>
+              </div>
+              <div className="lang-row" role="radiogroup" aria-label="Practice preference">
+                {([
+                  ["practical-only", "Practical only"],
+                  ["spiritual", "Spiritual"],
+                  ["hindu", "Hindu tradition"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={remedyMode === value ? "on" : ""}
+                    onClick={() => setRemedyMode(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {remedyMode !== "practical-only" && (
+                <label>
+                  {language === "te" ? "గరిష్ఠ భారం" : "Maximum burden"}
+                  <select
+                    value={maximumBurden}
+                    onChange={(event) =>
+                      setMaximumBurden(
+                        event.target.value === "moderate" ? "moderate" : "minimal",
+                      )
+                    }
+                  >
+                    <option value="minimal">Minimal, free practices</option>
+                    <option value="moderate">Moderate, still free practices</option>
+                  </select>
+                </label>
+              )}
+              <p className="muted small">
+                Parashari, Jaimini, KP and Lal Kitab remain separate. Unreviewed remedies are shown as unavailable, never invented.
+              </p>
+            </>
+          )}
+          {error && (
+            <div className="chat-error" role="alert">
+              {error}
+            </div>
+          )}
+          <div className="setup-actions">
+            {step > 1 && (
+              <button
+                className="setup-back"
+                type="button"
+                onClick={() =>
+                  setStep(
+                    (value) => Math.max(1, value - 1) as 1 | 2 | 3 | 4,
+                  )
+                }
+              >
+                {language === "te" ? "వెనుకకు" : "Back"}
+              </button>
+            )}
+            {step < 4 ? (
+              <button className="cta" type="button" onClick={next}>
+                {language === "te" ? "తర్వాత" : "Next"}
+              </button>
+            ) : (
+              <button
+                className="cta"
+                type="submit"
+                disabled={busy || !place.trim()}
+              >
+                {busy
+                  ? t.finding
+                  : language === "te"
+                    ? "నా జాతకం చూపించు"
+                    : "Show my chart"}
+              </button>
+            )}
           </div>
-          <label>
-            {t.name}
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t.namePlaceholder}
-              required
-              maxLength={80}
-              autoComplete="name"
-            />
-          </label></>}
-          {step===2&&<><div className="setup-heading"><strong>{language==="te"?"మీరు ఎప్పుడు పుట్టారు?":"When were you born?"}</strong><span>{language==="te"?"జాతకం లెక్కించడానికి తేదీ మరియు సమయం అవసరం.":"The date and time help calculate your chart."}</span></div><div className="field-label">{t.dob}</div>
-          <DateField value={date} onChange={setDate} t={t} />
-          <div className="field-label">{t.tob}</div>
-          <TimeField value={time} onChange={setTime} t={t} /></>}
-          {step===3&&<><div className="setup-heading"><strong>{language==="te"?"మీరు ఎక్కడ పుట్టారు?":"Where were you born?"}</strong><span>{language==="te"?"పట్టణం లేదా గ్రామం పేరు రాయండి. మేము సరైన స్థలాన్ని కనుగొంటాము.":"Type the town or village. We’ll find the correct location."}</span></div><label>
-            {t.pob}
-            <input
-              value={place}
-              onChange={(event) => setPlace(event.target.value)}
-              placeholder={t.pobPlaceholder}
-              required
-              maxLength={120}
-            />
-          </label><div className="setup-check"><span>✓</span><p><strong>{name}</strong><br/>{date} · {time}</p><button type="button" onClick={()=>setStep(1)}>{language==="te"?"మార్చు":"Change"}</button></div></>}
-          {error && <div className="chat-error" role="alert">{error}</div>}
-          <div className="setup-actions">{step>1&&<button className="setup-back" type="button" onClick={()=>setStep(value=>Math.max(1,value-1)as 1|2|3)}>{language==="te"?"వెనుకకు":"Back"}</button>}{step<3?<button className="cta" type="button" onClick={next}>{language==="te"?"తర్వాత":"Next"}</button>:<button className="cta" type="submit" disabled={busy||!place.trim()}>{busy?t.finding:(language==="te"?"నా జాతకం చూపించు":"Show my chart")}</button>}</div>
         </form>
         <p className="muted small">
-          {account ? t.syncNote : t.guestNote}{" "}
-          <a href="#pro">{t.workspace}</a>
+          {account ? t.syncNote : t.guestNote} <a href="#pro">{t.workspace}</a>
         </p>
       </div>
     </div>
@@ -3512,6 +5111,7 @@ export function SharedChartView({ token }: { token: string }) {
     <div className="chat-shell dock-full shared-view">
       <DetailsSheet
         profile={data.profile}
+        profileSnapshot={null}
         summary={summary}
         chart={data.chart}
         today={null}

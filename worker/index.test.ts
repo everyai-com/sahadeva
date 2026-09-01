@@ -177,7 +177,10 @@ describe("Sahadeva MCP", () => {
         AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
         AI_CHAT_MODEL: "@cf/test/chat",
         AI: {
-          run: async (_model: string, input: { messages?: Array<{ role: string; content: string }> }) => {
+          run: async (
+            _model: string,
+            input: { messages?: Array<{ role: string; content: string }> },
+          ) => {
             systemPrompt = input.messages?.[0]?.content || "";
             return { response: "Detailed grounded reading." };
           },
@@ -193,24 +196,91 @@ describe("Sahadeva MCP", () => {
     expect(systemPrompt).toContain("supportingEvidence");
     expect(systemPrompt).toContain("opposingEvidence");
     expect(systemPrompt).toContain("700-1200 words");
+    expect(systemPrompt).toContain("Direct answer in ordinary daily-life language");
+    expect(systemPrompt).toContain("then Technical chart details");
+    expect(systemPrompt).toContain("code has already done 93% of the factual work");
+    expect(systemPrompt).toContain('"version":"code-led-conversation-1"');
+    expect(systemPrompt).toContain('"factualWorkShare":93');
+    expect(systemPrompt).toContain('"consultationProtocol"');
+    expect(systemPrompt).toContain("listen, clarify once when needed, read the evidence, guide");
   }, 15000);
   it("routes explicit web full-profile requests through the complete MCP-equivalent dossier", async () => {
-    let systemPrompt = "", maxTokens = 0;
-    const response = await app.request("http://localhost/api/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({profile:{name:"Raj Karan",date:"1987-11-28",time:"07:55",place:"Suryapet",latitude:17.1405,longitude:79.62,timezone:"Asia/Kolkata",timezoneOffset:5.5,language:"te",focus:"general",birthTimeAccuracyMinutes:5},mode:{fullProfile:true},messages:[{role:"user",content:"సంప్రదింపును ప్రారంభించండి"}]})},{ENGINE_VERSION:"test",AI_RATE_LIMITER:{limit:async()=>({success:true})},AI_CHAT_MODEL:"@cf/test/chat",AI:{run:async(_model:string,input:{messages?:Array<{content:string}>;max_tokens?:number})=>{systemPrompt=input.messages?.[0]?.content||"";maxTokens=input.max_tokens||0;return{response:"Complete grounded dossier."};}}}as never);
+    let systemPrompt = "",
+      maxTokens = 0;
+    const response = await app.request(
+      "http://localhost/api/chat",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          profile: {
+            name: "Raj Karan",
+            date: "1987-11-28",
+            time: "07:55",
+            place: "Suryapet",
+            latitude: 17.1405,
+            longitude: 79.62,
+            timezone: "Asia/Kolkata",
+            timezoneOffset: 5.5,
+            language: "te",
+            focus: "general",
+            birthTimeAccuracyMinutes: 5,
+          },
+          mode: { fullProfile: true },
+          messages: [{ role: "user", content: "సంప్రదింపును ప్రారంభించండి" }],
+        }),
+      },
+      {
+        ENGINE_VERSION: "test",
+        AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
+        AI_CHAT_MODEL: "@cf/test/chat",
+        AI: {
+          run: async (
+            _model: string,
+            input: {
+              messages?: Array<{ content: string }>;
+              max_tokens?: number;
+            },
+          ) => {
+            systemPrompt = input.messages?.[0]?.content || "";
+            maxTokens = input.max_tokens || 0;
+            return { response: "Complete grounded dossier." };
+          },
+        },
+      } as never,
+    );
     expect(response.status).toBe(200);
     expect(systemPrompt).toContain("explicit complete-profile request");
     expect(systemPrompt).toContain('"mode":"complete-profile"');
     expect(systemPrompt).toContain('"completeLifeReading"');
     expect(systemPrompt).toContain('"doshas"');
     expect(systemPrompt).toContain('"advancedAnchors"');
+    expect(systemPrompt).toContain("What this means in daily life");
+    expect(systemPrompt).toContain("End with a clearly labelled `## Technical chart details`");
     expect(maxTokens).toBe(7000);
-    const payload=await response.json() as {summary?:{profileRef?:string;readingMode?:string;fullProfile?:{requiredSections?:string[];timeline?:unknown[];nextQuestions?:string[]}}};
+    const payload = (await response.json()) as {
+      summary?: {
+        profileRef?: string;
+        readingMode?: string;
+        everyday?: { dailyLife?: { items?: unknown[]; questions?: string[] } };
+        provenance?: { calculationShare?: number; narrationShare?: number; evidenceImmutable?: boolean };
+        fullProfile?: {
+          requiredSections?: string[];
+          timeline?: unknown[];
+          nextQuestions?: string[];
+        };
+      };
+    };
     expect(payload.summary?.profileRef).toMatch(/^chart_/);
     expect(payload.summary?.readingMode).toBe("complete-profile");
-    expect(payload.summary?.fullProfile?.requiredSections?.length).toBeGreaterThanOrEqual(14);
+    expect(payload.summary?.everyday?.dailyLife?.items).toHaveLength(3);
+    expect(payload.summary?.provenance).toEqual({ calculationShare: 93, narrationShare: 7, contract: "code-led-conversation-1", evidenceImmutable: true });
+    expect(
+      payload.summary?.fullProfile?.requiredSections?.length,
+    ).toBeGreaterThanOrEqual(14);
     expect(payload.summary?.fullProfile?.timeline?.length).toBeGreaterThan(0);
     expect(payload.summary?.fullProfile?.nextQuestions?.length).toBe(4);
-  },30000);
+  }, 30000);
   it("advertises one stable protocol revision everywhere", async () => {
     const response = await mcp("server/discover");
     expect(response.status).toBe(200);
@@ -224,11 +294,21 @@ describe("Sahadeva MCP", () => {
       annotations?: { readOnlyHint?: boolean; idempotentHint?: boolean };
     }>;
     expect(tools.map((tool) => tool.name)).toContain("consult_jyotishya");
+    expect(tools.map((tool) => tool.name)).toContain(
+      "assess_prediction_readiness",
+    );
+    expect(tools.map((tool) => tool.name)).toContain("analyze_lal_kitab");
+    expect(tools.map((tool) => tool.name)).toContain(
+      "explore_lal_kitab_sources",
+    );
+    expect(tools.map((tool) => tool.name)).toContain("audit_chart_calculation");
     expect(tools.map((tool) => tool.name)).toContain("analyze_chart_topic");
     expect(tools.map((tool) => tool.name)).toContain("analyze_house");
     expect(tools.map((tool) => tool.name)).toContain("get_natal_panchanga");
     expect(tools.map((tool) => tool.name)).toContain("suggest_safe_practice");
-    expect(tools.map((tool) => tool.name)).toContain("calculate_devata_profile");
+    expect(tools.map((tool) => tool.name)).toContain(
+      "calculate_devata_profile",
+    );
     expect(tools.map((tool) => tool.name)).toContain("analyze_remedies");
     expect(tools.map((tool) => tool.name)).toContain("search_locations");
     expect(tools.map((tool) => tool.name)).toContain(
@@ -247,7 +327,15 @@ describe("Sahadeva MCP", () => {
     expect(tools.map((tool) => tool.name)).toContain("get_depth_analysis");
     expect(tools.map((tool) => tool.name)).toContain("fuse_timing");
     expect(tools.map((tool) => tool.name)).toContain("rectify_birth_time");
-    expect(tools).toHaveLength(44);
+    expect(tools.map((tool) => tool.name)).toContain("search_reviewed_rules");
+    expect(tools.map((tool) => tool.name)).toContain("search_source_passages");
+    expect(tools.map((tool) => tool.name)).toContain("compare_traditions");
+    expect(tools.map((tool) => tool.name)).toContain("audit_prediction_claim");
+    expect(tools.map((tool) => tool.name)).toContain(
+      "record_consultation_outcome",
+    );
+    expect(tools.map((tool) => tool.name)).toContain("get_validation_report");
+    expect(tools).toHaveLength(54);
     expect(tools.map((tool) => tool.name)).not.toContain(
       "calculate_south_indian_chart",
     );
@@ -272,24 +360,262 @@ describe("Sahadeva MCP", () => {
     ).toBe(false);
   });
 
-  it("calculates guiding Devata anchors and a gated source-grounded remedy protocol",async()=>{
-    const birth={name:"Devata test",date:"2000-01-28",time:"08:05",place:"Ravulapalem, Andhra Pradesh, India",birthTimeAccuracyMinutes:5};
-    const devata=await mcp("tools/call",{name:"calculate_devata_profile",arguments:birth}),devataResult=devata.body.result?.structuredContent as {schemaVersion:string;lineage:{selected:string;mixingAllowed:boolean};ishtaDevata:{houseOffset:number;deityCandidates:string[]};dharmaDevata:{houseOffset:number};palanaDevata:{houseOffset:number};birthTimeSensitivity:{sensitive:boolean};safety:{notACommand:boolean}};
+  it("reports honest prediction readiness and keeps Lal Kitab source-only", async () => {
+    const response = await mcp("tools/call", {
+      name: "assess_prediction_readiness",
+      arguments: {},
+    });
+    const result = response.body.result?.structuredContent as {
+      schemaVersion: string;
+      decision: {
+        lalKitabPrediction: string;
+        calibratedEventProbability: string;
+      };
+      traditions: Array<{ id: string; status: string }>;
+    };
+    expect(result.schemaVersion).toBe("sahadeva-prediction-readiness-1");
+    expect(result.decision.lalKitabPrediction).toBe("blocked");
+    expect(result.decision.calibratedEventProbability).toBe("blocked");
+    expect(
+      result.traditions.find((item) => item.id === "lal-kitab")?.status,
+    ).toBe("source-only");
+  });
+
+  it("audits claims and keeps tradition ledgers separate", async () => {
+    const audit = await mcp("tools/call", {
+      name: "audit_prediction_claim",
+      arguments: {
+        claim: "A guaranteed event",
+        harmClass: "prohibited-output",
+      },
+    });
+    expect(
+      (audit.body.result?.structuredContent as { decision: { action: string } })
+        .decision.action,
+    ).toBe("abstain");
+    const comparison = await mcp("tools/call", {
+      name: "compare_traditions",
+      arguments: {
+        ledgers: [
+          {
+            tradition: "parashari",
+            status: "reviewed",
+            supportingEvidence: [],
+            opposingEvidence: [],
+            unresolvedSources: [],
+            limitations: [],
+          },
+          {
+            tradition: "lal-kitab",
+            status: "source-linked",
+            supportingEvidence: [],
+            opposingEvidence: [],
+            unresolvedSources: ["lk:x"],
+            limitations: [],
+          },
+        ],
+      },
+    });
+    expect(
+      (comparison.body.result?.structuredContent as { traditions: unknown[] })
+        .traditions,
+    ).toHaveLength(2);
+    expect(JSON.stringify(comparison.body.result)).toContain(
+      "never inferred by averaging",
+    );
+  });
+
+  it("locates Lal Kitab house sources without publishing predictions", async () => {
+    const response = await mcp("tools/call", {
+      name: "analyze_lal_kitab",
+      arguments: {
+        name: "Lal Kitab MCP",
+        date: "2000-01-28",
+        time: "08:05",
+        place: "Ravulapalem, Andhra Pradesh, India",
+      },
+    });
+    const result = response.body.result?.structuredContent as {
+      schemaVersion: string;
+      placements: Array<{ interpretation: { status: string } }>;
+      tradition: { mixingAllowed: boolean };
+      controlledDisclosurePolicy: { retention: string };
+      safety: { status: string };
+    };
+    expect(result.schemaVersion).toBe("sahadeva-lal-kitab-structure-1");
+    expect(result.placements).toHaveLength(9);
+    expect(
+      result.placements.every(
+        (item) => item.interpretation.status === "withheld-source-only",
+      ),
+    ).toBe(true);
+    expect(result.tradition.mixingAllowed).toBe(false);
+    expect(result.controlledDisclosurePolicy.retention).toContain(
+      "All source claims are retained",
+    );
+    expect(result.safety.status).toBe("source-inspection-only");
+  });
+
+  it("shares the complete Lal Kitab source catalog through MCP and web", async () => {
+    const rpc = await mcp("tools/call", {
+        name: "explore_lal_kitab_sources",
+        arguments: {},
+      }),
+      http = await app.request("http://localhost/api/lal-kitab/catalog"),
+      rpcResult = rpc.body.result?.structuredContent as {
+        coverage: { planetHouseSections: number };
+        families: unknown[];
+        policy: { retentionPolicy: string };
+      },
+      webResult = (await http.json()) as typeof rpcResult;
+    expect(http.status).toBe(200);
+    expect(rpcResult.coverage.planetHouseSections).toBe(108);
+    expect(rpcResult.families).toHaveLength(23);
+    expect(webResult).toEqual(rpcResult);
+    expect(rpcResult.policy.retentionPolicy).toContain("Preserve");
+  });
+
+  it("audits calculation certification before interpretation", async () => {
+    const response = await mcp("tools/call", {
+      name: "audit_chart_calculation",
+      arguments: {
+        name: "Audit MCP",
+        date: "2000-01-28",
+        time: "08:05",
+        place: "Ravulapalem, Andhra Pradesh, India",
+      },
+    });
+    const result = response.body.result?.structuredContent as {
+      schemaVersion: string;
+      engine: { productionCertified: boolean };
+      decision: { safeForReviewedPrediction: boolean };
+      boundaryAudit: unknown[];
+    };
+    expect(result.schemaVersion).toBe("sahadeva-calculation-audit-1");
+    expect(result.engine.productionCertified).toBe(false);
+    expect(result.decision.safeForReviewedPrediction).toBe(false);
+    expect(result.boundaryAudit).toHaveLength(4);
+  });
+
+  it("serves the same Lal Kitab and calculation-audit contracts to the web", async () => {
+    const birth = {
+        name: "Web methods",
+        date: "2000-01-28",
+        time: "08:05",
+        place: "Ravulapalem, Andhra Pradesh, India",
+        latitude: 16.1026,
+        longitude: 81.7634,
+        timezone: "Asia/Kolkata",
+        timezoneOffset: 5.5,
+        language: "en",
+        methodology: "parashari",
+        focus: "general",
+        birthTimeAccuracyMinutes: 5,
+      },
+      env = {
+        ENGINE_VERSION: "test",
+        CALC_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      } as never,
+      request = (path: string) =>
+        app.request(
+          `http://localhost${path}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(birth),
+          },
+          env,
+        ),
+      [lalResponse, auditResponse] = await Promise.all([
+        request("/api/lal-kitab"),
+        request("/api/calculation-audit"),
+      ]),
+      lal = (await lalResponse.json()) as {
+        schemaVersion: string;
+        placements: unknown[];
+      },
+      audit = (await auditResponse.json()) as {
+        schemaVersion: string;
+        decision: object;
+      };
+    expect(lalResponse.status).toBe(200);
+    expect(auditResponse.status).toBe(200);
+    expect(lal.schemaVersion).toBe("sahadeva-lal-kitab-structure-1");
+    expect(lal.placements).toHaveLength(9);
+    expect(audit.schemaVersion).toBe("sahadeva-calculation-audit-1");
+    expect(audit.decision).toBeTruthy();
+  });
+
+  it("calculates guiding Devata anchors and a gated source-grounded remedy protocol", async () => {
+    const birth = {
+      name: "Devata test",
+      date: "2000-01-28",
+      time: "08:05",
+      place: "Ravulapalem, Andhra Pradesh, India",
+      birthTimeAccuracyMinutes: 5,
+    };
+    const devata = await mcp("tools/call", {
+        name: "calculate_devata_profile",
+        arguments: birth,
+      }),
+      devataResult = devata.body.result?.structuredContent as {
+        schemaVersion: string;
+        lineage: { selected: string; mixingAllowed: boolean };
+        ishtaDevata: { houseOffset: number; deityCandidates: string[] };
+        dharmaDevata: { houseOffset: number };
+        palanaDevata: { houseOffset: number };
+        birthTimeSensitivity: { sensitive: boolean };
+        safety: { notACommand: boolean };
+      };
     expect(devataResult.schemaVersion).toBe("sahadeva-devata-profile-2");
-    expect(devataResult.lineage).toMatchObject({selected:"rath-eight-karaka-reversed-rahu",mixingAllowed:false});
+    expect(devataResult.lineage).toMatchObject({
+      selected: "rath-eight-karaka-reversed-rahu",
+      mixingAllowed: false,
+    });
     expect(devataResult.ishtaDevata.houseOffset).toBe(12);
     expect(devataResult.dharmaDevata.houseOffset).toBe(9);
     expect(devataResult.palanaDevata.houseOffset).toBe(6);
     expect(devataResult.ishtaDevata.deityCandidates.length).toBeGreaterThan(0);
     expect(devataResult.birthTimeSensitivity.sensitive).toBe(true);
     expect(devataResult.safety.notACommand).toBe(true);
-    const remedies=await mcp("tools/call",{name:"analyze_remedies",arguments:{...birth,topic:"spirituality",preferences:{beliefMode:"spiritual",tradition:"family tradition",maximumBurden:"minimal",maximumCost:"free",allowPrayer:true,allowCharity:true}}}),remedyResult=remedies.body.result?.structuredContent as {schemaVersion:string;traditionalChartRemedies:Array<{family:string;publicationStatus:string}>;sourceCoverage:{verbatimMantrasPublished:boolean};chartDiagnosis:{devataProfile:{schemaVersion:string}}};
-    expect(remedyResult.schemaVersion).toBe("sahadeva-remedy-protocol-3");
-    expect(remedyResult.traditionalChartRemedies.map(item=>item.family)).toEqual(["muhurta","charity","devata"]);
-    expect(remedyResult.traditionalChartRemedies.every(item=>item.publicationStatus.length>0)).toBe(true);
+    const remedies = await mcp("tools/call", {
+        name: "analyze_remedies",
+        arguments: {
+          ...birth,
+          topic: "spirituality",
+          preferences: {
+            beliefMode: "spiritual",
+            tradition: "family tradition",
+            maximumBurden: "minimal",
+            maximumCost: "free",
+            allowPrayer: true,
+            allowCharity: true,
+          },
+        },
+      }),
+      remedyResult = remedies.body.result?.structuredContent as {
+        schemaVersion: string;
+        traditionalChartRemedies: Array<{
+          family: string;
+          publicationStatus: string;
+        }>;
+        sourceCoverage: { verbatimMantrasPublished: boolean };
+        chartDiagnosis: { devataProfile: { schemaVersion: string } };
+      };
+    expect(remedyResult.schemaVersion).toBe("sahadeva-remedy-protocol-4");
+    expect(
+      remedyResult.traditionalChartRemedies.map((item) => item.family),
+    ).toEqual(["muhurta", "charity", "devata"]);
+    expect(
+      remedyResult.traditionalChartRemedies.every(
+        (item) => item.publicationStatus.length > 0,
+      ),
+    ).toBe(true);
     expect(remedyResult.sourceCoverage.verbatimMantrasPublished).toBe(false);
-    expect(remedyResult.chartDiagnosis.devataProfile.schemaVersion).toBe("sahadeva-devata-profile-2");
-  },30000);
+    expect(remedyResult.chartDiagnosis.devataProfile.schemaVersion).toBe(
+      "sahadeva-devata-profile-2",
+    );
+  }, 30000);
   it("records Prashna outcomes through the private MCP confirmation token", async () => {
     const calls: Array<{ sql: string; values: unknown[] }> = [],
       env = {
@@ -545,6 +871,13 @@ describe("Sahadeva MCP", () => {
           focus: "career",
           asOfDate: "2026-08-29",
           detail: "brief",
+          remedyPreferences: {
+            beliefMode: "spiritual",
+            maximumBurden: "minimal",
+            maximumCost: "free",
+            allowPrayer: true,
+            allowCharity: true,
+          },
         },
       }),
       result = response.body.result as {
@@ -597,6 +930,18 @@ describe("Sahadeva MCP", () => {
             traditionalRemedyStatus: string;
             prohibited: string[];
           };
+          crossTraditionProfile: {
+            selectedTraditions: string[];
+            comparison: { traditions: unknown[]; synthesisPolicy: string };
+          };
+          crossTraditionRemedies: {
+            traditions: Array<{
+              tradition: string;
+              status: string;
+              protocol: unknown;
+            }>;
+          };
+          mcpSecurity: { architecture: string };
           meta: { hiddenAiCalls: number; calculationMs: number };
         };
       };
@@ -665,27 +1010,46 @@ describe("Sahadeva MCP", () => {
       ]),
     );
     expect(
-      result.structuredContent.completeLifeReading
-        .healthRoutinesAndResilience.prohibitedConclusions,
+      result.structuredContent.completeLifeReading.healthRoutinesAndResilience
+        .prohibitedConclusions,
     ).toContain("medical diagnosis");
     expect(
       result.structuredContent.remediesAndPracticalSupport.practicalSupports,
     ).toHaveLength(3);
     expect(
-      result.structuredContent.remediesAndPracticalSupport
-        .traditionalRemedies,
+      result.structuredContent.remediesAndPracticalSupport.traditionalRemedies,
     ).toEqual([]);
     expect(
       result.structuredContent.remediesAndPracticalSupport.prohibited,
     ).toContain("guaranteed remedies");
+    expect(
+      result.structuredContent.crossTraditionProfile.selectedTraditions,
+    ).toEqual(["parashari", "jaimini", "kp", "lal-kitab"]);
+    expect(
+      result.structuredContent.crossTraditionProfile.comparison.traditions,
+    ).toHaveLength(4);
+    expect(
+      result.structuredContent.crossTraditionRemedies.traditions.find(
+        (item) => item.tradition === "lal-kitab",
+      )?.protocol,
+    ).toBeNull();
+    expect(
+      result.structuredContent.crossTraditionRemedies.traditions.find(
+        (item) => item.tradition === "parashari",
+      )?.status,
+    ).toBe("preference-filtered-protocol");
+    expect(result.structuredContent.mcpSecurity.architecture).toContain(
+      "zero-source-export",
+    );
     expect(result.structuredContent.meta.hiddenAiCalls).toBe(0);
     expect(result.structuredContent.meta.calculationMs).toBeGreaterThanOrEqual(
       0,
     );
     expect(result.content[0].text).not.toContain('"advanced"');
-    // The master consultation covers every major life domain while remaining
-    // comfortably small enough for normal MCP context windows.
-    expect(JSON.stringify(response.body).length).toBeLessThan(36_000);
+    // The master consultation covers every major life domain, four separate
+    // tradition ledgers and preference-filtered remedies while remaining
+    // bounded for normal MCP context windows.
+    expect(JSON.stringify(response.body).length).toBeLessThan(48_000);
 
     const followUp = await mcp("tools/call", {
         name: "consult_jyotishya",
@@ -755,9 +1119,95 @@ describe("Sahadeva MCP", () => {
     expect(result.citations).toEqual([]);
   }, 15000);
 
-  it("validates and replays typed rules without publishing them",async()=>{const response=await mcp("tools/call",{name:"validate_rule_spec",arguments:{name:"A",date:"2000-01-28",time:"08:05",place:"Verified coordinates",latitude:16.6123,longitude:81.9456,timezone:"Asia/Kolkata",rule:{id:"review-fixture",version:1,sourceKey:"judgment:career:house-lord",tradition:"parashari",topic:"career",effect:"support",weight:10,condition:{type:"predicate",fact:{kind:"planet-house",planet:"Sun"},operator:"gte",value:1},exceptions:[],interpretation:"Reviewer fixture",harmClass:"general-cultural",reviewStatus:"draft"}}});const result=response.body.result?.structuredContent as{valid:boolean;execution:{matched:boolean;publishable:boolean};publicationGate:{publishable:boolean}};expect(response.body.error).toBeUndefined();expect(result.valid).toBe(true);expect(result.execution.matched).toBe(true);expect(result.publicationGate.publishable).toBe(false);});
+  it("validates and replays typed rules without publishing them", async () => {
+    const response = await mcp("tools/call", {
+      name: "validate_rule_spec",
+      arguments: {
+        name: "A",
+        date: "2000-01-28",
+        time: "08:05",
+        place: "Verified coordinates",
+        latitude: 16.6123,
+        longitude: 81.9456,
+        timezone: "Asia/Kolkata",
+        rule: {
+          id: "review-fixture",
+          version: 1,
+          sourceKey: "judgment:career:house-lord",
+          tradition: "parashari",
+          topic: "career",
+          effect: "support",
+          weight: 10,
+          condition: {
+            type: "predicate",
+            fact: { kind: "planet-house", planet: "Sun" },
+            operator: "gte",
+            value: 1,
+          },
+          exceptions: [],
+          interpretation: "Reviewer fixture",
+          harmClass: "general-cultural",
+          reviewStatus: "draft",
+        },
+      },
+    });
+    const result = response.body.result?.structuredContent as {
+      valid: boolean;
+      execution: { matched: boolean; publishable: boolean };
+      publicationGate: { publishable: boolean };
+    };
+    expect(response.body.error).toBeUndefined();
+    expect(result.valid).toBe(true);
+    expect(result.execution.matched).toBe(true);
+    expect(result.publicationGate.publishable).toBe(false);
+  });
 
-  it("exposes the same bounded convention comparison through MCP and HTTP",async()=>{const input={name:"A",date:"2000-01-28",time:"08:05",place:"Verified coordinates",latitude:16.6123,longitude:81.9456,timezone:"Asia/Kolkata",timezoneOffset:5.5,topic:"career",language:"en",methodology:"parashari",focus:"career",birthTimeAccuracyMinutes:5},rpc=await mcp("tools/call",{name:"compare_conventions",arguments:input}),http=await app.request("http://localhost/api/judgments/conventions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(input)},{ENGINE_VERSION:"test",CALC_RATE_LIMITER:{limit:async()=>({success:true})}}as never),web=await http.json()as{schemaVersion:string;judgmentChangeAnalysis:{status:string};traditionBoundary:{status:string}},mcpResult=rpc.body.result?.structuredContent as typeof web;expect(rpc.body.error).toBeUndefined();expect(http.status).toBe(200);expect(mcpResult.schemaVersion).toBe("sahadeva-convention-comparison-1");expect(web.judgmentChangeAnalysis.status).toBe(mcpResult.judgmentChangeAnalysis.status);expect(web.traditionBoundary.status).toBe("not-silently-mixed");},15000);
+  it("exposes the same bounded convention comparison through MCP and HTTP", async () => {
+    const input = {
+        name: "A",
+        date: "2000-01-28",
+        time: "08:05",
+        place: "Verified coordinates",
+        latitude: 16.6123,
+        longitude: 81.9456,
+        timezone: "Asia/Kolkata",
+        timezoneOffset: 5.5,
+        topic: "career",
+        language: "en",
+        methodology: "parashari",
+        focus: "career",
+        birthTimeAccuracyMinutes: 5,
+      },
+      rpc = await mcp("tools/call", {
+        name: "compare_conventions",
+        arguments: input,
+      }),
+      http = await app.request(
+        "http://localhost/api/judgments/conventions",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input),
+        },
+        {
+          ENGINE_VERSION: "test",
+          CALC_RATE_LIMITER: { limit: async () => ({ success: true }) },
+        } as never,
+      ),
+      web = (await http.json()) as {
+        schemaVersion: string;
+        judgmentChangeAnalysis: { status: string };
+        traditionBoundary: { status: string };
+      },
+      mcpResult = rpc.body.result?.structuredContent as typeof web;
+    expect(rpc.body.error).toBeUndefined();
+    expect(http.status).toBe(200);
+    expect(mcpResult.schemaVersion).toBe("sahadeva-convention-comparison-1");
+    expect(web.judgmentChangeAnalysis.status).toBe(
+      mcpResult.judgmentChangeAnalysis.status,
+    );
+    expect(web.traditionBoundary.status).toBe("not-silently-mixed");
+  }, 15000);
 
   it("keeps deterministic chart calculation available in production without a billing entitlement", async () => {
     const response = await mcp(
@@ -914,10 +1364,18 @@ describe("Sahadeva MCP", () => {
     });
     const body = response.body.result?.structuredContent as {
       ashtakoota: { maximum: number; components: unknown[] };
+      porutham: {
+        profile: string;
+        checks: unknown[];
+        summary: { scoreWithheld: boolean };
+      };
       kujaDosha: { bride: { references: unknown[] } };
     };
     expect(body.ashtakoota.maximum).toBe(36);
     expect(body.ashtakoota.components).toHaveLength(8);
+    expect(body.porutham.profile).toBe("south-indian-general@1.0.0");
+    expect(body.porutham.checks).toHaveLength(10);
+    expect(body.porutham.summary.scoreWithheld).toBe(true);
     expect(body.kujaDosha.bride.references).toHaveLength(3);
     expect(
       (
@@ -970,13 +1428,14 @@ describe("Sahadeva MCP", () => {
     });
     const body = readiness.body.result?.structuredContent as {
       schemaVersion: string;
-      compatibility: { ashtakoota: unknown };
+      compatibility: { ashtakoota: unknown; porutham: { checks: unknown[] } };
       marriageWindows: { bride: unknown };
     };
     expect(body.schemaVersion).toBe("sahadeva-marriage-readiness-1");
     expect(body.compatibility.ashtakoota).toBeTruthy();
+    expect(body.compatibility.porutham.checks).toHaveLength(10);
     expect(body.marriageWindows.bride).toBeTruthy();
-  }, 15000);
+  }, 30000);
 
   it("accepts explicit coordinates when a birth place is outside the catalogue", async () => {
     const surat = {
@@ -1374,8 +1833,8 @@ describe("Sahadeva MCP", () => {
   it("publishes guided MCP prompts and workflow resources", async () => {
     const prompts = await mcp("prompts/list"),
       resources = await mcp("resources/list");
-    expect((prompts.body.result?.prompts as unknown[]).length).toBe(6);
-    expect((resources.body.result?.resources as unknown[]).length).toBe(5);
+    expect((prompts.body.result?.prompts as unknown[]).length).toBe(8);
+    expect((resources.body.result?.resources as unknown[]).length).toBe(8);
     const prompt = await mcp("prompts/get", { name: "full_life_reading" });
     expect(JSON.stringify(prompt.body.result)).toContain(
       "generate_full_life_report",
@@ -1386,11 +1845,44 @@ describe("Sahadeva MCP", () => {
     expect(JSON.stringify(prashnaPrompt.body.result)).toContain(
       "record_prashna_outcome",
     );
+    const lalKitabPrompt = await mcp("prompts/get", {
+      name: "lal_kitab_consultation",
+    });
+    expect(JSON.stringify(lalKitabPrompt.body.result)).toContain(
+      "audit_chart_calculation",
+    );
+    expect(JSON.stringify(lalKitabPrompt.body.result)).toContain(
+      "harm to animals",
+    );
     const expertTools = await mcp("resources/read", {
       uri: "sahadeva://expert-tools",
     });
     expect(JSON.stringify(expertTools.body.result)).toContain(
       "calculate_south_indian_chart",
+    );
+    const lalKitabResource = await mcp("resources/read", {
+      uri: "sahadeva://lal-kitab",
+    });
+    expect(JSON.stringify(lalKitabResource.body.result)).toContain(
+      "controlledDisclosureTopics",
+    );
+    const predictionQuality = await mcp("resources/read", {
+      uri: "sahadeva://prediction-quality",
+    });
+    expect(JSON.stringify(predictionQuality.body.result)).toContain(
+      "audit_prediction_claim",
+    );
+    const evidencePrompt = await mcp("prompts/get", {
+      name: "evidence_first_prediction",
+    });
+    expect(JSON.stringify(evidencePrompt.body.result)).toContain(
+      "search_reviewed_rules",
+    );
+    const security = await mcp("resources/read", {
+      uri: "sahadeva://security",
+    });
+    expect(JSON.stringify(security.body.result)).toContain(
+      "zero-source-export",
     );
   });
 

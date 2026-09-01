@@ -1,0 +1,22 @@
+/* More (hub) — in the same design language as the prototypes. */
+.more-screen .pcard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
+.more-screen .pcard .pn { font-size: var(--text-lg); font-weight: 600; }
+.more-screen .pcard .pb { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); margin-top: 6px; line-height: 1.6; }
+.more-screen .pcard .edit { margin-top: var(--space-4); min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--fg); font-size: var(--text-base); transition: background var(--motion-fast) var(--ease-standard); }
+.more-screen .pcard .edit:hover { background: var(--border-soft); }
+
+.more-screen .navlist { margin-top: var(--space-6); border-top: 1px solid var(--border-soft); }
+.more-screen .navrow2 { display: flex; align-items: center; gap: var(--space-4); width: 100%; padding: 16px 4px; border-bottom: 1px solid var(--border-soft); background: transparent; transition: background var(--motion-fast) var(--ease-standard); border-radius: var(--radius-sm); }
+.more-screen .navrow2:hover { background: var(--border-soft); }
+.more-screen .navrow2 .ic { flex: 0 0 auto; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
+.more-screen .navrow2 .ic svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+.more-screen .navrow2 .lbl { flex: 1; min-width: 0; }
+.more-screen .navrow2 .lbl b { display: block; font-size: 17px; font-weight: 600; }
+.more-screen .navrow2 .lbl span { display: block; font-size: var(--text-sm); color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.more-screen .navrow2 .chev { flex: 0 0 auto; color: var(--meta); }
+.more-screen .navrow2 .chev svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+.more-screen .settings { margin-top: var(--space-6); }
+.more-screen .setrow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 14px 4px; }
+.more-screen .setlbl b { display: block; font-size: 17px; font-weight: 600; }
+.more-screen .setlbl span { display: block; font-size: var(--text-sm); color: var(--muted); margin-top: 2px; line-height: 1.4; }
