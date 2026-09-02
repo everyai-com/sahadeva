@@ -5,6 +5,29 @@
 .more-screen .pcard .edit { margin-top: var(--space-4); min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--fg); font-size: var(--text-base); transition: background var(--motion-fast) var(--ease-standard); }
 .more-screen .pcard .edit:hover { background: var(--border-soft); }
 
+/* people / profile switcher */
+.more-screen .profiles { margin-top: var(--space-5); }
+.more-screen .prow2 { display: flex; align-items: stretch; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: var(--space-2); overflow: hidden; transition: border-color var(--motion-fast) var(--ease-standard); }
+.more-screen .prow2.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.more-screen .popen { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-3); padding: 12px 14px; background: transparent; border: 0; text-align: left; }
+.more-screen .popen:hover { background: var(--border-soft); }
+.more-screen .paddrow { display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: 12px 14px; background: transparent; border: 1px dashed var(--border); border-radius: var(--radius-md); }
+.more-screen .paddrow:hover { background: var(--border-soft); }
+.more-screen .pav { flex: 0 0 auto; width: 40px; height: 40px; border-radius: var(--radius-pill); background: var(--fg); color: var(--bg); display: grid; place-items: center; font-size: 16px; font-weight: 600; }
+.more-screen .pav.plus { background: transparent; border: 1px solid var(--border); color: var(--fg); }
+.more-screen .pav.plus svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
+.more-screen .prow2.active .pav { background: var(--accent); }
+.more-screen .pmeta { min-width: 0; flex: 1; }
+.more-screen .pmeta b { display: block; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more-screen .pmeta span { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.more-screen .pactive { flex: 0 0 auto; color: var(--accent); }
+.more-screen .pactive svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2.4; }
+.more-screen .pdel { flex: 0 0 auto; width: 46px; display: grid; place-items: center; border: 0; border-left: 1px solid var(--border); background: transparent; color: var(--meta); }
+.more-screen .pdel:hover { background: var(--border-soft); color: var(--danger); }
+.more-screen .pdel svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.more-screen .edit { min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--fg); font-size: var(--text-base); transition: background var(--motion-fast) var(--ease-standard); }
+.more-screen .edit:hover { background: var(--border-soft); }
+
 .more-screen .navlist { margin-top: var(--space-6); border-top: 1px solid var(--border-soft); }
 .more-screen .navrow2 { display: flex; align-items: center; gap: var(--space-4); width: 100%; padding: 16px 4px; border-bottom: 1px solid var(--border-soft); background: transparent; transition: background var(--motion-fast) var(--ease-standard); border-radius: var(--radius-sm); }
 .more-screen .navrow2:hover { background: var(--border-soft); }

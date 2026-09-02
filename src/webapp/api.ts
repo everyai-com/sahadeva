@@ -278,20 +278,59 @@ export function fetchRemedies(
 
 /* ── /api/me ───────────────────────────────────────────────────────────── */
 
+export type Person = {
+  id: string;
+  profile: Profile | null;
+  profileSnapshot?: { status?: string } & Record<string, unknown>;
+};
+
 export type Me = {
   signedIn: boolean;
   user?: { id: string; name: string; email: string };
   profile?: Profile | null;
+  people?: Person[];
+  activePersonId?: string | null;
 };
 
 export async function fetchMe(): Promise<Me> {
   try {
-    const res = await fetch("/api/me");
+    const res = await fetch("/api/me", { credentials: "include" });
     if (!res.ok) return { signedIn: false };
     return (await res.json()) as Me;
   } catch {
     return { signedIn: false };
   }
+}
+
+/* ── people (multiple individual profiles per account) ─────────────────── */
+
+export async function addPerson(profile: Profile): Promise<{ ok: boolean; personId?: string; error?: string }> {
+  const res = await fetch("/api/me/people", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ profile, traditions: ["parashari", "jaimini", "kp", "lal-kitab"] }),
+  });
+  const j = (await res.json().catch(() => ({}))) as { personId?: string; error?: string };
+  return { ok: res.ok, personId: j.personId, error: j.error };
+}
+
+export async function activatePerson(id: string): Promise<Profile | null> {
+  const res = await fetch(`/api/me/people/${encodeURIComponent(id)}/activate`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) return null;
+  const j = (await res.json()) as { profile?: Profile };
+  return j.profile ?? null;
+}
+
+export async function deletePerson(id: string): Promise<boolean> {
+  const res = await fetch(`/api/me/people/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return res.ok;
 }
 
 /* ── Better Auth (email + password) ────────────────────────────────────── */

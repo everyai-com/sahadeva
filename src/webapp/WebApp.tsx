@@ -3,6 +3,7 @@ import "./base.css";
 import { LangProvider, useLang } from "./lang";
 import { DataProvider, useData } from "./data";
 import { useRoute, navigate, type Route } from "./router";
+import { setOnboardingMode } from "./onboardingMode";
 import { WelcomeScreen } from "./screens/WelcomeScreen";
 import { TodayScreen } from "./screens/TodayScreen";
 import { AskScreen } from "./screens/AskScreen";
@@ -21,7 +22,10 @@ function Screens() {
   // No profile yet → force onboarding once we know the account state.
   const needsOnboarding = meLoaded && !profile;
   useEffect(() => {
-    if (chosen && needsOnboarding && route !== "onboarding") navigate("onboarding");
+    if (chosen && needsOnboarding && route !== "onboarding") {
+      setOnboardingMode("new");
+      navigate("onboarding");
+    }
   }, [chosen, needsOnboarding, route]);
 
   // First run: pick a language before anything else.

@@ -14,8 +14,12 @@ import {
   fetchMe,
   fetchToday,
   fetchTransitChart,
+  addPerson as apiAddPerson,
+  activatePerson as apiActivatePerson,
+  deletePerson as apiDeletePerson,
   type ChartResult,
   type DashaCalendar,
+  type Person,
   type Profile,
   type TodayPanchanga,
 } from "./api";
@@ -49,10 +53,19 @@ type DataCtx = {
   profile: Profile | null;
   meLoaded: boolean;
   account: Account;
+  /** All individual profiles on the signed-in account (empty for guests). */
+  people: Person[];
+  activePersonId: string | null;
   setAccount: (a: Account) => void;
-  /** Re-fetch /api/me (after sign in/out); updates account + profile. */
+  /** Re-fetch /api/me (after sign in/out); updates account + people + profile. */
   refreshMe: () => Promise<void>;
   setProfile: (p: Profile) => void;
+  /** Add a new person (individual profile) to the account and make it active. */
+  addPerson: (profile: Profile) => Promise<{ ok: boolean; error?: string }>;
+  /** Switch the active person. */
+  activatePerson: (id: string) => Promise<void>;
+  /** Remove a person from the account. */
+  deletePerson: (id: string) => Promise<void>;
   chart: Async<ChartResult>;
   transit: Async<ChartResult>;
   today: Async<TodayPanchanga>;
@@ -71,6 +84,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [profile, setProfileState] = useState<Profile | null>(loadLocalProfile);
   const [meLoaded, setMeLoaded] = useState(false);
   const [account, setAccount] = useState<DataCtx["account"]>(null);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [activePersonId, setActivePersonId] = useState<string | null>(null);
 
   const [chart, setChart] = useState<Async<ChartResult>>({ status: "idle", data: null });
   const [transit, setTransit] = useState<Async<ChartResult>>({ status: "idle", data: null });
@@ -98,15 +113,54 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const me = await fetchMe();
     if (me.signedIn && me.user) {
       setAccount(me.user);
+      setPeople(me.people ?? []);
+      setActivePersonId(me.activePersonId ?? null);
       if (me.profile?.date) {
+        // The account's active person is the source of truth once signed in.
         saveLocalProfile(me.profile);
-        setProfileState((prev) => prev ?? me.profile!);
+        setProfileState(me.profile);
       }
     } else {
       setAccount(null);
+      setPeople([]);
+      setActivePersonId(null);
     }
     setMeLoaded(true);
   }, []);
+
+  const addPerson = useCallback(
+    async (p: Profile) => {
+      const res = await apiAddPerson(p);
+      if (res.ok) {
+        saveLocalProfile(p);
+        setProfileState(p); // the new person is auto-activated server-side
+        await refreshMe();
+      }
+      return { ok: res.ok, error: res.error };
+    },
+    [refreshMe],
+  );
+
+  const activatePerson = useCallback(
+    async (id: string) => {
+      const p = await apiActivatePerson(id);
+      if (p?.date) {
+        saveLocalProfile(p);
+        setProfileState(p);
+      }
+      setActivePersonId(id);
+      await refreshMe();
+    },
+    [refreshMe],
+  );
+
+  const deletePerson = useCallback(
+    async (id: string) => {
+      await apiDeletePerson(id);
+      await refreshMe();
+    },
+    [refreshMe],
+  );
 
   // Load account + server profile on mount.
   useEffect(() => {
@@ -151,8 +205,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [profile, runLoads]);
 
   const value = useMemo<DataCtx>(
-    () => ({ profile, meLoaded, account, setAccount, refreshMe, setProfile, chart, transit, today, dasha, reload }),
-    [profile, meLoaded, account, refreshMe, setProfile, chart, transit, today, dasha, reload],
+    () => ({
+      profile, meLoaded, account, people, activePersonId,
+      setAccount, refreshMe, setProfile, addPerson, activatePerson, deletePerson,
+      chart, transit, today, dasha, reload,
+    }),
+    [profile, meLoaded, account, people, activePersonId, refreshMe, setProfile, addPerson, activatePerson, deletePerson, chart, transit, today, dasha, reload],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

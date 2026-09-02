@@ -5,8 +5,9 @@ import { useData } from "../data";
 import { navigate, type Route } from "../router";
 import { StatusBar, TabBar } from "../shell";
 import { nakName, signName } from "../format";
-import { signOut } from "../api";
+import { signOut, type Person } from "../api";
 import { AuthSheet } from "./AuthSheet";
+import { setOnboardingMode } from "../onboardingMode";
 import type { ReactNode } from "react";
 
 const CHEV = (
@@ -15,14 +16,41 @@ const CHEV = (
   </svg>
 );
 
+function personSummary(person: Person): string {
+  const p = person.profile;
+  if (!p) return "—";
+  return [p.date, p.time, p.place].filter(Boolean).join(" · ");
+}
+
 export function MoreScreen() {
   const { lang, t } = useLang();
-  const { profile, chart, account, refreshMe } = useData();
+  const { profile, chart, account, people, activePersonId, refreshMe, activatePerson, deletePerson } = useData();
   const [authOpen, setAuthOpen] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function handleSignOut() {
     await signOut().catch(() => {});
     await refreshMe();
+  }
+
+  function editActive() {
+    setOnboardingMode("edit");
+    navigate("onboarding");
+  }
+  function addPerson() {
+    setOnboardingMode("add");
+    navigate("onboarding");
+  }
+  async function selectPerson(id: string) {
+    if (id === activePersonId) return;
+    setBusyId(id);
+    await activatePerson(id);
+    setBusyId(null);
+  }
+  async function removePerson(id: string) {
+    setBusyId(id);
+    await deletePerson(id);
+    setBusyId(null);
   }
 
   const moon = chart.data?.placements.find((p) => p.name === "Moon");
@@ -104,23 +132,68 @@ export function MoreScreen() {
           </button>
         )}
 
-        {profile && (
-          <section className="pcard">
-            <p className="pn">{profile.name}</p>
-            <p className="pb">
-              {profile.date} · {profile.time} · {profile.place}
-              {moon && lagna ? (
-                <>
-                  <br />
-                  {signName(lagna.sign, lang)} lagna · {nakName(moon.nakshatra, lang)} · {signName(moon.sign, lang)}
-                </>
-              ) : null}
-            </p>
-            <button className="edit" type="button" onClick={() => navigate("onboarding")}>
-              {t("Edit birth details", "జనన వివరాలు మార్చు")}
-            </button>
-          </section>
-        )}
+        <section className="profiles">
+          <p className="sectitle">{t("Your profiles", "మీ ప్రొఫైల్‌లు")}</p>
+
+          {account && people.length > 0 ? (
+            <>
+              {people.map((person) => {
+                const active = person.id === activePersonId;
+                return (
+                  <div className={`prow2${active ? " active" : ""}`} key={person.id}>
+                    <button className="popen" type="button" onClick={() => selectPerson(person.id)} disabled={busyId === person.id}>
+                      <span className="pav">{(person.profile?.name || "?").trim().charAt(0).toUpperCase()}</span>
+                      <span className="pmeta">
+                        <b>{person.profile?.name || t("Unnamed", "పేరు లేదు")}</b>
+                        <span>{personSummary(person)}</span>
+                      </span>
+                      {active && (
+                        <span className="pactive" aria-label={t("Active", "క్రియాశీలం")}>
+                          <svg viewBox="0 0 24 24"><path d="M5 12.5 9.5 17 19 7" /></svg>
+                        </span>
+                      )}
+                    </button>
+                    {people.length > 1 && (
+                      <button className="pdel" type="button" aria-label={t("Remove", "తొలగించు")} disabled={busyId === person.id} onClick={() => removePerson(person.id)}>
+                        <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13" /></svg>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              <button className="paddrow" type="button" onClick={addPerson}>
+                <span className="pav plus">
+                  <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+                </span>
+                <span className="pmeta"><b>{t("Add a person", "ఒక వ్యక్తిని జోడించండి")}</b><span>{t("A new individual chart", "కొత్త వ్యక్తిగత జాతకం")}</span></span>
+              </button>
+              <button className="edit" type="button" onClick={editActive} style={{ marginTop: "var(--space-3)" }}>
+                {t("Edit the active person's details", "క్రియాశీల వ్యక్తి వివరాలు మార్చు")}
+              </button>
+            </>
+          ) : profile ? (
+            <div className="pcard">
+              <p className="pn">{profile.name}</p>
+              <p className="pb">
+                {profile.date} · {profile.time} · {profile.place}
+                {moon && lagna ? (
+                  <>
+                    <br />
+                    {signName(lagna.sign, lang)} lagna · {nakName(moon.nakshatra, lang)} · {signName(moon.sign, lang)}
+                  </>
+                ) : null}
+              </p>
+              <button className="edit" type="button" onClick={editActive}>
+                {t("Edit birth details", "జనన వివరాలు మార్చు")}
+              </button>
+              {!account && (
+                <p className="small muted" style={{ marginTop: "var(--space-3)" }}>
+                  {t("Create an account to save this and add profiles for others.", "దీన్ని భద్రపరచి, ఇతరుల ప్రొఫైల్‌లు జోడించడానికి ఖాతా సృష్టించండి.")}
+                </p>
+              )}
+            </div>
+          ) : null}
+        </section>
 
         <div className="navlist">
           {rows.map((r) => (

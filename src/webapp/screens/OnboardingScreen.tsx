@@ -4,8 +4,9 @@ import { useLang, LangToggle, Rich } from "../lang";
 import { useData } from "../data";
 import { navigate } from "../router";
 import { StatusBar } from "../shell";
-import { fetchChart, type Profile } from "../api";
+import { fetchChart, saveProfileToAccount, type Profile } from "../api";
 import { MON_EN, MON_TE, nakName, signName } from "../format";
+import { getOnboardingMode, setOnboardingMode } from "../onboardingMode";
 
 const MON_FULL_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MON_FULL_TE = ["జనవరి", "ఫిబ్రవరి", "మార్చి", "ఏప్రిల్", "మే", "జూన్", "జూలై", "ఆగస్టు", "సెప్టెంబర్", "అక్టోబర్", "నవంబర్", "డిసెంబర్"];
@@ -18,7 +19,8 @@ type PlaceHit = { place: string; latitude: number; longitude: number; timezone?:
 
 export function OnboardingScreen() {
   const { lang, t } = useLang();
-  const { setProfile } = useData();
+  const { setProfile, account, addPerson } = useData();
+  const [saving, setSaving] = useState(false);
 
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
@@ -114,17 +116,25 @@ export function OnboardingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  function next() {
+  async function next() {
     if (step === 4) {
       const p = assembleProfile();
-      setProfile(p);
-      // persist to the server person too, if signed in (fire and forget)
-      void fetch("/api/me/people", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ profile: p, traditions: ["parashari", "jaimini", "kp", "lal-kitab"] }),
-      }).catch(() => {});
-      navigate("ask");
+      const mode = getOnboardingMode();
+      setSaving(true);
+      try {
+        if (mode === "add" && account) {
+          // create an additional individual profile (it auto-activates)
+          await addPerson(p);
+        } else {
+          setProfile(p);
+          // update the active person on the account when signed in
+          if (account) await saveProfileToAccount(p);
+        }
+      } finally {
+        setSaving(false);
+      }
+      setOnboardingMode("new");
+      navigate(mode === "new" ? "ask" : "more");
       return;
     }
     setStep((s) => Math.min(4, s + 1));
@@ -319,8 +329,14 @@ export function OnboardingScreen() {
         </main>
 
         <div className="footer">
-          <button className="btn" type="button" disabled={!canContinue} onClick={next}>
-            {step === 4 ? t("Show my chart", "నా జాతకం చూడండి") : t("Continue", "కొనసాగించు")}
+          <button className="btn" type="button" disabled={!canContinue || saving} onClick={next}>
+            {saving
+              ? t("Saving…", "భద్రపరుస్తోంది…")
+              : step === 4
+                ? getOnboardingMode() === "add"
+                  ? t("Add this person", "ఈ వ్యక్తిని జోడించు")
+                  : t("Show my chart", "నా జాతకం చూడండి")
+                : t("Continue", "కొనసాగించు")}
           </button>
         </div>
       </div>
