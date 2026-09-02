@@ -1,5 +1,6 @@
 node_modules
 .superdesign/tmp/
+tmp/
 dist
 test-results
 playwright-report
