@@ -87,6 +87,13 @@
 }
 .sahadev-web button { font: inherit; cursor: pointer; color: inherit; text-align: left; }
 .sahadev-web a { color: inherit; text-decoration: none; }
+/* Reliable, immediate taps on mobile — remove the 300ms delay and double-tap
+   zoom handling that make buttons feel like they "don't click properly". */
+.sahadev-web button,
+.sahadev-web a,
+.sahadev-web [role="button"],
+.sahadev-web input,
+.sahadev-web label { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .sahadev-web p { margin: 0; text-wrap: pretty; }
 .sahadev-web h1,
 .sahadev-web h2,

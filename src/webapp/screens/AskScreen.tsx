@@ -70,6 +70,10 @@ const STYLE_EN =
 const STYLE_TE =
   "\n\nసామాన్యులకు అర్థమయ్యే సరళమైన, రోజువారీ భాషలో సమాధానం ఇవ్వండి. ముందుగా ముఖ్య విషయాన్ని ఒక్క చిన్న వాక్యంలో చెప్పండి, తర్వాత గరిష్ఠంగా 3 చిన్న పాయింట్లు. సుమారు 130 పదాల లోపు ఉంచండి. ఇంటి సంఖ్యలు, గ్రహ బల శాతాలు, సాంకేతిక పదాలు వాడకండి. కానీ ముఖ్యమైన విషయాన్ని వదిలివేయకండి — ముఖ్యమైన సమయం, ఒక హెచ్చరిక, లేదా ఒక షరతు ఉంటే దాన్ని ఒక పాయింట్‌లో స్పష్టంగా చెప్పండి.";
 
+// Short greetings / small talk that should NOT trigger a full chart reading.
+const GREETING_RE =
+  /^(hi+|hey+|hello+|hii+|hiya|yo|hai|namaste|namaskar(am)?|vandanam|good\s?(morning|afternoon|evening|night)|thanks?|thank you|ok(ay)?|nice|cool|హాయ్|హలో|నమస్తే|నమస్కారం|వందనం|ధన్యవాదాలు|థాంక్స్|సరే|బాగుంది)[\s!.…]*$/i;
+
 /* ── chat history (threads persisted locally, ChatGPT-style) ────────────── */
 type StoredTurn = { role: "user" | "assistant"; content: string; summary?: ChatSummary | null };
 type Thread = { id: string; title: string; updatedAt: number; turns: StoredTurn[] };
@@ -199,6 +203,23 @@ export function AskScreen() {
     // appended only to the current question.
     const base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
     const withUser: Turn[] = [...base, { role: "user", content: question }];
+
+    // Greetings / small talk: reply conversationally, don't run a reading.
+    if (GREETING_RE.test(question)) {
+      const greetText = t(
+        `Namaste${firstName ? " " + firstName : ""}! I can read your chart with you. What would you like to know — your career, marriage, health, money, or the timing right now?`,
+        `నమస్తే${firstName ? " " + firstName : ""}! మీ జాతకాన్ని మీతో కలిసి చదవగలను. మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు — వృత్తి, వివాహం, ఆరోగ్యం, డబ్బు, లేదా ప్రస్తుత సమయం?`,
+      );
+      const suggestions = TOPICS.slice(0, 4).map((tp) => (lang === "te" ? tp.qTe : tp.qEn));
+      const synthetic = { everyday: { dailyLife: { questions: suggestions } } } as ChatSummary;
+      const greetTurns: Turn[] = [...withUser, { role: "assistant", content: greetText, summary: synthetic, streaming: false }];
+      setInput("");
+      setTurns(greetTurns);
+      persistThread(greetTurns);
+      pinQuestionTop();
+      return;
+    }
+
     const history: ChatTurn[] = [
       ...base.map((x) => ({ role: x.role, content: x.content })),
       { role: "user", content: question + style },

@@ -50,6 +50,7 @@
 .ask-screen .topicgrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-2); }
 .ask-screen .topiccard { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; min-height: 96px; transition: background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
 .ask-screen .topiccard:hover { background: var(--border-soft); border-color: var(--muted); }
+.ask-screen .topiccard:active { background: var(--border); }
 .ask-screen .topiccard .tic { width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--bg); border: 1px solid var(--border); }
 .ask-screen .topiccard .tic svg { width: 20px; height: 20px; stroke: var(--fg); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .ask-screen .topiccard .tlbl { font-size: 16px; font-weight: 600; line-height: 1.3; }
@@ -89,6 +90,7 @@
 .ask-screen .fup { display: block; width: 100%; padding: 12px 0; min-height: 48px; background: transparent; border: 0; border-bottom: 1px solid var(--border-soft); font-size: var(--text-base); color: var(--muted); line-height: 1.4; transition: color var(--motion-fast) var(--ease-standard); text-align: left; }
 .ask-screen .fup:last-child { border-bottom: 0; }
 .ask-screen .fup:hover { color: var(--fg); }
+.ask-screen .fup:active { color: var(--fg); opacity: 0.6; }
 .ask-screen .fup::before { content: "→  "; font-family: var(--font-mono); }
 
 .ask-screen .limitnote { margin-top: var(--space-5); font-size: var(--text-sm); color: var(--meta); line-height: 1.65; }
