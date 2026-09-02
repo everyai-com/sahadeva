@@ -1,9 +1,12 @@
+import { useState } from "react";
 import "./more.css";
 import { useLang, LangToggle } from "../lang";
 import { useData } from "../data";
 import { navigate, type Route } from "../router";
 import { StatusBar, TabBar } from "../shell";
 import { nakName, signName } from "../format";
+import { signOut } from "../api";
+import { AuthSheet } from "./AuthSheet";
 import type { ReactNode } from "react";
 
 const CHEV = (
@@ -14,7 +17,13 @@ const CHEV = (
 
 export function MoreScreen() {
   const { lang, t } = useLang();
-  const { profile, chart, account } = useData();
+  const { profile, chart, account, refreshMe } = useData();
+  const [authOpen, setAuthOpen] = useState(false);
+
+  async function handleSignOut() {
+    await signOut().catch(() => {});
+    await refreshMe();
+  }
 
   const moon = chart.data?.placements.find((p) => p.name === "Moon");
   const lagna = chart.data?.placements.find((p) => p.name === "Lagna");
@@ -68,11 +77,32 @@ export function MoreScreen() {
       <main className="screen more-screen" id="content">
         <header className="shead headrow">
           <span>
-            <p className="eyebrow">{account ? account.email : t("Sahadev", "సహదేవ్")}</p>
+            <p className="eyebrow">{t("Sahadev", "సహదేవ్")}</p>
             <h2>{t("More", "మరిన్ని")}</h2>
           </span>
           <LangToggle />
         </header>
+
+        {account ? (
+          <div className="acctcard">
+            <span className="acctav">{(account.name || account.email || "?").trim().charAt(0).toUpperCase()}</span>
+            <span className="acctinfo">
+              <b>{account.name || t("Your account", "మీ ఖాతా")}</b>
+              <span>{account.email}</span>
+            </span>
+            <button className="acctout" type="button" onClick={handleSignOut}>
+              {t("Sign out", "సైన్ అవుట్")}
+            </button>
+          </div>
+        ) : (
+          <button className="acctcta" type="button" onClick={() => setAuthOpen(true)}>
+            <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, stroke: "currentColor", fill: "none", strokeWidth: 1.7 }}>
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" />
+            </svg>
+            {t("Create account or sign in", "ఖాతా సృష్టించండి లేదా సైన్ ఇన్")}
+          </button>
+        )}
 
         {profile && (
           <section className="pcard">
@@ -131,6 +161,7 @@ export function MoreScreen() {
           )}
         </p>
       </main>
+      <AuthSheet open={authOpen} onClose={() => setAuthOpen(false)} />
       <TabBar current="more" />
     </>
   );

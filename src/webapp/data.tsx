@@ -43,10 +43,15 @@ function saveLocalProfile(p: Profile) {
 
 type Async<T> = { status: "idle" | "loading" | "ready" | "error"; data: T | null; error?: string };
 
+export type Account = { id: string; name: string; email: string } | null;
+
 type DataCtx = {
   profile: Profile | null;
   meLoaded: boolean;
-  account: { id: string; name: string; email: string } | null;
+  account: Account;
+  setAccount: (a: Account) => void;
+  /** Re-fetch /api/me (after sign in/out); updates account + profile. */
+  refreshMe: () => Promise<void>;
   setProfile: (p: Profile) => void;
   chart: Async<ChartResult>;
   transit: Async<ChartResult>;
@@ -89,24 +94,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [lang, profile]);
 
+  const refreshMe = useCallback(async () => {
+    const me = await fetchMe();
+    if (me.signedIn && me.user) {
+      setAccount(me.user);
+      if (me.profile?.date) {
+        saveLocalProfile(me.profile);
+        setProfileState((prev) => prev ?? me.profile!);
+      }
+    } else {
+      setAccount(null);
+    }
+    setMeLoaded(true);
+  }, []);
+
   // Load account + server profile on mount.
   useEffect(() => {
-    let alive = true;
-    void fetchMe().then((me) => {
-      if (!alive) return;
-      if (me.signedIn && me.user) {
-        setAccount(me.user);
-        if (me.profile?.date) {
-          saveLocalProfile(me.profile);
-          setProfileState((prev) => prev ?? me.profile!);
-        }
-      }
-      setMeLoaded(true);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+    void refreshMe();
+  }, [refreshMe]);
 
   const runLoads = useCallback((p: Profile) => {
     const mySig = sig(p);
@@ -146,8 +151,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [profile, runLoads]);
 
   const value = useMemo<DataCtx>(
-    () => ({ profile, meLoaded, account, setProfile, chart, transit, today, dasha, reload }),
-    [profile, meLoaded, account, setProfile, chart, transit, today, dasha, reload],
+    () => ({ profile, meLoaded, account, setAccount, refreshMe, setProfile, chart, transit, today, dasha, reload }),
+    [profile, meLoaded, account, refreshMe, setProfile, chart, transit, today, dasha, reload],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

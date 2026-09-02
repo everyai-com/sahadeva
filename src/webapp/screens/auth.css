@@ -1,0 +1,44 @@
+/* Account sheet (sign in / create account), same design language as the app. */
+.authscrim { position: absolute; inset: 0; background: var(--fg); opacity: 0; pointer-events: none; transition: opacity var(--motion-base) var(--ease-standard); z-index: 30; }
+.authscrim.on { opacity: 0.55; pointer-events: auto; }
+.authsheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 31; background: var(--bg); border-top: 1px solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-5) var(--space-6); transform: translateY(101%); transition: transform var(--motion-base) var(--ease-standard); max-height: 92%; overflow-y: auto; scrollbar-width: none; }
+.authsheet::-webkit-scrollbar { width: 0; display: none; }
+.authsheet.on { transform: translateY(0); }
+.authsheet .grabber { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--border); margin: 0 auto var(--space-4); }
+
+.authsheet h3 { font-size: var(--text-xl); }
+.authsheet .asub { color: var(--muted); font-size: var(--text-base); line-height: 1.5; margin-top: 6px; }
+
+.authsheet .afield { margin-top: var(--space-4); }
+.authsheet .afield label { display: block; font-size: var(--text-sm); color: var(--muted); margin-bottom: 6px; }
+.authsheet .apwrap { position: relative; }
+.authsheet input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--fg); padding: 0 14px; min-height: 54px; font-size: 17px; outline: none; }
+.authsheet input:focus { border-color: var(--accent); }
+.authsheet .apwrap input { padding-right: 48px; }
+.authsheet .aeye { position: absolute; right: 6px; top: 0; bottom: 0; width: 40px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); }
+.authsheet .aeye svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+.authsheet .arules { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: var(--space-3); }
+.authsheet .arule { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--muted); }
+.authsheet .arule svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; flex: 0 0 auto; }
+.authsheet .arule.ok { color: var(--success); }
+
+.authsheet .aerror { margin-top: var(--space-3); font-size: var(--text-base); color: var(--danger); line-height: 1.5; }
+
+.authsheet .abtn { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 54px; margin-top: var(--space-5); padding: 0 var(--space-5); border-radius: var(--radius-md); border: 1px solid transparent; font-size: 19px; font-weight: 600; background: var(--accent); color: var(--accent-on); transition: background var(--motion-fast) var(--ease-standard); }
+.authsheet .abtn:hover { background: var(--accent-hover); }
+.authsheet .abtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.authsheet .aswitch { display: block; width: 100%; text-align: center; margin-top: var(--space-4); background: transparent; border: 0; color: var(--muted); font-size: var(--text-base); min-height: 44px; }
+.authsheet .aswitch b { color: var(--accent); font-weight: 600; }
+.authsheet .aterms { margin-top: var(--space-4); font-size: var(--text-xs); color: var(--meta); line-height: 1.6; text-align: center; }
+
+/* signed-in account rows in More */
+.more-screen .acctcard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-3); }
+.more-screen .acctav { flex: 0 0 auto; width: 44px; height: 44px; border-radius: var(--radius-pill); background: var(--accent); color: var(--accent-on); display: grid; place-items: center; font-size: 18px; font-weight: 600; }
+.more-screen .acctinfo { min-width: 0; flex: 1; }
+.more-screen .acctinfo b { display: block; font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more-screen .acctinfo span { display: block; font-size: var(--text-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more-screen .acctout { flex: 0 0 auto; min-height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--fg); font-size: var(--text-sm); }
+.more-screen .acctout:hover { background: var(--border-soft); }
+.more-screen .acctcta { width: 100%; min-height: 54px; border: 1px solid transparent; border-radius: var(--radius-md); background: var(--accent); color: var(--accent-on); font-size: 18px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.more-screen .acctcta:hover { background: var(--accent-hover); }

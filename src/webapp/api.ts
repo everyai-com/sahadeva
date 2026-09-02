@@ -294,6 +294,52 @@ export async function fetchMe(): Promise<Me> {
   }
 }
 
+/* ── Better Auth (email + password) ────────────────────────────────────── */
+
+async function authPost(path: string, body: unknown): Promise<void> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = "";
+    try {
+      const j = (await res.json()) as { message?: string; error?: string };
+      msg = j?.message || j?.error || "";
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || `Request failed (${res.status})`);
+  }
+}
+
+export function signUp(email: string, password: string, name: string): Promise<void> {
+  return authPost("/api/auth/sign-up/email", { email, password, name });
+}
+export function signIn(email: string, password: string): Promise<void> {
+  return authPost("/api/auth/sign-in/email", { email, password });
+}
+export function signOut(): Promise<void> {
+  return authPost("/api/auth/sign-out", {});
+}
+
+/** Save the current local profile to the signed-in account (upserts the active person). */
+export async function saveProfileToAccount(profile: Profile): Promise<boolean> {
+  try {
+    const res = await fetch("/api/me/profile/sync", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ profile, traditions: ["parashari", "jaimini", "kp", "lal-kitab"] }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /* ── chat streaming ────────────────────────────────────────────────────── */
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
