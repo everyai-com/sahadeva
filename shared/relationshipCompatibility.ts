@@ -21,6 +21,7 @@ export const RELATIONSHIP_TYPES = [
   "sibling",
   "colleague",
   "mentor_student",
+  "parent_child",
   "roommate",
   "general",
 ] as const;
@@ -84,6 +85,7 @@ const WEIGHTS: Record<RelationshipType, Record<string, number>> = {
   sibling: { gana: 3, bhakoot: 3, tara: 2, element: 2, yoni: 1, grahaMaitri: 1 },
   colleague: { grahaMaitri: 3, tara: 2, gana: 2, bhakoot: 2, element: 1, yoni: 1 },
   mentor_student: { tara: 3, grahaMaitri: 3, gana: 1, element: 1, bhakoot: 1, yoni: 1 },
+  parent_child: { tara: 3, bhakoot: 3, gana: 2, grahaMaitri: 2, element: 2, yoni: 1 },
   roommate: { gana: 3, yoni: 2, bhakoot: 2, tara: 2, element: 1, grahaMaitri: 1 },
   general: { tara: 2, grahaMaitri: 2, gana: 2, yoni: 2, bhakoot: 2, element: 2 },
 };
@@ -93,6 +95,7 @@ const RELATIONSHIP_LABEL: Record<RelationshipType, string> = {
   sibling: "Siblings / family",
   colleague: "Colleagues",
   mentor_student: "Mentor and student",
+  parent_child: "Parent and child",
   roommate: "Housemates",
   general: "General bond",
 };
@@ -104,6 +107,8 @@ const RELATIONSHIP_FOCUS: Record<RelationshipType, string> = {
   colleague: "mental rapport (Graha Maitri) and smooth day-to-day working fortune.",
   mentor_student:
     "the guru-shishya flow of guidance — Tara direction and shared mental wavelength.",
+  parent_child:
+    "the nurturing bond — mutual fortune (Tara), emotional flow (Bhakoot) and temperament fit, read without hierarchy or destiny claims.",
   roommate: "living temperament, instinctive comfort and daily emotional flow.",
   general: "an even reading across all classical Nakshatra factors.",
 };

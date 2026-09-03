@@ -35,7 +35,7 @@ const RULES: IntentRule[] = [
   {
     intent: "relationship-nonmarital",
     test: T(
-      "business partner|co-?founder|partnership|colleague|team ?mate|friend|friendship|sibling|brother|sister|room ?mate|house ?mate|mentor|student|guru|boss|manager|work with|get along",
+      "business partner|co-?founder|partnership|colleague|team ?mate|friend|friendship|sibling|brother|sister|room ?mate|house ?mate|mentor|student|guru|boss|manager|work with|get along|with my (father|mother|dad|mom|son|daughter|parent|child)|parent(-| and )child",
     ),
     primary: "calculate_relationship_compatibility",
     why: "Gender-neutral Nakshatra compatibility for a non-marital bond, weighted for the chosen relationship type.",
