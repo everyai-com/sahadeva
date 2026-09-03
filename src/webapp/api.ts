@@ -2,6 +2,7 @@
 // Only the fields the UI actually renders are typed; the backend returns more.
 
 export type Lang = "en" | "te";
+export type SpeechLanguage = "auto" | "en" | "hi" | "te";
 
 export type Profile = {
   name: string;
@@ -16,6 +17,17 @@ export type Profile = {
   birthTimeConfidence?: "exact" | "rough" | "part" | "none";
   birthTimeAccuracyMinutes?: number;
 };
+
+export async function transcribeAudio(audio: Blob, language: SpeechLanguage, signal?: AbortSignal): Promise<{ text: string; language: string | null }> {
+  const form = new FormData();
+  const extension = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
+  form.append("audio", audio, `voice.${extension}`);
+  form.append("language", language);
+  const res = await fetch("/api/transcribe", { method: "POST", body: form, signal });
+  const data = (await res.json().catch(() => ({}))) as { text?: string; language?: string | null; error?: string };
+  if (!res.ok || !data.text) throw new Error(data.error || (res.status === 429 ? "rate" : "transcription"));
+  return { text: data.text, language: data.language ?? null };
+}
 
 /* ── chart ─────────────────────────────────────────────────────────────── */
 

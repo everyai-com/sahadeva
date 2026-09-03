@@ -272,7 +272,7 @@ app.use("*", async (c, next) => {
   c.header("Cross-Origin-Opener-Policy", "same-origin");
   c.header(
     "Permissions-Policy",
-    "camera=(), microphone=(), payment=(), usb=(), geolocation=(self)",
+    "camera=(), microphone=(self), payment=(), usb=(), geolocation=(self)",
   );
   c.header(
     "Content-Security-Policy",
@@ -12687,6 +12687,74 @@ app.get("/api/ai/status", (c) =>
     policy: "calculated evidence is immutable; narration is optional",
   }),
 );
+
+const SPEECH_LANGUAGES = new Set(["en", "hi", "te"]);
+const SPEECH_MAX_BYTES = 4 * 1024 * 1024;
+const SPEECH_MIME_TYPES = new Set([
+  "audio/webm",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/wav",
+  "audio/mpeg",
+  "audio/x-m4a",
+]);
+
+function audioBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize)
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  return btoa(binary);
+}
+
+app.post("/api/transcribe", async (c) => {
+  const limited = await enforceLimit(c, c.env.AI_RATE_LIMITER);
+  if (limited) return limited;
+  const declaredSize = Number(c.req.header("content-length") || 0);
+  if (declaredSize > SPEECH_MAX_BYTES + 32_768)
+    return c.json({ error: "Audio is too large. Keep recordings under 60 seconds." }, 413);
+
+  const form = await c.req.formData().catch(() => null);
+  const audio = form?.get("audio");
+  const requestedLanguage = String(form?.get("language") || "auto").toLowerCase();
+  if (!(audio instanceof File) || audio.size === 0)
+    return c.json({ error: "An audio recording is required." }, 400);
+  if (audio.size > SPEECH_MAX_BYTES)
+    return c.json({ error: "Audio is too large. Keep recordings under 60 seconds." }, 413);
+  const mime = audio.type.split(";")[0].toLowerCase();
+  if (mime && !SPEECH_MIME_TYPES.has(mime))
+    return c.json({ error: "This audio format is not supported." }, 415);
+  if (requestedLanguage !== "auto" && !SPEECH_LANGUAGES.has(requestedLanguage))
+    return c.json({ error: "Unsupported transcription language." }, 400);
+
+  try {
+    const bytes = new Uint8Array(await audio.arrayBuffer());
+    const result = await c.env.AI.run("@cf/openai/whisper-large-v3-turbo", {
+      audio: audioBase64(bytes),
+      task: "transcribe",
+      ...(requestedLanguage === "auto" ? {} : { language: requestedLanguage }),
+      vad_filter: true,
+      beam_size: 3,
+      condition_on_previous_text: false,
+      no_speech_threshold: 0.58,
+      initial_prompt:
+        "Sahadeva Jyotisha consultation. Preserve the speaker's language and script. Vocabulary: Rahu, Ketu, Lagna, Rashi, Nakshatra, Vimshottari, Mahadasha, Antardasha, Uttara Phalguni, Vrischika, Kanya, Shadbala, Panchanga.",
+    });
+    const text = String(result.text || "").trim();
+    if (!text)
+      return c.json({ error: "No speech was detected. Please try again closer to the microphone." }, 422);
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      text,
+      language: result.transcription_info?.language || (requestedLanguage === "auto" ? null : requestedLanguage),
+      languageProbability: result.transcription_info?.language_probability ?? null,
+      duration: result.transcription_info?.duration ?? null,
+      stored: false,
+    });
+  } catch {
+    return c.json({ error: "Transcription is temporarily unavailable. Please try again." }, 503);
+  }
+});
 
 app.post("/api/interpret", async (c) => {
   const limited = await enforceLimit(c, c.env.AI_RATE_LIMITER);

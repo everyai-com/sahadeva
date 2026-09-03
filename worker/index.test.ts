@@ -99,8 +99,51 @@ describe("Sahadeva MCP", () => {
       "frame-ancestors 'none'",
     );
     expect(response.headers.get("permissions-policy")).toContain("camera=()");
+    expect(response.headers.get("permissions-policy")).toContain("microphone=(self)");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-request-id")).toBeTruthy();
+  });
+  it("transcribes same-origin multilingual audio without storing it", async () => {
+    let model = "";
+    let input: Record<string, unknown> = {};
+    const form = new FormData();
+    form.append("audio", new File([new Uint8Array([1, 2, 3, 4])], "voice.webm", { type: "audio/webm" }));
+    form.append("language", "te");
+    const response = await app.request(
+      "http://localhost/api/transcribe",
+      { method: "POST", body: form },
+      {
+        ENGINE_VERSION: "test",
+        AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
+        AI: {
+          run: async (nextModel: string, nextInput: Record<string, unknown>) => {
+            model = nextModel;
+            input = nextInput;
+            return { text: "నా వృత్తి గురించి చెప్పండి", transcription_info: { language: "te", duration: 2.4 } };
+          },
+        },
+      } as never,
+    );
+    expect(response.status).toBe(200);
+    expect(model).toBe("@cf/openai/whisper-large-v3-turbo");
+    expect(input).toMatchObject({ language: "te", task: "transcribe", vad_filter: true });
+    expect(await response.json()).toMatchObject({ text: "నా వృత్తి గురించి చెప్పండి", language: "te", stored: false });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+  it("rejects unsupported transcription languages before inference", async () => {
+    const form = new FormData();
+    form.append("audio", new File([new Uint8Array([1])], "voice.webm", { type: "audio/webm" }));
+    form.append("language", "fr");
+    const response = await app.request(
+      "http://localhost/api/transcribe",
+      { method: "POST", body: form },
+      {
+        ENGINE_VERSION: "test",
+        AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
+        AI: { run: async () => { throw new Error("must not run"); } },
+      } as never,
+    );
+    expect(response.status).toBe(400);
   });
   it("reports and uses the configured Cloudflare Workers AI narration provider", async () => {
     const env = {
