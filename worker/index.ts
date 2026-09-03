@@ -12729,6 +12729,11 @@ app.post("/api/transcribe", async (c) => {
 
   try {
     const bytes = new Uint8Array(await audio.arrayBuffer());
+    const languagePrompt = requestedLanguage === "te"
+      ? "ఇది తెలుగు జ్యోతిష సంప్రదింపు. మాట్లాడిన మాటలను అనువదించకుండా సహజమైన తెలుగు లిపిలోనే ఖచ్చితంగా రాయండి. పదాలు: రాహు, కేతు, లగ్నం, రాశి, నక్షత్రం, వింశోత్తరి, మహాదశ, అంతర్దశ, ఉత్తర ఫల్గుణి, వృశ్చికం, కన్య, షడ్బలం, పంచాంగం."
+      : requestedLanguage === "hi"
+        ? "यह हिन्दी ज्योतिष परामर्श है। बोले गए शब्दों का अनुवाद किए बिना स्वाभाविक देवनागरी लिपि में ठीक-ठीक लिखें। शब्द: राहु, केतु, लग्न, राशि, नक्षत्र, विंशोत्तरी, महादशा, अंतर्दशा, उत्तर फाल्गुनी, वृश्चिक, कन्या, षड्बल, पंचांग।"
+        : "Sahadeva Jyotisha consultation. Transcribe exactly without translating. Vocabulary: Rahu, Ketu, Lagna, Rashi, Nakshatra, Vimshottari, Mahadasha, Antardasha, Uttara Phalguni, Vrischika, Kanya, Shadbala, Panchanga.";
     const result = await c.env.AI.run("@cf/openai/whisper-large-v3-turbo", {
       audio: audioBase64(bytes),
       task: "transcribe",
@@ -12737,8 +12742,7 @@ app.post("/api/transcribe", async (c) => {
       beam_size: 3,
       condition_on_previous_text: false,
       no_speech_threshold: 0.58,
-      initial_prompt:
-        "Sahadeva Jyotisha consultation. Preserve the speaker's language and script. Vocabulary: Rahu, Ketu, Lagna, Rashi, Nakshatra, Vimshottari, Mahadasha, Antardasha, Uttara Phalguni, Vrischika, Kanya, Shadbala, Panchanga.",
+      initial_prompt: languagePrompt,
     });
     const text = String(result.text || "").trim();
     if (!text)
