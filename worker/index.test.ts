@@ -338,8 +338,9 @@ describe("Sahadeva MCP", () => {
       "record_consultation_outcome",
     );
     expect(tools.map((tool) => tool.name)).toContain("get_validation_report");
-    expect(tools).toHaveLength(55);
-    expect(tools.map((tool) => tool.name)).not.toContain(
+    // All defined tools are now discoverable in tools/list.
+    expect(tools).toHaveLength(81);
+    expect(tools.map((tool) => tool.name)).toContain(
       "calculate_south_indian_chart",
     );
     expect(response.body.result).not.toHaveProperty("ttlMs");

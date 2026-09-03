@@ -3685,9 +3685,10 @@ const publicMcpToolNames = new Set([
   "render_chart",
   "generate_report_pdf",
 ]);
-const publicMcpTools = mcpTools.filter((tool) =>
-  publicMcpToolNames.has(tool.name),
-);
+// Every defined tool is discoverable in tools/list. (Tools were always
+// callable regardless of this list; publicMcpToolNames now only marks the
+// baseline "public" set, while advanced tools are surfaced alongside them.)
+const publicMcpTools = mcpTools;
 const expertMcpTools = mcpTools
   .filter((tool) => !publicMcpToolNames.has(tool.name))
   .map((tool) => ({
