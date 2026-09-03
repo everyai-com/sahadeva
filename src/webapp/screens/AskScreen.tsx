@@ -6,6 +6,7 @@ import { StatusBar, TabBar } from "../shell";
 import {
   fetchConversationAlignment,
   recordConversationInput,
+  transcribeAudio,
   streamChat,
   submitClaimFeedback,
   saveConversationToAccount,
@@ -13,6 +14,7 @@ import {
   type ChatSummary,
   type ChatTurn,
   type StoredConversation,
+  type SpeechLanguage,
 } from "../api";
 import { analyticsCapture } from "../../analytics";
 import { grahaName, signName, nakName } from "../format";
@@ -22,6 +24,7 @@ import { requestsFullProfile } from "../../../shared/chatEvidenceRouting";
 import { AuthSheet } from "./AuthSheet";
 import { dashaRecallContext } from "../dashaRecall";
 import type { ReactNode } from "react";
+import { chartAskContextText, takeChartAskContext, type ChartAskContext } from "../chartAskContext";
 
 type Turn = ChatTurn & { id?: string; summary?: ChatSummary | null; streaming?: boolean; error?: string };
 
@@ -171,7 +174,17 @@ export function AskScreen() {
   const { profile, account, activePersonId, conversation } = useData();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
-  const [listening, setListening] = useState(false);
+  const [voicePhase, setVoicePhase] = useState<"idle" | "requesting" | "recording" | "transcribing">("idle");
+  const [voiceLanguage, setVoiceLanguage] = useState<SpeechLanguage>(() => {
+    try {
+      const saved = localStorage.getItem("sahadeva.voice-language");
+      return saved === "auto" || saved === "en" || saved === "hi" || saved === "te" ? saved : lang;
+    } catch {
+      return lang;
+    }
+  });
+  const [voiceSeconds, setVoiceSeconds] = useState(0);
+  const [voiceError, setVoiceError] = useState("");
   const [busy, setBusy] = useState(false);
   const [answerStarted, setAnswerStarted] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -180,8 +193,14 @@ export function AskScreen() {
   const [authOpen, setAuthOpen] = useState(false);
   const [alignmentScore, setAlignmentScore] = useState(50);
   const [alignmentHistory, setAlignmentHistory] = useState<AlignmentSnapshot[]>([]);
+  const [chartContext, setChartContext] = useState<ChartAskContext | null>(() => takeChartAskContext());
   const threadRef = useRef<HTMLElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recorderStreamRef = useRef<MediaStream | null>(null);
+  const recorderChunksRef = useRef<Blob[]>([]);
+  const submitRecordingRef = useRef(false);
+  const transcriptionAbortRef = useRef<AbortController | null>(null);
+  const voiceInputRef = useRef(false);
   const activeIdRef = useRef<string | null>(null);
   const threadsRef = useRef<Thread[]>(threads);
   const storageScope = account?.id && activePersonId
@@ -264,6 +283,7 @@ export function AskScreen() {
     setAlignmentScore(50);
     setAlignmentHistory([]);
     setHistoryOpen(false);
+    setChartContext(null);
   }
 
   function deleteThread(id: string) {
@@ -305,9 +325,10 @@ export function AskScreen() {
     analyticsCapture("prompt_submitted", {
       conversation_session_id: sessionId,
       input_length_band: question.length < 80 ? "short" : question.length < 300 ? "medium" : "long",
-      input_method: listening ? "voice" : "text",
+      input_method: voiceInputRef.current ? "voice" : "text",
       response_depth: deep ? "deep" : "standard",
     });
+    voiceInputRef.current = false;
     // Save scoring in the background so a new chat appears immediately.
     void (async () => {
       try {
@@ -344,9 +365,12 @@ export function AskScreen() {
       return;
     }
 
+    const modelQuestion = chartContext
+      ? `${chartAskContextText(chartContext)}\n\nUser's question: ${question}`
+      : question;
     const history: ChatTurn[] = [
       ...base.map((x) => ({ role: x.role, content: x.content })),
-      { role: "user", content: question },
+      { role: "user", content: modelQuestion },
     ];
     try {
       const { text: reply, summary } = await streamChat(
@@ -362,7 +386,7 @@ export function AskScreen() {
           deep,
           conversationSessionId: sessionId,
           conversationTurnId: userTurnId,
-          fullProfile: requestsFullProfile(question),
+          fullProfile: requestsFullProfile(modelQuestion),
         },
       );
       const finalTurns: Turn[] = [...withUser, { id: responseTurnId, role: "assistant", content: reply, summary, streaming: false }];
@@ -433,32 +457,109 @@ export function AskScreen() {
       });
   }
 
-  function toggleMic() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      setListening((v) => !v);
-      return;
-    }
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const rec = new SR();
-    rec.lang = lang === "te" ? "te-IN" : "en-IN";
-    rec.interimResults = true;
-    rec.onresult = (ev: any) => {
-      let text = "";
-      for (let i = 0; i < ev.results.length; i++) text += ev.results[i][0].transcript;
-      setInput(text);
-    };
-    rec.onend = () => setListening(false);
-    recognitionRef.current = rec;
-    rec.start();
-    setListening(true);
+  function closeRecorderStream() {
+    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recorderStreamRef.current = null;
   }
 
-  useEffect(() => () => recognitionRef.current?.stop?.(), []);
+  async function runTranscription(blob: Blob) {
+    setVoicePhase("transcribing");
+    const controller = new AbortController();
+    transcriptionAbortRef.current = controller;
+    try {
+      let result: Awaited<ReturnType<typeof transcribeAudio>>;
+      try {
+        result = await transcribeAudio(blob, voiceLanguage, controller.signal);
+      } catch (firstError) {
+        if (controller.signal.aborted) throw firstError;
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        result = await transcribeAudio(blob, voiceLanguage, controller.signal);
+      }
+      setInput((current) => current.trim() ? `${current.trim()} ${result.text}` : result.text);
+      voiceInputRef.current = true;
+      setVoiceError("");
+    } catch (error) {
+      if (!controller.signal.aborted)
+        setVoiceError((error as Error).message || t("We couldn't transcribe that recording.", "ఆ రికార్డింగ్‌ను వచనంగా మార్చలేకపోయాం."));
+    } finally {
+      transcriptionAbortRef.current = null;
+      setVoicePhase("idle");
+      setVoiceSeconds(0);
+    }
+  }
+
+  async function startRecording() {
+    if (busy || voicePhase !== "idle") return;
+    setVoiceError("");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setVoiceError(t("Voice input is not supported by this browser. You can still type your question.", "ఈ బ్రౌజర్‌లో వాయిస్ ఇన్‌పుట్ అందుబాటులో లేదు. మీ ప్రశ్నను టైప్ చేయవచ్చు."));
+      return;
+    }
+    setVoicePhase("requesting");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+      recorderStreamRef.current = stream;
+      const preferred = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred, audioBitsPerSecond: 64_000 } : undefined);
+      recorderRef.current = recorder;
+      recorderChunksRef.current = [];
+      submitRecordingRef.current = false;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) recorderChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const submit = submitRecordingRef.current;
+        const chunks = recorderChunksRef.current;
+        recorderRef.current = null;
+        recorderChunksRef.current = [];
+        closeRecorderStream();
+        if (submit && chunks.length) void runTranscription(new Blob(chunks, { type: recorder.mimeType || chunks[0].type }));
+        else {
+          setVoicePhase("idle");
+          setVoiceSeconds(0);
+        }
+      };
+      recorder.start(250);
+      setVoiceSeconds(0);
+      setVoicePhase("recording");
+    } catch (error) {
+      closeRecorderStream();
+      setVoicePhase("idle");
+      const denied = (error as DOMException).name === "NotAllowedError";
+      setVoiceError(denied
+        ? t("Microphone access is blocked. Allow it in your browser settings and try again.", "మైక్రోఫోన్ అనుమతి నిరోధించబడింది. బ్రౌజర్ సెట్టింగ్‌లలో అనుమతించి మళ్లీ ప్రయత్నించండి.")
+        : t("We couldn't start the microphone. Please try again.", "మైక్రోఫోన్‌ను ప్రారంభించలేకపోయాం. మళ్లీ ప్రయత్నించండి."));
+    }
+  }
+
+  function stopRecording(submit: boolean) {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+    submitRecordingRef.current = submit;
+    recorder.stop();
+  }
+
+  useEffect(() => {
+    if (voicePhase !== "recording") return;
+    const timer = window.setInterval(() => setVoiceSeconds((seconds) => {
+      if (seconds >= 44) {
+        window.clearInterval(timer);
+        stopRecording(true);
+        return 45;
+      }
+      return seconds + 1;
+    }), 1000);
+    return () => window.clearInterval(timer);
+  }, [voicePhase]);
+
+  useEffect(() => () => {
+    transcriptionAbortRef.current?.abort();
+    if (recorderRef.current?.state !== "inactive") {
+      submitRecordingRef.current = false;
+      recorderRef.current?.stop();
+    }
+    closeRecorderStream();
+  }, []);
 
   const firstName = profile?.name ? profile.name.split(" ")[0] : "";
 
@@ -488,6 +589,16 @@ export function AskScreen() {
       </div>
 
       <main className="thread ask-screen" ref={threadRef}>
+        {chartContext && (
+          <aside className="chart-context" aria-label={t("Selected chart context", "ఎంచుకున్న జాతక సందర్భం")}>
+            <div>
+              <b>{chartContext.division === "d9" ? t("Navamsa D-9", "నవాంశ D-9") : t("Rasi D-1", "రాశి D-1")}</b>
+              <span>{t(`House ${chartContext.house}`, `${chartContext.house}వ భావం`)} · {chartContext.sign}</span>
+              <small>{chartContext.planets.length ? chartContext.planets.map((name) => grahaName(name, lang)).join(", ") : t("No occupying planets", "గ్రహాలు లేవు")}</small>
+            </div>
+            <button type="button" aria-label={t("Clear chart context", "జాతక సందర్భాన్ని తీసివేయండి")} onClick={() => setChartContext(null)}>×</button>
+          </aside>
+        )}
         {turns.length === 0 ? (
           <div className="empty">
             <h2>{firstName ? t(`Hello ${firstName}. What would you like to know?`, `నమస్తే ${firstName}. మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు?`) : t("What would you like to know?", "మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు?")}</h2>
@@ -531,12 +642,24 @@ export function AskScreen() {
       </main>
 
       <div className="composer ask-screen">
-        <div className={`listen${listening ? " on" : ""}`}>
-          <span className="wave" aria-hidden="true">
-            <i /><i /><i /><i /><i /><i />
-          </span>
-          <span className="small muted">{t("Listening… tap the microphone again to stop.", "వింటోంది… ఆపడానికి మైక్ మళ్లీ నొక్కండి.")}</span>
-        </div>
+        {voicePhase !== "idle" && (
+          <section className={`voicepanel ${voicePhase}`} aria-live="polite">
+            <div className="voicehead">
+              <span className="voicepulse" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+              <span>
+                <b>{voicePhase === "requesting" ? t("Opening microphone…", "మైక్రోఫోన్ తెరుస్తోంది…") : voicePhase === "recording" ? t("Listening", "వింటోంది") : t("Turning speech into text…", "మాటలను వచనంగా మారుస్తోంది…")}</b>
+                <small>{voicePhase === "recording" ? `0:${String(voiceSeconds).padStart(2, "0")} / 0:45` : t("Your recording is not stored.", "మీ రికార్డింగ్ భద్రపరచబడదు.")}</small>
+              </span>
+            </div>
+            {voicePhase === "recording" && (
+              <div className="voiceactions">
+                <button type="button" className="voicecancel" onClick={() => stopRecording(false)}>{t("Cancel", "రద్దు")}</button>
+                <button type="button" className="voicedone" onClick={() => stopRecording(true)}>{t("Use recording", "రికార్డింగ్ వాడండి")}</button>
+              </div>
+            )}
+          </section>
+        )}
+        {voiceError && <p className="voiceerror" role="alert">{voiceError}</p>}
         <div className="crow">
           <label className="cfield">
             <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
@@ -544,16 +667,16 @@ export function AskScreen() {
             </span>
             <input
               type="text"
-              placeholder={t("Ask anything…", "ఏదైనా అడగండి…")}
+              placeholder={chartContext ? t(`Ask about House ${chartContext.house}…`, `${chartContext.house}వ భావం గురించి అడగండి…`) : t("Ask anything…", "ఏదైనా అడగండి…")}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => { setInput(e.target.value); voiceInputRef.current = false; }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") ask(input);
               }}
               autoComplete="off"
             />
           </label>
-          <button className="iconbtn" type="button" aria-pressed={listening} aria-label={t("Speak your question", "మీ ప్రశ్న చెప్పండి")} onClick={toggleMic}>
+          <button className="iconbtn micbtn" type="button" aria-pressed={voicePhase === "recording"} disabled={busy || voicePhase !== "idle"} aria-label={t("Speak your question", "మీ ప్రశ్న చెప్పండి")} onClick={startRecording}>
             <svg viewBox="0 0 24 24">
               <rect x="9" y="3" width="6" height="11" rx="3" />
               <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
@@ -575,6 +698,22 @@ export function AskScreen() {
               </svg>
             )}
           </button>
+        </div>
+        <div className="voicelang" role="group" aria-label={t("Voice language", "వాయిస్ భాష")}>
+          {(["auto", "en", "te", "hi"] as SpeechLanguage[]).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={voiceLanguage === option}
+              disabled={voicePhase !== "idle"}
+              onClick={() => {
+                setVoiceLanguage(option);
+                try { localStorage.setItem("sahadeva.voice-language", option); } catch { /* ignore */ }
+              }}
+            >
+              {option === "auto" ? t("Auto", "ఆటో") : option === "en" ? "EN" : option === "te" ? "తెలుగు" : "हिन्दी"}
+            </button>
+          ))}
         </div>
         <p className={`sendstatus${busy && !answerStarted ? " on" : ""}`} role="status" aria-live="polite">
           {busy && !answerStarted ? t("Reading your chart and preparing an answer…", "మీ జాతకాన్ని చదివి సమాధానం సిద్ధం చేస్తోంది…") : ""}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./remedies.css";
 import { useLang, LangToggle } from "../lang";
 import { useData } from "../data";
@@ -45,13 +45,31 @@ const CHECK = (
   </svg>
 );
 
+type CompletionLog = Record<string, string[]>;
+
+function localDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function lastDateKeys(count: number): string[] {
+  const today = new Date();
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (count - 1 - index));
+    return localDateKey(date);
+  });
+}
+
 export function RemediesScreen() {
   const { lang, t } = useLang();
   const { profile } = useData();
   const [topic, setTopic] = useState("career");
   const [data, setData] = useState<RemedyProtocol | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [, force] = useState(0);
+  const [completionLog, setCompletionLog] = useState<CompletionLog>({});
   const [note, setNote] = useState<string>(() => {
     try {
       return localStorage.getItem("sahadev.review.note") || "";
@@ -83,16 +101,51 @@ export function RemediesScreen() {
   const opposing = data?.diagnosis.opposingEvidence?.length ?? 0;
   const mix = supporting && opposing ? t("mixed", "మిశ్రమం") : supporting ? t("supported", "అనుకూలం") : t("guarded", "జాగ్రత్త");
 
-  function key(id: string) {
-    return `sahadev.remedy.${topic}.${id}`;
-  }
-  const doneCount = practices.filter((p) => {
+  const profileScope = profile
+    ? `${profile.date}:${profile.time}:${profile.latitude.toFixed(3)}:${profile.longitude.toFixed(3)}`
+    : "empty";
+  const logKey = `sahadev.remedy.log.v1:${profileScope}:${topic}`;
+  const todayKey = localDateKey();
+  const visibleDates = useMemo(() => lastDateKeys(21), [todayKey]);
+
+  useEffect(() => {
     try {
-      return localStorage.getItem(key(p.id)) === "1";
+      const parsed = JSON.parse(localStorage.getItem(logKey) || "{}") as CompletionLog;
+      setCompletionLog(parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {});
     } catch {
-      return false;
+      setCompletionLog({});
     }
-  }).length;
+  }, [logKey]);
+
+  // Bring the old undated checkboxes forward as today's entries once.
+  useEffect(() => {
+    if (!practices.length) return;
+    setCompletionLog((current) => {
+      const migrated = practices
+        .filter((practice) => {
+          try { return localStorage.getItem(`sahadev.remedy.${topic}.${practice.id}`) === "1"; }
+          catch { return false; }
+        })
+        .map((practice) => practice.id);
+      if (!migrated.length || current[todayKey]?.length) return current;
+      const next = { ...current, [todayKey]: migrated };
+      try { localStorage.setItem(logKey, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, [logKey, practices, todayKey, topic]);
+
+  const todayDone = completionLog[todayKey] ?? [];
+  const doneCount = practices.filter((practice) => todayDone.includes(practice.id)).length;
+
+  function togglePractice(id: string) {
+    setCompletionLog((current) => {
+      const today = current[todayKey] ?? [];
+      const nextToday = today.includes(id) ? today.filter((item) => item !== id) : [...today, id];
+      const next = { ...current, [todayKey]: nextToday };
+      try { localStorage.setItem(logKey, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   return (
     <>
@@ -140,12 +193,7 @@ export function RemediesScreen() {
               <p className="sectitle">{t("What you can actually do", "మీరు నిజంగా చేయగలిగినవి")}</p>
               {practices.length === 0 && <p className="muted small">{t("No practice is required right now.", "ప్రస్తుతం ఏ ఆచరణా అవసరం లేదు.")}</p>}
               {practices.map((p) => {
-                let on = false;
-                try {
-                  on = localStorage.getItem(key(p.id)) === "1";
-                } catch {
-                  /* ignore */
-                }
+                const on = todayDone.includes(p.id);
                 return (
                   <div className={`prow${on ? " done" : ""}`} key={p.id}>
                     <button
@@ -153,14 +201,7 @@ export function RemediesScreen() {
                       type="button"
                       aria-pressed={on}
                       aria-label={p.label}
-                      onClick={() => {
-                        try {
-                          localStorage.setItem(key(p.id), on ? "0" : "1");
-                        } catch {
-                          /* ignore */
-                        }
-                        force((n) => n + 1);
-                      }}
+                      onClick={() => togglePractice(p.id)}
                     >
                       {CHECK}
                     </button>
@@ -177,9 +218,12 @@ export function RemediesScreen() {
                 <div className="log">
                   <p className="sectitle">{t("Your log — last 21 days", "మీ నమోదు — గత 21 రోజులు")}</p>
                   <div className="logstrip" role="img" aria-label="21 day log">
-                    {Array.from({ length: 21 }, (_, i) => (
-                      <i key={i} className={i === 20 ? (doneCount === practices.length ? "today on" : "today") : ""} />
-                    ))}
+                    {visibleDates.map((date, index) => {
+                      const count = completionLog[date]?.filter((id) => practices.some((practice) => practice.id === id)).length ?? 0;
+                      const complete = practices.length > 0 && count === practices.length;
+                      const label = `${date}: ${count} ${t("completed", "పూర్తయ్యాయి")}`;
+                      return <i key={date} className={`${count ? "on" : ""}${complete ? " full" : ""}${index === 20 ? " today" : ""}`} title={label} aria-label={label} />;
+                    })}
                   </div>
                   <div className="logmeta">
                     <span>{`${doneCount} ${t(`of ${practices.length} done today`, `/ ${practices.length} ఈ రోజు పూర్తి`)}`}</span>

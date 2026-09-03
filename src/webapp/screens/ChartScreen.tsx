@@ -8,6 +8,7 @@ import { dms, grahaAbbr, grahaName, nakName, signName, SIGN_LORDS } from "../for
 import { GrahaIcon } from "../design/GrahaIcon";
 import type { VargaPlacement } from "../api";
 import { setOnboardingMode } from "../onboardingMode";
+import { saveChartAskContext } from "../chartAskContext";
 
 // Sign order 0..11 = Mesha..Meena, with South Indian grid positions.
 const SIGN_LAYOUT: Array<{ k: string; en: string; full?: string; col: number; row: number }> = [
@@ -256,7 +257,15 @@ export function ChartScreen() {
                 <button className="btn" type="button" onClick={() => setOpenHouse(null)}>
                   {t("Close", "మూసివేయి")}
                 </button>
-                <button className="btn" type="button" onClick={() => navigate("ask")}>
+                <button className="btn" type="button" onClick={() => {
+                  saveChartAskContext({
+                    division: varga,
+                    house: openHouse.house,
+                    sign: `${sheetSign.full || sheetSign.k} (${sheetSign.en})`,
+                    planets: sheetPlanets.map((planet) => planet.name),
+                  });
+                  navigate("ask");
+                }}>
                   {t("Ask about this house", "ఈ భావం గురించి అడగండి")}
                 </button>
               </div>

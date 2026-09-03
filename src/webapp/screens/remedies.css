@@ -28,6 +28,7 @@
 .remedies-screen .logstrip { display: grid; grid-template-columns: repeat(21, 1fr); gap: 3px; margin-top: var(--space-3); }
 .remedies-screen .logstrip i { display: block; aspect-ratio: 1; border-radius: 1px; background: var(--border-soft); }
 .remedies-screen .logstrip i.on { background: var(--fg); }
+.remedies-screen .logstrip i.on:not(.full) { opacity: .45; }
 .remedies-screen .logstrip i.today { box-shadow: 0 0 0 1px var(--muted); }
 .remedies-screen .logmeta { display: flex; justify-content: space-between; margin-top: var(--space-3); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--meta); }
 
