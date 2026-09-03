@@ -14,7 +14,6 @@ import {
   type ChatSummary,
   type ChatTurn,
   type StoredConversation,
-  type SpeechLanguage,
 } from "../api";
 import { analyticsCapture } from "../../analytics";
 import { grahaName, signName, nakName } from "../format";
@@ -175,14 +174,6 @@ export function AskScreen() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [voicePhase, setVoicePhase] = useState<"idle" | "requesting" | "recording" | "transcribing">("idle");
-  const [voiceLanguage, setVoiceLanguage] = useState<SpeechLanguage>(() => {
-    try {
-      const saved = localStorage.getItem("sahadeva.voice-language");
-      return saved === "auto" || saved === "en" || saved === "hi" || saved === "te" ? saved : lang;
-    } catch {
-      return lang;
-    }
-  });
   const [voiceSeconds, setVoiceSeconds] = useState(0);
   const [voiceError, setVoiceError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -469,11 +460,11 @@ export function AskScreen() {
     try {
       let result: Awaited<ReturnType<typeof transcribeAudio>>;
       try {
-        result = await transcribeAudio(blob, voiceLanguage, controller.signal);
+        result = await transcribeAudio(blob, lang, controller.signal);
       } catch (firstError) {
         if (controller.signal.aborted) throw firstError;
         await new Promise((resolve) => window.setTimeout(resolve, 350));
-        result = await transcribeAudio(blob, voiceLanguage, controller.signal);
+        result = await transcribeAudio(blob, lang, controller.signal);
       }
       setInput((current) => current.trim() ? `${current.trim()} ${result.text}` : result.text);
       voiceInputRef.current = true;
@@ -698,22 +689,6 @@ export function AskScreen() {
               </svg>
             )}
           </button>
-        </div>
-        <div className="voicelang" role="group" aria-label={t("Voice language", "వాయిస్ భాష")}>
-          {(["auto", "en", "te", "hi"] as SpeechLanguage[]).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={voiceLanguage === option}
-              disabled={voicePhase !== "idle"}
-              onClick={() => {
-                setVoiceLanguage(option);
-                try { localStorage.setItem("sahadeva.voice-language", option); } catch { /* ignore */ }
-              }}
-            >
-              {option === "auto" ? t("Auto", "ఆటో") : option === "en" ? "EN" : option === "te" ? "తెలుగు" : "हिन्दी"}
-            </button>
-          ))}
         </div>
         <p className={`sendstatus${busy && !answerStarted ? " on" : ""}`} role="status" aria-live="polite">
           {busy && !answerStarted ? t("Reading your chart and preparing an answer…", "మీ జాతకాన్ని చదివి సమాధానం సిద్ధం చేస్తోంది…") : ""}

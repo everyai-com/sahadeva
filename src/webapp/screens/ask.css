@@ -165,11 +165,6 @@
 .voicecancel { background: transparent; border: 1px solid var(--border); color: var(--muted); }
 .voicedone { background: var(--fg); border: 1px solid var(--fg); color: var(--bg); }
 .voiceerror { background: color-mix(in srgb, var(--danger) 8%, var(--surface)); border-left: 3px solid var(--danger); border-radius: var(--radius-sm); color: var(--fg); font-size: 13px; line-height: 1.45; margin: 0 0 10px; padding: 10px 12px; }
-.voicelang { display: flex; gap: 4px; margin: 7px 2px 0; }
-.voicelang button { background: transparent; border: 0; border-radius: 7px; color: var(--muted); font-size: 11px; font-weight: 600; min-height: 30px; padding: 0 9px; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
-.voicelang button:hover { background: var(--border-soft); color: var(--fg); }
-.voicelang button[aria-pressed=true] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); color: var(--accent); }
-.voicelang button:disabled { opacity: .45; }
 @keyframes voicewave { from { transform: scaleY(.45); } to { transform: scaleY(1); } }
 
 @media (max-width: 410px) {
