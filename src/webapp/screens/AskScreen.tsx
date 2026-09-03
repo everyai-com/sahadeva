@@ -8,6 +8,7 @@ import {
   recordConversationInput,
   recordResponseIntentCoverage,
   transcribeAudio,
+  type SpeechLanguage,
   streamChat,
   submitClaimFeedback,
   saveConversationToAccount,
@@ -180,6 +181,13 @@ export function AskScreen() {
   const [voicePhase, setVoicePhase] = useState<"idle" | "requesting" | "recording" | "transcribing">("idle");
   const [voiceSeconds, setVoiceSeconds] = useState(0);
   const [voiceError, setVoiceError] = useState("");
+  const [speechLanguage, setSpeechLanguage] = useState<SpeechLanguage>(() => {
+    try {
+      const saved = localStorage.getItem("sahadeva:speech-language");
+      return saved === "en" || saved === "hi" || saved === "te" || saved === "auto" ? saved : "auto";
+    } catch { return "auto"; }
+  });
+  const [voiceConfirmed, setVoiceConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [answerStarted, setAnswerStarted] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -469,15 +477,17 @@ export function AskScreen() {
     try {
       let result: Awaited<ReturnType<typeof transcribeAudio>>;
       try {
-        result = await transcribeAudio(blob, lang, controller.signal);
+        result = await transcribeAudio(blob, speechLanguage, controller.signal);
       } catch (firstError) {
         if (controller.signal.aborted) throw firstError;
         await new Promise((resolve) => window.setTimeout(resolve, 350));
-        result = await transcribeAudio(blob, lang, controller.signal);
+        result = await transcribeAudio(blob, speechLanguage, controller.signal);
       }
       setInput((current) => current.trim() ? `${current.trim()} ${result.text}` : result.text);
       voiceInputRef.current = true;
       setVoiceError("");
+      setVoiceConfirmed(true);
+      window.setTimeout(() => setVoiceConfirmed(false), 2400);
     } catch (error) {
       if (!controller.signal.aborted)
         setVoiceError((error as Error).message || t("We couldn't transcribe that recording.", "ఆ రికార్డింగ్‌ను వచనంగా మార్చలేకపోయాం."));
@@ -491,6 +501,7 @@ export function AskScreen() {
   async function startRecording() {
     if (busy || voicePhase !== "idle") return;
     setVoiceError("");
+    setVoiceConfirmed(false);
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setVoiceError(t("Voice input is not supported by this browser. You can still type your question.", "ఈ బ్రౌజర్‌లో వాయిస్ ఇన్‌పుట్ అందుబాటులో లేదు. మీ ప్రశ్నను టైప్ చేయవచ్చు."));
       return;
@@ -661,20 +672,39 @@ export function AskScreen() {
       <div className="composer ask-screen">
         {voicePhase !== "idle" && (
           <section className={`voicepanel ${voicePhase}`} aria-live="polite">
-            <div className="voicehead">
-              <span className="voicepulse" aria-hidden="true"><i /><i /><i /><i /><i /></span>
-              <span>
-                <b>{voicePhase === "requesting" ? t("Opening microphone…", "మైక్రోఫోన్ తెరుస్తోంది…") : voicePhase === "recording" ? t("Listening", "వింటోంది") : t("Turning speech into text…", "మాటలను వచనంగా మారుస్తోంది…")}</b>
-                <small>{voicePhase === "recording" ? `0:${String(voiceSeconds).padStart(2, "0")} / 0:45` : t("Your recording is not stored.", "మీ రికార్డింగ్ భద్రపరచబడదు.")}</small>
-              </span>
-            </div>
-            {voicePhase === "recording" && (
-              <div className="voiceactions">
-                <button type="button" className="voicecancel" onClick={() => stopRecording(false)}>{t("Cancel", "రద్దు")}</button>
-                <button type="button" className="voicedone" onClick={() => stopRecording(true)}>{t("Use recording", "రికార్డింగ్ వాడండి")}</button>
+            <div className="voicemain">
+              <div className="voicehead">
+                <span className="voicepulse" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+                <span>
+                  <b>{voicePhase === "requesting" ? t("Opening microphone…", "మైక్రోఫోన్ తెరుస్తోంది…") : voicePhase === "recording" ? t("Listening", "వింటోంది") : t("Writing your words…", "మీ మాటలను వ్రాస్తోంది…")}</b>
+                  <small>{voicePhase === "recording" ? `${t("Tap Done when finished", "పూర్తయిన తర్వాత ముగించు నొక్కండి")} · 0:${String(voiceSeconds).padStart(2, "0")} / 0:45` : t("Audio is processed securely and is not stored.", "ఆడియో సురక్షితంగా ప్రాసెస్ చేయబడుతుంది, భద్రపరచబడదు.")}</small>
+                </span>
               </div>
-            )}
+              <div className="voicelanguages" role="group" aria-label={t("Spoken language", "మాట్లాడే భాష")}>
+                {(["auto", "en", "te", "hi"] as const).map((option) => (
+                  <button type="button" key={option} className={speechLanguage === option ? "active" : ""} aria-pressed={speechLanguage === option} disabled={voicePhase === "transcribing"} onClick={() => {
+                    setSpeechLanguage(option);
+                    try { localStorage.setItem("sahadeva:speech-language", option); } catch { /* ignore */ }
+                  }}>
+                    {option === "auto" ? t("Auto", "ఆటో") : option === "en" ? "English" : option === "te" ? "తెలుగు" : "हिन्दी"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="voiceactions">
+              {voicePhase === "recording" && <>
+                <button type="button" className="voicecancel" onClick={() => stopRecording(false)}>{t("Cancel", "రద్దు")}</button>
+                <button type="button" className="voicedone" onClick={() => stopRecording(true)}>{t("Done", "ముగించు")}</button>
+              </>}
+              {voicePhase === "transcribing" && <button type="button" className="voicecancel" onClick={() => transcriptionAbortRef.current?.abort()}>{t("Cancel", "రద్దు")}</button>}
+            </div>
           </section>
+        )}
+        {voiceConfirmed && voicePhase === "idle" && (
+          <p className="voiceconfirmed" role="status">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9" /></svg>
+            {t("Transcript ready — review or send it", "వచనం సిద్ధంగా ఉంది — చూసి పంపండి")}
+          </p>
         )}
         {voiceError && <p className="voiceerror" role="alert">{voiceError}</p>}
         <div className="crow">

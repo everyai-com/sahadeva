@@ -147,12 +147,13 @@
 .ask-screen .iconbtn[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .ask-screen .micbtn:disabled { cursor: default; opacity: .38; }
 
-.voicepanel { align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; gap: 14px; justify-content: space-between; margin-bottom: 10px; padding: 13px 14px; }
+.voicepanel { align-items: flex-end; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: 0 8px 24px color-mix(in srgb, var(--fg) 5%, transparent); display: flex; gap: 16px; justify-content: space-between; margin-bottom: 10px; padding: 14px; }
+.voicemain { display: grid; gap: 12px; min-width: 0; }
 .voicehead { align-items: center; display: flex; gap: 12px; min-width: 0; }
 .voicehead > span:last-child { min-width: 0; }
 .voicehead b, .voicehead small { display: block; }
 .voicehead b { font-size: 15px; font-weight: 600; }
-.voicehead small { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.voicehead small { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 3px; text-wrap: pretty; }
 .voicepulse { align-items: center; display: flex; flex: 0 0 auto; gap: 2px; height: 30px; justify-content: center; width: 34px; }
 .voicepulse i { animation: voicewave .9s ease-in-out infinite alternate; background: var(--accent); border-radius: 2px; display: block; height: 8px; width: 3px; }
 .voicepulse i:nth-child(2) { animation-delay: .1s; height: 17px; }
@@ -162,14 +163,28 @@
 .voicepanel.transcribing .voicepulse i, .voicepanel.requesting .voicepulse i { animation-duration: .55s; }
 .voiceactions { display: flex; flex: 0 0 auto; gap: 7px; }
 .voiceactions button { border-radius: var(--radius-md); font-size: 13px; font-weight: 600; min-height: 40px; padding: 0 12px; }
+.voiceactions button:active, .voicelanguages button:active { transform: scale(.97); }
 .voicecancel { background: transparent; border: 1px solid var(--border); color: var(--muted); }
 .voicedone { background: var(--fg); border: 1px solid var(--fg); color: var(--bg); }
+.voicelanguages { background: var(--bg); border: 1px solid var(--border-soft); border-radius: var(--radius-md); display: flex; gap: 3px; padding: 3px; width: fit-content; }
+.voicelanguages button { background: transparent; border: 0; border-radius: calc(var(--radius-md) - 3px); color: var(--muted); font-size: 12px; font-weight: 550; min-height: 32px; padding: 0 10px; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard); white-space: nowrap; }
+.voicelanguages button.active { background: var(--surface); box-shadow: 0 1px 3px color-mix(in srgb, var(--fg) 10%, transparent); color: var(--fg); }
+.voicelanguages button:focus-visible, .voiceactions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.voicelanguages button:disabled { cursor: default; opacity: .62; }
 .voiceerror { background: color-mix(in srgb, var(--danger) 8%, var(--surface)); border-left: 3px solid var(--danger); border-radius: var(--radius-sm); color: var(--fg); font-size: 13px; line-height: 1.45; margin: 0 0 10px; padding: 10px 12px; }
+.voiceconfirmed { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 7px; margin: 0 4px 9px; }
+.voiceconfirmed svg { fill: none; height: 17px; stroke: var(--accent); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; width: 17px; }
 @keyframes voicewave { from { transform: scaleY(.45); } to { transform: scaleY(1); } }
 
-@media (max-width: 410px) {
-  .voicepanel.recording { align-items: stretch; flex-direction: column; }
+@media (max-width: 480px) {
+  .voicepanel { align-items: stretch; flex-direction: column; }
   .voiceactions { justify-content: flex-end; }
+  .voicelanguages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+  .voicelanguages button { padding-inline: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voicepulse i { animation: none; }
 }
 
 .ask-screen .listen { display: none; align-items: center; gap: var(--space-3); padding: 12px 4px 4px; }
