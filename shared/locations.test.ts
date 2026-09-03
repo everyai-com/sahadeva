@@ -35,6 +35,13 @@ describe("offline location catalogue", () => {
     expect(searchKnownLocations("Telangana").length).toBe(20);
     expect(KNOWN_LOCATIONS.some((item) => item.country !== "India")).toBe(true);
   });
+  it("resolves and ranks common Vizianagaram transliterations", () => {
+    expect(findKnownLocation("Vijayanagaram")?.name).toBe("Vizianagaram");
+    expect(findKnownLocation("Vijaya Nagaram")?.name).toBe("Vizianagaram");
+    expect(searchKnownLocations("Vijayanagaram")[0]?.name).toBe(
+      "Vizianagaram",
+    );
+  });
   it("resolves Ambajipeta with its Konaseema coordinates and India timezone", () => {
     const place = findKnownLocation("Ambajipeta");
     expect(place).toMatchObject({

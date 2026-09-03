@@ -3,6 +3,7 @@ import type { ChartResult, GrahaName } from "./schema";
 import { isoToJd, jdToIso, queryDashaAt } from "./dashaCalendar";
 import { siderealSignAt } from "./jyotish";
 import { assessNatalPromise, type TimingTopic } from "./timingFusion";
+import { SIGN_LORDS as LORDS, TIMING_TOPIC_CONFIG } from "./topicConfig";
 
 /**
  * Code-computed "when" ledger for the chat consultation.
@@ -19,34 +20,13 @@ export type OutlookTopic = TimingTopic | "health" | "general";
 
 type TopicConfig = {
   house: number;
-  secondaryHouses: number[];
-  karakas: GrahaName[];
+  secondaryHouses: readonly number[];
+  karakas: readonly GrahaName[];
   label: string;
 };
 
-const LORDS: GrahaName[] = [
-  "Mars",
-  "Venus",
-  "Mercury",
-  "Moon",
-  "Sun",
-  "Mercury",
-  "Venus",
-  "Mars",
-  "Jupiter",
-  "Saturn",
-  "Saturn",
-  "Jupiter",
-];
-
 const CONFIG: Record<OutlookTopic, TopicConfig> = {
-  career: { house: 10, secondaryHouses: [6, 11, 2], karakas: ["Saturn", "Sun", "Mercury"], label: "career and work" },
-  marriage: { house: 7, secondaryHouses: [2, 11], karakas: ["Venus", "Jupiter"], label: "marriage and partnership" },
-  wealth: { house: 2, secondaryHouses: [11, 5, 9], karakas: ["Jupiter", "Venus", "Mercury"], label: "money and resources" },
-  education: { house: 5, secondaryHouses: [4, 9, 2], karakas: ["Mercury", "Jupiter"], label: "education and learning" },
-  children: { house: 5, secondaryHouses: [9, 11], karakas: ["Jupiter"], label: "children and creativity" },
-  property: { house: 4, secondaryHouses: [11, 2], karakas: ["Mars", "Venus"], label: "home, property and vehicles" },
-  spirituality: { house: 9, secondaryHouses: [5, 12], karakas: ["Jupiter", "Ketu"], label: "meaning and spiritual practice" },
+  ...TIMING_TOPIC_CONFIG,
   health: { house: 1, secondaryHouses: [6, 8], karakas: ["Sun", "Moon"], label: "health and vitality" },
   general: { house: 1, secondaryHouses: [10, 4], karakas: ["Sun", "Moon"], label: "overall momentum" },
 };
@@ -118,6 +98,16 @@ export type TimingOutlook = {
   notice: string;
 };
 
+export type RetrospectiveTimingOutlook = {
+  schemaVersion: "sahadeva-retrospective-timing-outlook-1";
+  topic: OutlookTopic;
+  topicLabel: string;
+  range: { startIso: string; endIso: string; label: string };
+  windows: OutlookWindow[];
+  dashaSequence: DashaStep[];
+  notice: string;
+};
+
 type Anatomy = TimingOutlook["topicAnatomy"] & { secondaryLords: GrahaName[]; houseSignIndex: number; lagnaSign: number; moonSign: number };
 
 function anatomy(chart: ChartResult, topic: OutlookTopic): Anatomy {
@@ -138,8 +128,8 @@ function anatomy(chart: ChartResult, topic: OutlookTopic): Anatomy {
     lord,
     lordHouse: relative(lagna.sign, lordPlacement.sign),
     occupants,
-    karakas: cfg.karakas,
-    secondaryLords,
+    karakas: Array.from(cfg.karakas) as GrahaName[],
+    secondaryLords: Array.from(secondaryLords) as GrahaName[],
     activators: Array.from(new Set<string>([lord, ...cfg.karakas, ...occupants])),
   };
 }
@@ -315,5 +305,29 @@ export function buildTimingOutlook(chart: ChartResult, topic: OutlookTopic, asOf
     transitsNow: { jupiterHouse: relative(a.lagnaSign, jupiterNow), saturnHouse: relative(a.lagnaSign, saturnNow), jupiterSign: SIGNS[jupiterNow], saturnSign: SIGNS[saturnNow] },
     headline,
     notice: "Windows rank traditional period-and-transit activation over the horizon; they are not event probabilities, guarantees or dates of events. Birth-time accuracy shifts house-based factors.",
+  };
+}
+
+export function buildRetrospectiveTimingOutlook(
+  chart: ChartResult,
+  topic: OutlookTopic,
+  startIso: string,
+  endIso: string,
+): RetrospectiveTimingOutlook {
+  const a = anatomy(chart, topic);
+  const start = isoToJd(startIso);
+  const end = isoToJd(endIso);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
+    throw new Error("Invalid retrospective timing range");
+  const months: OutlookMonth[] = [];
+  for (let jd = start; jd < end; jd += MONTH) months.push(scoreMonth(chart, a, jd));
+  return {
+    schemaVersion: "sahadeva-retrospective-timing-outlook-1",
+    topic,
+    topicLabel: CONFIG[topic].label,
+    range: { startIso, endIso, label: `${formatMonth(startIso)} – ${formatMonth(endIso)}` },
+    windows: mergeWindows(months, 30),
+    dashaSequence: dashaSequence(chart, a, start, end),
+    notice: "These are retrospectively ranked Dasha-and-transit activation periods, not proof that an event occurred or that a relationship succeeded.",
   };
 }

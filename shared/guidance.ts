@@ -1,11 +1,12 @@
 import type { BirthInput, Placement } from "./schema";
+import { TIMING_TOPIC_CONFIG } from "./topicConfig";
 
 export const FOCUS_GUIDE = {
   general: { house: 1, varga: "D1", karakas: ["Sun"], label: "Whole chart" },
   career: { house: 10, varga: "D10", karakas: ["Sun", "Saturn"], label: "Career and public work" },
   marriage: { house: 7, varga: "D9", karakas: ["Venus", "Jupiter"], label: "Partnership and marriage" },
   children: { house: 5, varga: "D7", karakas: ["Jupiter"], label: "Children and lineage" },
-  education: { house: 5, varga: "D24", karakas: ["Mercury", "Jupiter"], label: "Education and learning" },
+  education: { house: TIMING_TOPIC_CONFIG.education.house, varga: "D24", karakas: TIMING_TOPIC_CONFIG.education.karakas, label: "Education and learning" },
   property: { house: 4, varga: "D4", karakas: ["Mars"], label: "Property and fixed assets" },
   health: { house: 1, varga: "D27", karakas: ["Sun"], label: "Vitality and resilience" },
   spirituality: { house: 9, varga: "D20", karakas: ["Jupiter", "Ketu"], label: "Spiritual practice" },

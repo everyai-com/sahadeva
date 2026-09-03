@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateChart } from "./jyotish";
-import { buildTimingOutlook, formatMonth } from "./chatTimingOutlook";
+import { buildRetrospectiveTimingOutlook, buildTimingOutlook, formatMonth } from "./chatTimingOutlook";
 
 const input = {
   name: "Outlook fixture",
@@ -45,5 +45,40 @@ describe("chat timing outlook", () => {
   });
   it("formats months in UTC", () => {
     expect(formatMonth("2027-03-15T00:00:00.000Z")).toBe("Mar 2027");
+  });
+  it("uses one primary-house convention throughout education timing", () => {
+    const outlook = buildTimingOutlook(chart, "education", "2026-09-01T00:00:00.000Z", 2);
+    expect(outlook.topicAnatomy.house).toBe(4);
+    expect(outlook.natalPromise?.supporting.join(" ")).toMatch(/house 4|D24/);
+  });
+  it("calculates bounded retrospective relationship periods with their Dashas", () => {
+    const past = buildRetrospectiveTimingOutlook(
+      chart,
+      "marriage",
+      "2018-01-01T00:00:00.000Z",
+      "2025-12-31T23:59:59.000Z",
+    );
+    expect(past.range.label).toBe("Jan 2018 – Dec 2025");
+    expect(past.dashaSequence.length).toBeGreaterThan(0);
+    expect(past.windows.length).toBeLessThanOrEqual(4);
+    for (const window of past.windows) {
+      expect(window.periods.length).toBeGreaterThan(0);
+      expect(window.reasons.length).toBeGreaterThan(0);
+      expect(window.startIso >= past.range.startIso).toBe(true);
+      expect(window.endIso <= "2026-02-01T00:00:00.000Z").toBe(true);
+    }
+  });
+  it("supports retrospective timing across every consultation area", () => {
+    for (const topic of ["career", "education", "marriage", "property", "spirituality", "wealth", "health", "children", "general"] as const) {
+      const past = buildRetrospectiveTimingOutlook(
+        chart,
+        topic,
+        "2020-01-01T00:00:00.000Z",
+        "2025-12-31T23:59:59.000Z",
+      );
+      expect(past.topic).toBe(topic);
+      expect(past.dashaSequence.length).toBeGreaterThan(0);
+      expect(past.notice).toContain("not proof");
+    }
   });
 });

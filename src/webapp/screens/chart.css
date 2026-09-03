@@ -1,5 +1,6 @@
 /* Chart screen — ported from Web-Prototype/chart-viewer.html, scoped. */
 .chart-screen .shead { padding: 8px 0 14px; }
+.chart-screen .editbirth { margin: -6px 0 18px; padding: 5px 0; border: 0; background: transparent; color: var(--accent); font-size: var(--text-sm); }
 
 .chart-screen .seg { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px; margin-bottom: var(--space-4); }
 .chart-screen .seg button { flex: 1; min-height: 44px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: var(--text-base); text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
@@ -26,6 +27,12 @@
 .chart-screen .sumstrip { margin-top: var(--space-4); padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
 .chart-screen .sumstrip .sline { display: block; font-size: 17px; line-height: 1.5; }
 .chart-screen .sumstrip .tr { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); line-height: 1.6; margin-top: 10px; }
+.chart-screen .chartguide { margin-top: var(--space-5); padding: 18px; border-radius: var(--radius-lg); background: var(--surface); }
+.chart-screen .chartguide h3 { font-size: 18px; }
+.chart-screen .chartguide > div { display: grid; gap: 12px; margin-top: 14px; }
+.chart-screen .chartguide p { display: grid; grid-template-columns: 70px 1fr; gap: 12px; }
+.chart-screen .chartguide b { font-size: var(--text-sm); }
+.chart-screen .chartguide span { color: var(--muted); font-size: var(--text-sm); line-height: 1.45; }
 
 .chart-screen .legend { margin-top: var(--space-5); }
 .chart-screen .legend .sectitle { font-size: var(--text-sm); color: var(--muted); margin: 0 0 var(--space-3); font-weight: 500; }
@@ -50,3 +57,12 @@
 .chart-screen .sheetact { display: flex; gap: var(--space-2); margin-top: var(--space-5); }
 .chart-screen .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 52px; padding: 0 var(--space-5); border-radius: var(--radius-md); border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: var(--text-base); font-weight: 500; flex: 1; transition: background var(--motion-fast) var(--ease-standard); }
 .chart-screen .btn:hover { background: var(--border-soft); }
+
+@media (min-width: 760px) {
+  .chart-screen .chart { max-width: 720px; }
+  .chart-screen .sumstrip, .chart-screen .chartguide, .chart-screen .legend, .chart-screen .foot { max-width: 720px; }
+  .chart-screen .scrim.on { opacity: .18; }
+  .chart-screen .sheet { left: auto; right: 0; top: 0; bottom: 0; width: min(420px, 38vw); max-height: none; border-radius: 0; border: 0; border-left: 1px solid var(--border); padding: 42px 32px; transform: translateX(101%); box-shadow: -18px 0 42px rgba(29,29,31,.09); }
+  .chart-screen .sheet.on { transform: translateX(0); }
+  .chart-screen .grabber { display: none; }
+}

@@ -23,7 +23,11 @@ for (const file of inputs) {
     if (
       c.length < 19 ||
       c[6] !== "P" ||
-      population < 500 ||
+      // GeoNames leaves population unknown (0) for most Indian villages.
+      // Keep every Indian populated-place feature so birth-place onboarding
+      // does not silently exclude small villages. Retain the 500-person floor
+      // elsewhere to keep the global database compact.
+      (c[8] !== "IN" && population < 500) ||
       !c[17] ||
       seen.has(id)
     )

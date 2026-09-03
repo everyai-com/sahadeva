@@ -1,7 +1,7 @@
 /** What the person told Sahadeva about their life (job, family, current concern).
  *  Stored locally, sent with every question so guidance is concrete. */
 const KEY = "sahadev.webchat.context";
-export const LIFE_CONTEXT_MAX = 600;
+export const LIFE_CONTEXT_MAX = 2000;
 
 export function getLifeContext(): string {
   try {

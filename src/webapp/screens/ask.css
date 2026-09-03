@@ -7,9 +7,6 @@
 .ask-screen .histbtn:hover { background: var(--border-soft); }
 .ask-screen .histbtn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
-/* spacer that lets the just-sent question scroll to the top while streaming */
-.ask-screen .tailspace { flex: 0 0 auto; height: 62vh; }
-
 /* chat history drawer */
 .histscrim { position: absolute; inset: 0; background: var(--fg); opacity: 0; pointer-events: none; transition: opacity var(--motion-base) var(--ease-standard); z-index: 20; }
 .histscrim.on { opacity: 0.5; pointer-events: auto; }
@@ -55,7 +52,15 @@
 .ask-screen .topiccard .tic svg { width: 20px; height: 20px; stroke: var(--fg); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .ask-screen .topiccard .tlbl { font-size: 16px; font-weight: 600; line-height: 1.3; }
 
-.ask-screen .msg-user { align-self: flex-end; max-width: 86%; background: var(--accent); color: var(--accent-on); border: 1px solid var(--accent); border-radius: var(--radius-lg); padding: 12px 16px; font-size: 17px; line-height: 1.5; margin-top: var(--space-6); }
+.ask-screen .msg-user { align-self: flex-end; max-width: 86%; background: var(--surface); color: var(--fg); border: 1px solid var(--border-soft); border-radius: var(--radius-lg); padding: 12px 16px; font-size: 17px; line-height: 1.5; margin-top: var(--space-6); }
+
+.response-claim + .response-claim { border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); margin-top: 18px; padding-top: 8px; }
+.answer-feedback { align-items: center; color: var(--muted); display: flex; flex-wrap: wrap; font-size: 12px; gap: 7px; margin: 18px 0 4px; }
+.answer-feedback > button { align-items: center; background: transparent; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--muted); display: inline-flex; font-size: 15px; height: 30px; justify-content: center; min-width: 34px; }
+.answer-feedback > button:hover { border-color: var(--muted); color: var(--fg); }
+.answer-feedback > button.selected { background: var(--surface); border-color: var(--fg); color: var(--fg); }
+.claim-reasons { display: flex; flex-basis: 100%; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
+.claim-reasons button { background: var(--surface); border: 1px solid color-mix(in srgb, var(--ink) 13%, transparent); border-radius: 999px; color: var(--ink-soft); font-size: 11px; padding: 6px 9px; }
 .ask-screen .answer { margin-top: var(--space-5); }
 .ask-screen .averdict { font-size: var(--text-lg); line-height: 1.5; font-weight: 500; white-space: pre-wrap; }
 
@@ -104,13 +109,14 @@
 .ask-screen .cfield { flex: 1; display: flex; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 0 14px; min-height: 52px; }
 .ask-screen .cfield:focus-within { border-color: var(--accent); }
 .ask-screen .cfield input { flex: 1; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 17px; min-height: 50px; outline: none; }
+.ask-screen .cfield input:focus-visible { outline: none; box-shadow: none; }
 .ask-screen .cfield input::placeholder { color: var(--meta); }
 .ask-screen .iconbtn { flex: 0 0 auto; width: 52px; height: 52px; display: grid; place-items: center; border-radius: var(--radius-pill); border: 1px solid var(--border); background: transparent; color: var(--fg); transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
 .ask-screen .iconbtn:hover { background: var(--border-soft); }
 .ask-screen .iconbtn svg { width: 23px; height: 23px; stroke: currentColor; fill: none; stroke-width: 1.6; }
-.ask-screen .sendbtn { border-color: transparent; background: var(--accent); color: var(--accent-on); }
-.ask-screen .sendbtn:hover { background: var(--accent-hover); color: var(--accent-on); }
-.ask-screen .sendbtn:active { background: var(--accent-active); color: var(--accent-on); }
+.ask-screen .sendbtn { border-color: transparent; background: var(--fg); color: var(--bg); }
+.ask-screen .sendbtn:hover { background: var(--fg-2); color: var(--bg); }
+.ask-screen .sendbtn:active { transform: scale(.97); }
 .ask-screen .iconbtn[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
 .ask-screen .listen { display: none; align-items: center; gap: var(--space-3); padding: 12px 4px 4px; }
@@ -138,13 +144,12 @@
 .ask-screen .tmband.strong { background: var(--accent); }
 .ask-screen .tmband.moderate { background: var(--accent); opacity: 0.55; }
 .ask-screen .tmwins { display: flex; flex-direction: column; gap: 8px; }
-.ask-screen .tmwin { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); border-left-width: 4px; }
+.ask-screen .tmwin { padding: 0; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); border-left-width: 4px; }
 .ask-screen .tmwin.strong { border-left-color: var(--accent); }
 .ask-screen .tmwin.moderate { border-left-color: var(--muted); }
+.ask-screen .tmwin summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; padding: 11px 12px; list-style: none; }
 .ask-screen .tmwin b { font-size: 16px; font-weight: 600; }
-.ask-screen .tmwin span { font-size: var(--text-sm); color: var(--muted); line-height: 1.45; }
+.ask-screen .tmwin summary span { font-size: var(--text-xs); color: var(--muted); }
+.ask-screen .tmwin p { padding: 0 12px 12px; font-size: var(--text-sm); color: var(--muted); line-height: 1.5; }
 .ask-screen .tmsade { margin-top: var(--space-3); font-size: var(--text-base); }
 .ask-screen .tmnote { margin-top: var(--space-3); font-size: var(--text-xs); color: var(--meta); line-height: 1.5; }
-
-.ask-screen .deeper { display: block; width: 100%; margin-top: var(--space-4); min-height: 48px; padding: 0 var(--space-4); border: 1px solid var(--accent); border-radius: var(--radius-md); background: transparent; color: var(--accent); font-size: var(--text-base); font-weight: 600; text-align: left; }
-.ask-screen .deeper:hover { background: var(--border-soft); }

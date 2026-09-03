@@ -21,15 +21,17 @@ import {
   type DashaCalendar,
   type Person,
   type Profile,
+  type StoredConversation,
   type TodayPanchanga,
 } from "./api";
 import { useLang } from "./lang";
+import { analyticsIdentify, analyticsReset } from "../analytics";
 
-const PROFILE_KEY = "sahadeva.profile.v1"; // shared with the #pro chat app
+const GUEST_PROFILE_KEY = "sahadeva.profile.guest.v2";
 
 function loadLocalProfile(): Profile | null {
   try {
-    const raw = localStorage.getItem(PROFILE_KEY);
+    const raw = localStorage.getItem(GUEST_PROFILE_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as Profile;
     return p && p.date ? p : null;
@@ -37,9 +39,9 @@ function loadLocalProfile(): Profile | null {
     return null;
   }
 }
-function saveLocalProfile(p: Profile) {
+function saveGuestProfile(p: Profile) {
   try {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(p));
   } catch {
     /* private mode */
   }
@@ -56,6 +58,7 @@ type DataCtx = {
   /** All individual profiles on the signed-in account (empty for guests). */
   people: Person[];
   activePersonId: string | null;
+  conversation: StoredConversation | null;
   setAccount: (a: Account) => void;
   /** Re-fetch /api/me (after sign in/out); updates account + people + profile. */
   refreshMe: () => Promise<void>;
@@ -86,6 +89,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<DataCtx["account"]>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [activePersonId, setActivePersonId] = useState<string | null>(null);
+  const [conversation, setConversation] = useState<StoredConversation | null>(null);
+  const identifiedUserRef = useRef<string | null>(null);
 
   const [chart, setChart] = useState<Async<ChartResult>>({ status: "idle", data: null });
   const [transit, setTransit] = useState<Async<ChartResult>>({ status: "idle", data: null });
@@ -95,35 +100,47 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const currentSig = useRef<string>("");
 
   const setProfile = useCallback((p: Profile) => {
-    saveLocalProfile(p);
+    if (!account) saveGuestProfile(p);
     setProfileState(p);
-  }, []);
+  }, [account]);
 
   // Keep the profile's language in sync with the chosen UI language, so the AI
   // and server-localized panchanga are generated in that language too.
   useEffect(() => {
     if (profile && profile.language !== lang) {
       const next = { ...profile, language: lang };
-      saveLocalProfile(next);
+      if (!account) saveGuestProfile(next);
       setProfileState(next);
     }
-  }, [lang, profile]);
+  }, [account, lang, profile]);
 
   const refreshMe = useCallback(async () => {
     const me = await fetchMe();
     if (me.signedIn && me.user) {
+      analyticsIdentify(me.user.id);
+      identifiedUserRef.current = me.user.id;
       setAccount(me.user);
       setPeople(me.people ?? []);
       setActivePersonId(me.activePersonId ?? null);
+      setConversation(me.conversation ?? null);
       if (me.profile?.date) {
         // The account's active person is the source of truth once signed in.
-        saveLocalProfile(me.profile);
         setProfileState(me.profile);
+      } else {
+        // Never let a previous guest or account profile bleed into this account.
+        setProfileState(null);
       }
     } else {
+      const wasSignedIn = Boolean(identifiedUserRef.current);
+      if (wasSignedIn) analyticsReset();
+      identifiedUserRef.current = null;
       setAccount(null);
       setPeople([]);
       setActivePersonId(null);
+      setConversation(null);
+      // A real sign-out must clear the account's person. On a normal guest
+      // page load, retain only the guest-scoped profile.
+      setProfileState(wasSignedIn ? null : loadLocalProfile());
     }
     setMeLoaded(true);
   }, []);
@@ -132,7 +149,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     async (p: Profile) => {
       const res = await apiAddPerson(p);
       if (res.ok) {
-        saveLocalProfile(p);
         setProfileState(p); // the new person is auto-activated server-side
         await refreshMe();
       }
@@ -143,11 +159,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const activatePerson = useCallback(
     async (id: string) => {
-      const p = await apiActivatePerson(id);
-      if (p?.date) {
-        saveLocalProfile(p);
-        setProfileState(p);
+      const result = await apiActivatePerson(id);
+      if (result.profile?.date) {
+        setProfileState(result.profile);
       }
+      setConversation(result.conversation);
       setActivePersonId(id);
       await refreshMe();
     },
@@ -197,6 +213,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const psig = sig(profile);
   useEffect(() => {
     if (profile) runLoads(profile);
+    else {
+      currentSig.current = "";
+      setChart({ status: "idle", data: null });
+      setTransit({ status: "idle", data: null });
+      setToday({ status: "idle", data: null });
+      setDasha({ status: "idle", data: null });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [psig]);
 
@@ -206,11 +229,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<DataCtx>(
     () => ({
-      profile, meLoaded, account, people, activePersonId,
+      profile, meLoaded, account, people, activePersonId, conversation,
       setAccount, refreshMe, setProfile, addPerson, activatePerson, deletePerson,
       chart, transit, today, dasha, reload,
     }),
-    [profile, meLoaded, account, people, activePersonId, refreshMe, setProfile, addPerson, activatePerson, deletePerson, chart, transit, today, dasha, reload],
+    [profile, meLoaded, account, people, activePersonId, conversation, refreshMe, setProfile, addPerson, activatePerson, deletePerson, chart, transit, today, dasha, reload],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

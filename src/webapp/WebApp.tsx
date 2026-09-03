@@ -60,8 +60,8 @@ function Frame() {
   const { lang } = useLang();
   return (
     <div className="sahadev-web" lang={lang}>
+      <a className="skip-link" href="#content">Skip to content</a>
       <div className="phone">
-        <div className="island" aria-hidden="true" />
         <Screens />
       </div>
     </div>

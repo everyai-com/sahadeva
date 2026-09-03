@@ -17,10 +17,11 @@ const CHEV = (
   </svg>
 );
 
-function personSummary(person: Person): string {
+function personSummary(person: Person, lang: "en" | "te"): string {
   const p = person.profile;
   if (!p) return "—";
-  return [p.date, p.time, p.place].filter(Boolean).join(" · ");
+  const time = p.birthTimeConfidence === "none" ? (lang === "te" ? "సమయం తెలియదు" : "time not known") : p.time;
+  return [p.date, time, p.place].filter(Boolean).join(" · ");
 }
 
 export function MoreScreen() {
@@ -148,7 +149,7 @@ export function MoreScreen() {
                       <span className="pav">{(person.profile?.name || "?").trim().charAt(0).toUpperCase()}</span>
                       <span className="pmeta">
                         <b>{person.profile?.name || t("Unnamed", "పేరు లేదు")}</b>
-                        <span>{personSummary(person)}</span>
+                        <span>{personSummary(person, lang)}</span>
                       </span>
                       {active && (
                         <span className="pactive" aria-label={t("Active", "క్రియాశీలం")}>
@@ -178,7 +179,7 @@ export function MoreScreen() {
             <div className="pcard">
               <p className="pn">{profile.name}</p>
               <p className="pb">
-                {profile.date} · {profile.time} · {profile.place}
+                {profile.date} · {profile.birthTimeConfidence === "none" ? t("time not known", "సమయం తెలియదు") : profile.time} · {profile.place}
                 {moon && lagna ? (
                   <>
                     <br />

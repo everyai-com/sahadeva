@@ -1,36 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useLang } from "./lang";
+import { useData } from "./data";
 import { navigate, type Route } from "./router";
 
 /** Live status bar — matches the prototype `.statusbar` markup. */
 export function StatusBar() {
-  const [time, setTime] = useState(() => clock());
-  useEffect(() => {
-    const id = window.setInterval(() => setTime(clock()), 15_000);
-    return () => window.clearInterval(id);
-  }, []);
-  return (
-    <div className="statusbar" data-od-id="status-bar">
-      <span>{time}</span>
-      <span className="sbr">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M2 13a15 15 0 0 1 20 0M5.5 16.5a10 10 0 0 1 13 0M9 20a5 5 0 0 1 6 0" />
-        </svg>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="2" y="7" width="17" height="10" rx="2" />
-          <path d="M21 11v2" />
-          <rect x="4" y="9" width="12" height="6" fill="currentColor" stroke="none" />
-        </svg>
-      </span>
-    </div>
-  );
-}
-
-function clock() {
-  const d = new Date();
-  let h = d.getHours() % 12;
-  if (h === 0) h = 12;
-  return `${h}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return null;
 }
 
 const TAB_ICONS: Record<string, ReactNode> = {
@@ -60,6 +35,7 @@ const TAB_ICONS: Record<string, ReactNode> = {
 /** Bottom tab bar. `current` marks which of the four tabs is active. */
 export function TabBar({ current }: { current: "today" | "ask" | "chart" | "more" }) {
   const { t } = useLang();
+  const { profile, account } = useData();
   const tabs: Array<{ id: "today" | "ask" | "chart" | "more"; route: Route; label: string }> = [
     { id: "today", route: "today", label: t("Today", "ఈ రోజు") },
     { id: "ask", route: "ask", label: t("Ask", "అడగండి") },
@@ -68,6 +44,10 @@ export function TabBar({ current }: { current: "today" | "ask" | "chart" | "more
   ];
   return (
     <nav className="tabbar" data-od-id="tabbar">
+      <div className="webbrand">
+        <span className="brandmark" aria-hidden="true">S</span>
+        <span><b>Sahadeva</b><small>{t("Personal astrology", "వ్యక్తిగత జ్యోతిషం")}</small></span>
+      </div>
       {tabs.map((tab) => (
         <a
           key={tab.id}
@@ -83,6 +63,10 @@ export function TabBar({ current }: { current: "today" | "ask" | "chart" | "more
           <span>{tab.label}</span>
         </a>
       ))}
+      <div className="navidentity">
+        <span>{(profile?.name || account?.name || "?").trim().charAt(0).toUpperCase()}</span>
+        <div><b>{profile?.name || t("Guest", "అతిథి")}</b><small>{account?.email || t("Saved on this device", "ఈ పరికరంలో భద్రపరచబడింది")}</small></div>
+      </div>
     </nav>
   );
 }

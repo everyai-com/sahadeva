@@ -7,15 +7,10 @@ import {
   calculateKalachakraDasha,
   calculateYoginiDasha,
 } from "./additionalDashas";
+import { SIGN_LORDS as LORDS, TIMING_TOPIC_CONFIG as CONFIG } from "./topicConfig";
+export type { TimingTopic } from "./topicConfig";
+import type { TimingTopic } from "./topicConfig";
 
-export type TimingTopic =
-  | "career"
-  | "marriage"
-  | "wealth"
-  | "education"
-  | "children"
-  | "property"
-  | "spirituality";
 export type WeightedTimingFactor = {
   id: string;
   label: string;
@@ -33,32 +28,6 @@ export type PromiseAssessment = {
   contradictions: string[];
   convention: string;
 };
-const LORDS: GrahaName[] = [
-  "Mars",
-  "Venus",
-  "Mercury",
-  "Moon",
-  "Sun",
-  "Mercury",
-  "Venus",
-  "Mars",
-  "Jupiter",
-  "Saturn",
-  "Saturn",
-  "Jupiter",
-];
-const CONFIG: Record<
-  TimingTopic,
-  { house: number; karakas: GrahaName[]; varga: string }
-> = {
-  career: { house: 10, karakas: ["Saturn", "Sun", "Mercury"], varga: "D10" },
-  marriage: { house: 7, karakas: ["Venus", "Jupiter"], varga: "D9" },
-  wealth: { house: 2, karakas: ["Jupiter", "Venus", "Mercury"], varga: "D2" },
-  education: { house: 4, karakas: ["Mercury", "Jupiter"], varga: "D24" },
-  children: { house: 5, karakas: ["Jupiter"], varga: "D7" },
-  property: { house: 4, karakas: ["Mars", "Venus"], varga: "D4" },
-  spirituality: { house: 9, karakas: ["Jupiter", "Ketu"], varga: "D20" },
-};
 const relative = (origin: number, target: number) =>
   ((target - origin + 12) % 12) + 1;
 
@@ -75,7 +44,8 @@ export function assessNatalPromise(
     occupants = chart.placements.filter(
       (p) => p.name !== "Lagna" && p.sign === sign,
     ),
-    varga = chart.advanced.vargas[cfg.varga] || [],
+    vargaName = cfg.primaryVarga,
+    varga = chart.advanced.vargas[vargaName] || [],
     vargaLord = varga.find((p) => p.name === lord),
     support: string[] = [],
     opposition: string[] = [];
@@ -91,7 +61,7 @@ export function assessNatalPromise(
   if (occupants.some((p) => cfg.karakas.includes(p.name)))
     support.push(`A topic karaka occupies house ${cfg.house}`);
   if (vargaLord)
-    support.push(`${lord} is available for confirmation in ${cfg.varga}`);
+    support.push(`${lord} is available for confirmation in ${vargaName}`);
   const score = Math.max(
     0,
     Math.min(100, 25 * support.length - 15 * opposition.length),
@@ -101,7 +71,7 @@ export function assessNatalPromise(
     score,
     requiredEvidence: [
       `House ${cfg.house} and lord ${lord}`,
-      `${cfg.varga} confirmation`,
+      `${vargaName} confirmation`,
     ],
     supportingEvidence: support,
     contradictions: opposition,

@@ -13,7 +13,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useLang();
-  const { profile, setProfile, setAccount } = useData();
+  const { profile, refreshMe } = useData();
   const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,14 +36,13 @@ export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => voi
 
       const me = await fetchMe();
       if (!me.signedIn || !me.user) throw new Error(t("Something went wrong. Please try again.", "ఏదో తప్పు జరిగింది. మళ్లీ ప్రయత్నించండి."));
-      setAccount(me.user);
-      if (me.profile?.date) {
-        // account already has a saved chart → adopt it
-        setProfile(me.profile);
-      } else if (profile) {
-        // new account → seed it with the local chart
+      if (mode === "signup" && !me.profile?.date && profile) {
+        // A new empty account may adopt the chart created in guest mode.
         await saveProfileToAccount(profile);
       }
+      // Refresh atomically from the account; this also clears any guest chart
+      // when the signed-in account has no person of its own.
+      await refreshMe();
       reset();
       onClose();
     } catch (e) {

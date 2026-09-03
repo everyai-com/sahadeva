@@ -13,6 +13,8 @@ export type Profile = {
   timezone?: string;
   timezoneOffset: number;
   language: Lang;
+  birthTimeConfidence?: "exact" | "rough" | "part" | "none";
+  birthTimeAccuracyMinutes?: number;
 };
 
 /* ── chart ─────────────────────────────────────────────────────────────── */
@@ -133,6 +135,7 @@ export type DashaCalendar = {
 
 export type ChatSummary = {
   readingMode?: string;
+  conversationAlignment?: { score: number; concernOpen: boolean; recoveryAttempted: boolean } | null;
   anchors?: { lagna?: { signName?: string; degree?: number }; moon?: { signName?: string; degree?: number; nakshatra?: string; pada?: number } };
   panchanga?: { vara?: string; tithi?: string; paksha?: string; nakshatra?: string; yoga?: string; karana?: string };
   currentTiming?: { mahadasha?: string | null; antardasha?: string | null; nextMahadasha?: { lord: string; startIso: string; endIso: string } | null };
@@ -148,6 +151,14 @@ export type ChatSummary = {
     quietStretch: { label: string } | null;
     dashaSequence: Array<{ label: string; relevance: "direct" | "supporting" | "neutral"; activates: string[] }>;
     sadeSati: { active: boolean; stage: string | null; dhaiya: boolean; saturnHouseFromMoon: number };
+    notice: string;
+  } | null;
+  retrospectiveTiming?: {
+    topic: string;
+    topicLabel: string;
+    range: { startIso: string; endIso: string; label: string };
+    windows: Array<{ label: string; startIso: string; endIso: string; strength: "strong" | "moderate"; peakScore: number; reasons: string[]; periods: string[] }>;
+    dashaSequence: Array<{ label: string; relevance: "direct" | "supporting" | "neutral"; activates: string[] }>;
     notice: string;
   } | null;
 };
@@ -302,7 +313,20 @@ export type Me = {
   profile?: Profile | null;
   people?: Person[];
   activePersonId?: string | null;
+  conversation?: StoredConversation | null;
 };
+
+export type StoredConversation =
+  | ChatTurn[]
+  | {
+      threads: Array<{
+        id: string;
+        title: string;
+        updatedAt: string | number;
+        messages: ChatTurn[];
+      }>;
+      activeThreadId?: string;
+    };
 
 export async function fetchMe(): Promise<Me> {
   try {
@@ -327,14 +351,14 @@ export async function addPerson(profile: Profile): Promise<{ ok: boolean; person
   return { ok: res.ok, personId: j.personId, error: j.error };
 }
 
-export async function activatePerson(id: string): Promise<Profile | null> {
+export async function activatePerson(id: string): Promise<{ profile: Profile | null; conversation: StoredConversation | null }> {
   const res = await fetch(`/api/me/people/${encodeURIComponent(id)}/activate`, {
     method: "POST",
     credentials: "include",
   });
-  if (!res.ok) return null;
-  const j = (await res.json()) as { profile?: Profile };
-  return j.profile ?? null;
+  if (!res.ok) return { profile: null, conversation: null };
+  const j = (await res.json()) as { profile?: Profile; conversation?: StoredConversation | null };
+  return { profile: j.profile ?? null, conversation: j.conversation ?? null };
 }
 
 export async function deletePerson(id: string): Promise<boolean> {
@@ -391,9 +415,72 @@ export async function saveProfileToAccount(profile: Profile): Promise<boolean> {
   }
 }
 
+export async function saveConversationToAccount(
+  threads: Array<{ id: string; title: string; updatedAt: number; turns: ChatTurn[] }>,
+  activeThreadId: string | null,
+): Promise<boolean> {
+  try {
+    const res = await fetch("/api/me/conversation", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        threads: threads.slice(0, 20).map((thread) => ({
+          id: thread.id,
+          title: thread.title,
+          updatedAt: new Date(thread.updatedAt).toISOString(),
+          messages: thread.turns.map(({ role, content }) => ({ role, content })),
+        })),
+        activeThreadId: activeThreadId ?? "",
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /* ── chat streaming ────────────────────────────────────────────────────── */
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+export type AlignmentSnapshot = { score: number; cause: string; created_at: string };
+export type AlignmentState = { score: number; concernOpen?: boolean; history: AlignmentSnapshot[] };
+
+export async function fetchConversationAlignment(sessionId: string): Promise<AlignmentState> {
+  const res = await fetch(`/api/conversations/${encodeURIComponent(sessionId)}/alignment`, { credentials: "include" });
+  if (!res.ok) return { score: 50, history: [] };
+  return (await res.json()) as AlignmentState;
+}
+
+export async function recordConversationInput(
+  sessionId: string,
+  turnId: string,
+  input: string,
+): Promise<{ score: number; concernOpen: boolean }> {
+  const res = await fetch(`/api/conversations/${encodeURIComponent(sessionId)}/input`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ turnId, input }),
+  });
+  if (!res.ok) throw new Error("alignment-input");
+  return (await res.json()) as { score: number; concernOpen: boolean };
+}
+
+export async function submitClaimFeedback(
+  sessionId: string,
+  input: { turnId: string; claimId: string; claimKind: string; rating: "up" | "down"; reason?: string; response: string },
+): Promise<{ score: number; concernOpen: boolean; concernResolved?: boolean }> {
+  const res = await fetch(`/api/conversations/${encodeURIComponent(sessionId)}/claim-feedback`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error("feedback");
+  return (await res.json()) as { score: number; concernOpen: boolean; concernResolved?: boolean };
+}
 
 /**
  * Calls POST /api/chat and streams the assistant reply.
@@ -405,7 +492,7 @@ export async function streamChat(
   messages: ChatTurn[],
   onDelta: (cumulativeText: string) => void,
   signal?: AbortSignal,
-  options: { lifeContext?: string; deep?: boolean } = {},
+  options: { lifeContext?: string; deep?: boolean; conversationSessionId?: string; conversationTurnId?: string; fullProfile?: boolean } = {},
 ): Promise<{ text: string; summary: ChatSummary | null }> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -416,7 +503,10 @@ export async function streamChat(
       clientSurface: "web",
       responseStyle: options.deep ? "plain" : "layered",
       responseDepth: options.deep ? "deep" : "standard",
+      mode: options.fullProfile ? { fullProfile: true } : undefined,
       lifeContext: options.lifeContext || undefined,
+      conversationSessionId: options.conversationSessionId,
+      conversationTurnId: options.conversationTurnId,
     }),
     signal,
   });

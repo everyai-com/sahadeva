@@ -41,6 +41,7 @@
     "drizzle-orm": "^0.45.2",
     "hono": "latest",
     "pdf-lib": "^1.17.1",
+    "posthog-js": "^1.425.1",
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest"

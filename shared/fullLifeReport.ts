@@ -20,6 +20,8 @@ import { buildTopicJudgment, JUDGMENT_TOPICS } from "./judgment";
 import { analyzeAllHouses } from "./houseJudgment";
 import { analyzeNatalPanchanga } from "./natalPanchanga";
 import { buildPlanetaryRelationshipGraph } from "./practitioner";
+import { buildTimingOutlook } from "./chatTimingOutlook";
+import { TIMING_TOPICS } from "./topicConfig";
 
 export function buildFullLifeReport(
   chart: ChartResult,
@@ -112,6 +114,11 @@ export function buildFullLifeReport(
         notice: "These are overlapping timing factors, not promised events.",
       };
     });
+  const domainTimingOutlooks = Object.fromEntries(
+    TIMING_TOPICS.map(
+      (topic) => [topic, buildTimingOutlook(chart, topic, current.instantIso, years)],
+    ),
+  );
   const supportive = strengths
       .filter((item) => Number(item.ratio) >= 1)
       .slice(0, 4),
@@ -275,9 +282,20 @@ export function buildFullLifeReport(
     },
     futureTiming: {
       horizonYears: years,
+      domainOutlooks: domainTimingOutlooks,
       slowTransitPeriods: transitCalendar.periods,
       dashaTransitIntersections: intersections,
       yearByYear,
+      manifestationBoundary: {
+        rule:
+          "Activation identifies a life area, not the real-world event through which it manifests.",
+        home:
+          "Home/property activation does not establish relocation, foreign residence, leaving family, buying property, or working from home.",
+        relationships:
+          "Relationship activation does not establish a relationship start, ending, success, failure, engagement, or marriage.",
+        observedHistory:
+          "User-confirmed dates and records outrank astrological inference; contradictions must be preserved as failed or unresolved claims.",
+      },
     },
     uncertainty: {
       ...chart.advanced.uncertainty,

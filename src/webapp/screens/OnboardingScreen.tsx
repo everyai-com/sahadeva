@@ -15,28 +15,46 @@ function daysIn(m: number, y: number) {
   return [31, (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m];
 }
 
+function coordinateLabel(value: number, positive: string, negative: string) {
+  return `${Math.abs(value).toFixed(2)}° ${value >= 0 ? positive : negative}`;
+}
+
 type PlaceHit = { place: string; latitude: number; longitude: number; timezone?: string; timezoneOffset: number };
 
 export function OnboardingScreen() {
   const { lang, t } = useLang();
-  const { setProfile, account, addPerson } = useData();
+  const { profile: existingProfile, setProfile, account, addPerson } = useData();
+  const editing = getOnboardingMode() === "edit";
   const [saving, setSaving] = useState(false);
 
   const [step, setStep] = useState(1);
-  const [name, setName] = useState("");
-  const [d, setD] = useState(14);
-  const [m, setM] = useState(0);
-  const [y, setY] = useState(1995);
-  const [h, setH] = useState(9);
-  const [min, setMin] = useState(30);
-  const [ap, setAp] = useState(0); // 0 am, 1 pm
-  const [conf, setConf] = useState<"exact" | "rough" | "part" | "none">("exact");
-  const [branchOpen, setBranchOpen] = useState(false);
+  const [returnToReview, setReturnToReview] = useState(false);
+  const initialDate = editing && existingProfile?.date ? existingProfile.date.split("-").map(Number) : [1995, 1, 14];
+  const initialTime = editing && existingProfile?.time ? existingProfile.time.split(":").map(Number) : [9, 30];
+  const initialHour = initialTime[0] || 0;
+  const [name, setName] = useState(editing ? existingProfile?.name || "" : "");
+  const [d, setD] = useState(initialDate[2]);
+  const [m, setM] = useState(initialDate[1] - 1);
+  const [y, setY] = useState(initialDate[0]);
+  const [h, setH] = useState(initialHour % 12 || 12);
+  const [min, setMin] = useState(initialTime[1] || 0);
+  const [ap, setAp] = useState(initialHour >= 12 ? 1 : 0); // 0 am, 1 pm
+  const initialConfidence = editing ? existingProfile?.birthTimeConfidence || "exact" : "exact";
+  const [conf, setConf] = useState<"exact" | "rough" | "part" | "none">(initialConfidence);
+  const [branchOpen, setBranchOpen] = useState(initialConfidence !== "exact");
 
-  const [placeQuery, setPlaceQuery] = useState("");
+  const initialPlace = editing && existingProfile ? {
+    place: existingProfile.place,
+    latitude: existingProfile.latitude,
+    longitude: existingProfile.longitude,
+    timezone: existingProfile.timezone,
+    timezoneOffset: existingProfile.timezoneOffset,
+  } : null;
+  const [placeQuery, setPlaceQuery] = useState(initialPlace?.place || "");
   const [placeResults, setPlaceResults] = useState<PlaceHit[] | null>(null);
   const [placeSearching, setPlaceSearching] = useState(false);
-  const [place, setPlace] = useState<PlaceHit | null>(null);
+  const [place, setPlace] = useState<PlaceHit | null>(initialPlace);
+  const selectedPlaceRef = useRef<PlaceHit | null>(initialPlace);
 
   const [derived, setDerived] = useState<{ nak: string; pada: number; sign: number } | null | "loading">(null);
 
@@ -46,6 +64,11 @@ export function OnboardingScreen() {
   useEffect(() => {
     if (step !== 3) return;
     const q = placeQuery.trim();
+    if (selectedPlaceRef.current?.place === q) {
+      setPlaceSearching(false);
+      setPlaceResults([selectedPlaceRef.current]);
+      return;
+    }
     if (q.length < 2) {
       setPlaceResults(null);
       return;
@@ -53,10 +76,16 @@ export function OnboardingScreen() {
     setPlaceSearching(true);
     const id = window.setTimeout(async () => {
       try {
+        let hour = h % 12;
+        if (ap === 1) hour += 12;
         const res = await fetch("/api/locations/resolve", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ place: q }),
+          body: JSON.stringify({
+            place: q,
+            date: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+            time: `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`,
+          }),
         });
         const j = await res.json();
         if (res.ok) {
@@ -81,13 +110,15 @@ export function OnboardingScreen() {
       }
     }, 400);
     return () => window.clearTimeout(id);
-  }, [placeQuery, step]);
+  }, [placeQuery, step, d, m, y, h, min, ap]);
 
   function assembleProfile(): Profile {
     const date = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     let hh = h % 12;
     if (ap === 1) hh += 12;
-    const time = `${String(hh).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    const selectedTime = `${String(hh).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    const time = conf === "none" ? "06:00" : conf === "part" ? "12:00" : selectedTime;
+    const birthTimeAccuracyMinutes = conf === "exact" ? 5 : conf === "rough" ? 120 : conf === "part" ? 360 : 720;
     return {
       name: name.trim() || "You",
       date,
@@ -98,6 +129,8 @@ export function OnboardingScreen() {
       timezone: place!.timezone,
       timezoneOffset: place!.timezoneOffset,
       language: lang,
+      birthTimeConfidence: conf,
+      birthTimeAccuracyMinutes,
     };
   }
 
@@ -137,7 +170,26 @@ export function OnboardingScreen() {
       navigate(mode === "new" ? "ask" : "more");
       return;
     }
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep(4);
+      return;
+    }
     setStep((s) => Math.min(4, s + 1));
+  }
+
+  function editFromReview(targetStep: number) {
+    setReturnToReview(true);
+    setStep(targetStep);
+  }
+
+  function goBack() {
+    if (returnToReview) {
+      setReturnToReview(false);
+      setStep(4);
+      return;
+    }
+    setStep((s) => Math.max(1, s - 1));
   }
 
   const canContinue = step === 1 ? !dateBad : step === 3 ? !!place : true;
@@ -151,7 +203,7 @@ export function OnboardingScreen() {
       <div className="onboarding-screen" style={{ display: "contents" }}>
         <div className="navrow">
           {step > 1 ? (
-            <button className="backbtn" type="button" aria-label="Back" onClick={() => setStep((s) => Math.max(1, s - 1))}>
+            <button className="backbtn" type="button" aria-label="Back" onClick={goBack}>
               <svg viewBox="0 0 24 24">
                 <path d="M15 5l-7 7 7 7" />
               </svg>
@@ -199,14 +251,16 @@ export function OnboardingScreen() {
             <section>
               <h2>{t("What time were you born?", "మీరు ఏ సమయంలో పుట్టారు?")}</h2>
               <p className="qlead">{t("Most people do not know this exactly. That is fine — say so and Sahadev works around it.", "చాలామందికి ఇది కచ్చితంగా తెలియదు. ఫరవాలేదు — అలా చెబితే సహదేవ్ దాన్ని దృష్టిలో ఉంచుకునే పని చేస్తుంది.")}</p>
-              <div className="wheel" style={{ opacity: branchOpen ? 0.4 : 1 }}>
-                <div className="wband" aria-hidden="true" />
-                <WheelCol items={range(1, 12).map(String)} index={h - 1} onChange={(i) => setH(i + 1)} />
-                <WheelCol items={range(0, 59).map((n) => String(n).padStart(2, "0"))} index={min} onChange={setMin} />
-                <WheelCol items={ampmItems} index={ap} onChange={setAp} />
-              </div>
-              <button className="linkbtn" type="button" onClick={() => setBranchOpen((v) => !v)}>
-                {t("I’m not sure", "నాకు ఖచ్చితంగా తెలియదు")}
+              {!branchOpen && (
+                <div className="wheel">
+                  <div className="wband" aria-hidden="true" />
+                  <WheelCol items={range(1, 12).map(String)} index={h - 1} onChange={(i) => setH(i + 1)} />
+                  <WheelCol items={range(0, 59).map((n) => String(n).padStart(2, "0"))} index={min} onChange={setMin} />
+                  <WheelCol items={ampmItems} index={ap} onChange={setAp} />
+                </div>
+              )}
+              <button className="linkbtn" type="button" onClick={() => setBranchOpen((v) => { const next = !v; if (!next) setConf("exact"); return next; })}>
+                {branchOpen ? t("Enter an exact time", "ఖచ్చితమైన సమయం నమోదు చేయండి") : t("I’m not sure of the time", "సమయం ఖచ్చితంగా తెలియదు")}
               </button>
               <div className={`branch${branchOpen ? " on" : ""}`}>
                 <ConfOpt cur={conf} setConf={setConf} value="rough"
@@ -234,6 +288,7 @@ export function OnboardingScreen() {
                 onChange={(e) => {
                   setPlaceQuery(e.target.value);
                   setPlace(null);
+                  selectedPlaceRef.current = null;
                 }}
                 aria-label={t("Place of birth", "ప్రదేశం")}
                 autoComplete="off"
@@ -256,15 +311,16 @@ export function OnboardingScreen() {
                       type="button"
                       aria-pressed={place?.place === hit.place}
                       onClick={() => {
+                        selectedPlaceRef.current = hit;
                         setPlace(hit);
                         setPlaceQuery(hit.place);
                       }}
                     >
                       <b>{hit.place}</b>
                       <span>
-                        {hit.latitude.toFixed(2)} N, {hit.longitude.toFixed(2)} E · UTC{hit.timezoneOffset >= 0 ? "+" : ""}
-                        {hit.timezoneOffset}
+                        {hit.timezone || t("Verified location", "ధృవీకరించిన ప్రదేశం")} · {coordinateLabel(hit.latitude, "N", "S")}, {coordinateLabel(hit.longitude, "E", "W")}
                       </span>
+                      <i aria-hidden="true">{place?.place === hit.place ? "✓" : "›"}</i>
                     </button>
                   ))}
               </div>
@@ -277,15 +333,15 @@ export function OnboardingScreen() {
               <p className="qlead">{t("You can change any of it later.", "వీటిలో దేనినైనా తర్వాత మార్చుకోవచ్చు.")}</p>
               <div className="confcard">
                 <div className="crow">
-                  <span>{t("Name", "పేరు")}</span>
+                  <span>{t("Name", "పేరు")}<button type="button" onClick={() => editFromReview(1)}>{t("Edit", "మార్చు")}</button></span>
                   <span className="cv">{name.trim() || "—"}</span>
                 </div>
                 <div className="crow">
-                  <span>{t("Born", "జననం")}</span>
+                  <span>{t("Date of birth", "పుట్టిన తేదీ")}<button type="button" onClick={() => editFromReview(1)}>{t("Edit", "మార్చు")}</button></span>
                   <span className="cv">{`${d} ${monShort[m]} ${y}`}</span>
                 </div>
                 <div className="crow">
-                  <span>{t("Time", "సమయం")}</span>
+                  <span>{t("Time of birth", "పుట్టిన సమయం")}<button type="button" onClick={() => editFromReview(2)}>{t("Edit", "మార్చు")}</button></span>
                   <span className="cv">
                     {conf === "none"
                       ? t("not known", "తెలియదు")
@@ -295,21 +351,20 @@ export function OnboardingScreen() {
                   </span>
                 </div>
                 <div className="crow">
-                  <span>{t("Place", "ప్రదేశం")}</span>
+                  <span>{t("Place of birth", "పుట్టిన ప్రదేశం")}<button type="button" onClick={() => editFromReview(3)}>{t("Edit", "మార్చు")}</button></span>
                   <span className="cv">{place?.place ?? "—"}</span>
                 </div>
                 <div className="derived">
-                  <p className="dlbl">{t("YOUR BIRTH STAR AND MOON SIGN", "మీ జన్మ నక్షత్రం, చంద్ర రాశి")}</p>
+                  <p className="dlbl">{t("Your chart reference", "మీ జాతక సూచిక")}</p>
                   {derived === "loading" && <p className="dval" style={{ fontSize: 17, fontWeight: 500, color: "var(--muted)" }}>{t("Calculating…", "లెక్కిస్తోంది…")}</p>}
                   {derived && derived !== "loading" && (
                     <>
-                      <p className="dval">
-                        {t(
-                          `${nakName(derived.nak, "en")}, quarter ${derived.pada} — Moon in ${signName(derived.sign, "en")}`,
-                          `${nakName(derived.nak, "te")}, ${derived.pada}వ పాదం — చంద్రుడు ${signName(derived.sign, "te")} రాశిలో`,
-                        )}
-                      </p>
-                      <p className="dtr">{nakName(derived.nak, lang)} · {signName(derived.sign, lang)} · Lahiri sidereal</p>
+                      <dl className="birthrefs">
+                        <div><dt>{t("Birth star", "జన్మ నక్షత్రం")}</dt><dd>{nakName(derived.nak, lang)} · {t(`quarter ${derived.pada}`, `${derived.pada}వ పాదం`)}</dd></div>
+                        <div><dt>{t("Moon sign", "చంద్ర రాశి")}</dt><dd>{signName(derived.sign, lang)}</dd></div>
+                        <div><dt>{t("Calculation", "గణన పద్ధతి")}</dt><dd>{t("Lahiri sidereal", "లాహిరి నిరయణ")}</dd></div>
+                      </dl>
+                      <p className="refhelp">{t("These are the three reference points used throughout your reading.", "మీ పఠనం అంతటా ఉపయోగించే మూడు ప్రధాన సూచికలు ఇవి.")}</p>
                     </>
                   )}
                   {derived === null && <p className="dval" style={{ fontSize: 17, fontWeight: 500, color: "var(--muted)" }}>{t("Could not calculate — check the details.", "లెక్కించలేకపోయాం — వివరాలు సరిచూడండి.")}</p>}
@@ -336,7 +391,9 @@ export function OnboardingScreen() {
                 ? getOnboardingMode() === "add"
                   ? t("Add this person", "ఈ వ్యక్తిని జోడించు")
                   : t("Show my chart", "నా జాతకం చూడండి")
-                : t("Continue", "కొనసాగించు")}
+                : returnToReview
+                  ? t("Save change", "మార్పును భద్రపరచండి")
+                  : t("Continue", "కొనసాగించు")}
           </button>
         </div>
       </div>

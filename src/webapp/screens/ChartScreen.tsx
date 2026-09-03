@@ -6,6 +6,7 @@ import { navigate } from "../router";
 import { StatusBar, TabBar } from "../shell";
 import { dms, grahaAbbr, grahaName, nakName, signName, SIGN_LORDS } from "../format";
 import type { VargaPlacement } from "../api";
+import { setOnboardingMode } from "../onboardingMode";
 
 // Sign order 0..11 = Mesha..Meena, with South Indian grid positions.
 const SIGN_LAYOUT: Array<{ k: string; en: string; full?: string; col: number; row: number }> = [
@@ -100,12 +101,16 @@ export function ChartScreen() {
         <header className="shead headrow">
           <span>
             <p className="eyebrow">
-              {profile ? `${profile.name} · ${profile.date} · ${profile.time} · ${profile.place}` : ""}
+              {profile ? `${profile.name} · ${profile.date} · ${profile.birthTimeConfidence === "none" ? t("time not known", "సమయం తెలియదు") : profile.time} · ${profile.place}` : ""}
             </p>
             <h2>{t("My chart", "నా జాతకం")}</h2>
           </span>
           <LangToggle />
         </header>
+
+        <button className="editbirth" type="button" onClick={() => { setOnboardingMode("edit"); navigate("onboarding"); }}>
+          {t("Edit birth details", "జనన వివరాలు మార్చండి")}
+        </button>
 
         <div className="seg" role="tablist" aria-label="Chart division">
           <button type="button" role="tab" aria-selected={varga === "d1"} onClick={() => setVarga("d1")}>
@@ -170,6 +175,15 @@ export function ChartScreen() {
                 </span>
               </p>
             </div>
+
+            <section className="chartguide" aria-label={t("How to read this chart", "ఈ జాతకాన్ని ఎలా చదవాలి")}>
+              <h3>{t("How to read this chart", "ఈ జాతకాన్ని ఎలా చదవాలి")}</h3>
+              <div>
+                <p><b>{t("Sign", "రాశి")}</b><span>{t("The fixed zodiac name in each square.", "ప్రతి గడిలోని స్థిర రాశి పేరు.")}</span></p>
+                <p><b>{t("House", "భావం")}</b><span>{t("The small number shows the life area, counted from your ascendant.", "చిన్న సంఖ్య లగ్నం నుండి లెక్కించిన జీవిత రంగాన్ని చూపుతుంది.")}</span></p>
+                <p><b>{t("Planet", "గ్రహం")}</b><span>{t("Planet abbreviations show what occupies that sign. Select a square for details.", "గ్రహ సంక్షిప్తాలు ఆ రాశిలో ఉన్న గ్రహాలను చూపుతాయి. వివరాలకు గడిని ఎంచుకోండి.")}</span></p>
+              </div>
+            </section>
 
             <section className="legend">
               <p className="sectitle">{t("Short names used in the squares", "గడులలో వాడిన సంక్షిప్త పేర్లు")}</p>

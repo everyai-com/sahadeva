@@ -253,6 +253,8 @@ describe("Sahadeva MCP", () => {
     expect(systemPrompt).toContain("explicit complete-profile request");
     expect(systemPrompt).toContain('"mode":"complete-profile"');
     expect(systemPrompt).toContain('"completeLifeReading"');
+    expect(systemPrompt).toContain('"domainTimingOutlooks"');
+    expect(systemPrompt).toContain("property/home activation never by itself means relocation");
     expect(systemPrompt).toContain('"doshas"');
     expect(systemPrompt).toContain('"advancedAnchors"');
     expect(systemPrompt).toContain("What this means in daily life");
@@ -823,12 +825,23 @@ describe("Sahadeva MCP", () => {
         plainLanguageReading: { sections: unknown[] };
         aspects: { planetToHouse: unknown[] };
         ashtakavarga: { sarvaBySign: unknown[] };
+        futureTiming: {
+          domainOutlooks: Record<string, unknown>;
+          manifestationBoundary: { home: string; relationships: string };
+        };
         sourceCoverage: { status: string };
       };
     expect(reportBody.schemaVersion).toBe("sahadeva-full-life-report-1");
     expect(reportBody.plainLanguageReading.sections.length).toBeGreaterThan(5);
     expect(reportBody.aspects.planetToHouse.length).toBeGreaterThan(0);
     expect(reportBody.ashtakavarga.sarvaBySign).toHaveLength(12);
+    expect(Object.keys(reportBody.futureTiming.domainOutlooks)).toHaveLength(7);
+    expect(reportBody.futureTiming.manifestationBoundary.home).toContain(
+      "does not establish relocation",
+    );
+    expect(reportBody.futureTiming.manifestationBoundary.relationships).toContain(
+      "does not establish a relationship start",
+    );
     expect(reportBody.sourceCoverage.status).toBe("awaiting-reviewed-rules");
     expect(
       (report.body.result?.content as Array<{ text: string }>)[0].text.length,
@@ -1347,6 +1360,56 @@ describe("Sahadeva MCP", () => {
       timezone: "Asia/Kolkata",
       source: "workers-ai",
       confidence: 0.91,
+    });
+  });
+
+  it("resolves an onboarding place from the worldwide GeoNames database", async () => {
+    const response = await app.request(
+        "http://localhost/api/locations/resolve",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            place: "Ouagadougou",
+            date: "1992-04-18",
+            time: "08:30",
+          }),
+        },
+        {
+          ENGINE_VERSION: "test",
+          CALC_RATE_LIMITER: { limit: async () => ({ success: true }) },
+          DB: {
+            prepare: () => ({
+              bind() {
+                return this;
+              },
+              all: async () => ({
+                results: [
+                  {
+                    name: "Ouagadougou",
+                    ascii_name: "Ouagadougou",
+                    latitude: 12.36566,
+                    longitude: -1.53388,
+                    country_code: "BF",
+                    admin1_code: "03",
+                    population: 2415266,
+                    timezone: "Africa/Ouagadougou",
+                    match_rank: 0,
+                  },
+                ],
+              }),
+            }),
+          },
+        } as never,
+      ),
+      body = (await response.json()) as Record<string, unknown>;
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      place: "Ouagadougou, 03, Burkina Faso",
+      latitude: 12.36566,
+      longitude: -1.53388,
+      timezone: "Africa/Ouagadougou",
+      source: "geonames",
     });
   });
 

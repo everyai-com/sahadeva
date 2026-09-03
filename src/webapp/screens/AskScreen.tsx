@@ -3,13 +3,25 @@ import "./ask.css";
 import { useLang, LangToggle } from "../lang";
 import { useData } from "../data";
 import { StatusBar, TabBar } from "../shell";
-import { streamChat, type ChatSummary, type ChatTurn } from "../api";
+import {
+  fetchConversationAlignment,
+  recordConversationInput,
+  streamChat,
+  submitClaimFeedback,
+  saveConversationToAccount,
+  type AlignmentSnapshot,
+  type ChatSummary,
+  type ChatTurn,
+  type StoredConversation,
+} from "../api";
+import { analyticsCapture } from "../../analytics";
 import { grahaName, signName, nakName } from "../format";
 import { Markdown } from "../md";
 import { getLifeContext } from "../lifeContext";
+import { requestsFullProfile } from "../../../shared/chatEvidenceRouting";
 import type { ReactNode } from "react";
 
-type Turn = ChatTurn & { summary?: ChatSummary | null; streaming?: boolean; error?: string };
+type Turn = ChatTurn & { id?: string; summary?: ChatSummary | null; streaming?: boolean; error?: string };
 
 // The top life areas people ask about first, shown as selectable cards.
 type Topic = { id: string; en: string; te: string; icon: ReactNode; qEn: string; qTe: string };
@@ -73,31 +85,50 @@ const GREETING_RE =
   /^(hi+|hey+|hello+|hii+|hiya|yo|hai|namaste|namaskar(am)?|vandanam|good\s?(morning|afternoon|evening|night)|thanks?|thank you|ok(ay)?|nice|cool|హాయ్|హలో|నమస్తే|నమస్కారం|వందనం|ధన్యవాదాలు|థాంక్స్|సరే|బాగుంది)[\s!.…]*$/i;
 
 /* ── chat history (threads persisted locally, ChatGPT-style) ────────────── */
-type StoredTurn = { role: "user" | "assistant"; content: string; summary?: ChatSummary | null };
+type StoredTurn = { id?: string; role: "user" | "assistant"; content: string; summary?: ChatSummary | null };
 type Thread = { id: string; title: string; updatedAt: number; turns: StoredTurn[] };
-const THREADS_KEY = "sahadev.webchat.threads";
+const THREADS_KEY = "sahadev.webchat.threads.v2";
 
-function loadThreads(): Thread[] {
+function loadThreads(scope: string): Thread[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(THREADS_KEY) || "[]");
+    const raw = JSON.parse(localStorage.getItem(`${THREADS_KEY}:${scope}`) || "[]");
     return Array.isArray(raw) ? (raw as Thread[]) : [];
   } catch {
     return [];
   }
 }
-function saveThreads(list: Thread[]) {
+function saveThreads(scope: string, list: Thread[]) {
   try {
-    localStorage.setItem(THREADS_KEY, JSON.stringify(list.slice(0, 50)));
+    localStorage.setItem(`${THREADS_KEY}:${scope}`, JSON.stringify(list.slice(0, 50)));
   } catch {
     /* ignore */
   }
+}
+
+function serverThreads(value: StoredConversation | null): Thread[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.length
+      ? [{ id: newThreadId(), title: titleFrom(value), updatedAt: Date.now(), turns: value }]
+      : [];
+  }
+  return (value.threads || []).map((thread) => ({
+    id: thread.id,
+    title: thread.title || titleFrom(thread.messages),
+    updatedAt: typeof thread.updatedAt === "number" ? thread.updatedAt : Date.parse(thread.updatedAt) || Date.now(),
+    turns: thread.messages || [],
+  }));
 }
 function titleFrom(turns: StoredTurn[]): string {
   const q = turns.find((x) => x.role === "user")?.content || "New chat";
   return q.length > 48 ? q.slice(0, 48).trimEnd() + "…" : q;
 }
 function newThreadId(): string {
-  return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  return `t-${crypto.randomUUID()}`;
+}
+
+function newTurnId(): string {
+  return `r-${crypto.randomUUID()}`;
 }
 function relativeTime(ms: number, lang: "en" | "te"): string {
   const diff = Date.now() - ms;
@@ -111,23 +142,56 @@ function relativeTime(ms: number, lang: "en" | "te"): string {
   return new Date(ms).toLocaleDateString(lang === "te" ? "te-IN" : "en-IN", { day: "numeric", month: "short" });
 }
 
+function rememberedUserContext(threads: Thread[], manualContext: string): string {
+  const earlierUserMessages = threads
+    .flatMap((thread) => thread.turns)
+    .filter((turn) => turn.role === "user" && turn.content.trim())
+    .slice(-16)
+    .map((turn) => `Earlier user message: ${turn.content.replace(/\s+/g, " ").trim()}`);
+  return [manualContext.trim(), ...earlierUserMessages]
+    .filter(Boolean)
+    .join("\n")
+    .slice(-2000);
+}
+
 export function AskScreen() {
   const { lang, t } = useLang();
-  const { profile } = useData();
+  const { profile, account, activePersonId, conversation } = useData();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [threads, setThreads] = useState<Thread[]>(() => loadThreads());
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [alignmentScore, setAlignmentScore] = useState(50);
+  const [alignmentHistory, setAlignmentHistory] = useState<AlignmentSnapshot[]>([]);
   const threadRef = useRef<HTMLElement>(null);
   const recognitionRef = useRef<any>(null);
   const activeIdRef = useRef<string | null>(null);
   const threadsRef = useRef<Thread[]>(threads);
+  const storageScope = account?.id && activePersonId
+    ? `account:${account.id}:person:${activePersonId}`
+    : profile
+      ? `guest:${profile.date}:${profile.time}:${profile.latitude.toFixed(3)}:${profile.longitude.toFixed(3)}`
+      : "guest:empty";
+  const storageScopeRef = useRef(storageScope);
   useEffect(() => {
     threadsRef.current = threads;
   }, [threads]);
+
+  useEffect(() => {
+    storageScopeRef.current = storageScope;
+    const restored = account ? serverThreads(conversation) : loadThreads(storageScope);
+    const localFallback = restored.length ? restored : loadThreads(storageScope);
+    threadsRef.current = localFallback;
+    setThreads(localFallback);
+    setTurns([]);
+    setActiveId(null);
+    activeIdRef.current = null;
+    setAlignmentScore(50);
+    setAlignmentHistory([]);
+  }, [account, activePersonId, conversation, storageScope]);
 
   const scrollToBottom = () =>
     requestAnimationFrame(() => {
@@ -149,7 +213,7 @@ export function AskScreen() {
   function persistThread(turnsArr: Turn[]) {
     const stored: StoredTurn[] = turnsArr
       .filter((x) => !x.streaming && (x.content || x.summary))
-      .map((x) => ({ role: x.role, content: x.content, summary: x.summary ?? null }));
+      .map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null }));
     if (!stored.some((x) => x.role === "user")) return;
     const now = Date.now();
     const prev = threadsRef.current;
@@ -167,13 +231,14 @@ export function AskScreen() {
     threadsRef.current = list;
     setActiveId(id);
     setThreads(list);
-    saveThreads(list);
+    saveThreads(storageScopeRef.current, list);
+    if (account) void saveConversationToAccount(list, id);
   }
 
   function openThread(th: Thread) {
     activeIdRef.current = th.id;
     setActiveId(th.id);
-    setTurns(th.turns.map((x) => ({ role: x.role, content: x.content, summary: x.summary ?? null })));
+    setTurns(th.turns.map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null })));
     setHistoryOpen(false);
     scrollToBottom();
   }
@@ -182,6 +247,8 @@ export function AskScreen() {
     activeIdRef.current = null;
     setActiveId(null);
     setTurns([]);
+    setAlignmentScore(50);
+    setAlignmentHistory([]);
     setHistoryOpen(false);
   }
 
@@ -189,15 +256,48 @@ export function AskScreen() {
     const list = threadsRef.current.filter((th) => th.id !== id);
     threadsRef.current = list;
     setThreads(list);
-    saveThreads(list);
+    saveThreads(storageScopeRef.current, list);
+    if (account) void saveConversationToAccount(list, activeIdRef.current === id ? null : activeIdRef.current);
     if (activeIdRef.current === id) newChat();
   }
 
   async function ask(text: string, deep = false) {
     if (!profile || !text.trim() || busy) return;
     const question = text.trim();
+    let sessionId = activeIdRef.current;
+    if (!sessionId) {
+      sessionId = newThreadId();
+      activeIdRef.current = sessionId;
+      setActiveId(sessionId);
+    }
+    analyticsCapture("prompt_submitted", {
+      conversation_session_id: sessionId,
+      input_length_band: question.length < 80 ? "short" : question.length < 300 ? "medium" : "long",
+      input_method: listening ? "voice" : "text",
+      response_depth: deep ? "deep" : "standard",
+    });
     const base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
-    const withUser: Turn[] = [...base, { role: "user", content: question }];
+    const userTurnId = newTurnId();
+    const withUser: Turn[] = [...base, { id: userTurnId, role: "user", content: question }];
+    // Save scoring in the background so a new chat appears immediately.
+    void (async () => {
+      try {
+        const inputState = await recordConversationInput(sessionId, userTurnId, question);
+        const next = await fetchConversationAlignment(sessionId);
+        if (activeIdRef.current === sessionId) {
+          setAlignmentScore(inputState.score);
+          setAlignmentHistory(next.history);
+        }
+        analyticsCapture("alignment_score_changed", {
+          conversation_session_id: sessionId,
+          alignment_score: inputState.score,
+          concern_open: inputState.concernOpen,
+          source: "user_input",
+        });
+      } catch {
+        // Conversation remains available if telemetry persistence is temporarily unavailable.
+      }
+    })();
 
     // Greetings / small talk: reply conversationally, don't run a reading.
     if (GREETING_RE.test(question)) {
@@ -207,7 +307,7 @@ export function AskScreen() {
       );
       const suggestions = TOPICS.slice(0, 4).map((tp) => (lang === "te" ? tp.qTe : tp.qEn));
       const synthetic = { everyday: { dailyLife: { questions: suggestions } } } as ChatSummary;
-      const greetTurns: Turn[] = [...withUser, { role: "assistant", content: greetText, summary: synthetic, streaming: false }];
+      const greetTurns: Turn[] = [...withUser, { id: newTurnId(), role: "assistant", content: greetText, summary: synthetic, streaming: false }];
       setInput("");
       setTurns(greetTurns);
       persistThread(greetTurns);
@@ -219,7 +319,8 @@ export function AskScreen() {
       ...base.map((x) => ({ role: x.role, content: x.content })),
       { role: "user", content: question },
     ];
-    setTurns([...withUser, { role: "assistant", content: "", streaming: true }]);
+    const responseTurnId = newTurnId();
+    setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: true }]);
     setInput("");
     setBusy(true);
     pinQuestionTop(); // bring the new question to the top; don't chase the bottom
@@ -229,22 +330,82 @@ export function AskScreen() {
         { ...profile, language: lang },
         history,
         (cumulative) => {
-          setTurns([...withUser, { role: "assistant", content: cumulative, streaming: true }]);
+          setTurns([...withUser, { id: responseTurnId, role: "assistant", content: cumulative, streaming: true }]);
         },
         undefined,
-        { lifeContext: getLifeContext(), deep },
+        {
+          lifeContext: rememberedUserContext(threadsRef.current, getLifeContext()),
+          deep,
+          conversationSessionId: sessionId,
+          conversationTurnId: userTurnId,
+          fullProfile: requestsFullProfile(question),
+        },
       );
-      const finalTurns: Turn[] = [...withUser, { role: "assistant", content: reply, summary, streaming: false }];
+      const finalTurns: Turn[] = [...withUser, { id: responseTurnId, role: "assistant", content: reply, summary, streaming: false }];
       setTurns(finalTurns);
       persistThread(finalTurns);
+      analyticsCapture("response_completed", {
+        conversation_session_id: sessionId,
+        response_length_band: reply.length < 500 ? "short" : reply.length < 2500 ? "medium" : "long",
+        reading_mode: summary?.readingMode || "unknown",
+      });
+      if (summary?.conversationAlignment?.recoveryAttempted)
+        analyticsCapture("concern_recovery_attempted", {
+          conversation_session_id: sessionId,
+          alignment_score: summary.conversationAlignment.score,
+        });
+      void fetchConversationAlignment(sessionId).then((nextAlignment) => {
+        if (activeIdRef.current === sessionId) {
+          setAlignmentScore(nextAlignment.score);
+          setAlignmentHistory(nextAlignment.history);
+        }
+      }).catch(() => {
+        // A completed answer must not remain loading if scoring is unavailable.
+      });
     } catch (e) {
       const msg = String((e as Error).message) === "rate"
         ? t("Too many questions just now — try again in a moment.", "ఇప్పుడే చాలా ప్రశ్నలు — కొద్ది సేపటిలో మళ్లీ ప్రయత్నించండి.")
         : t("The assistant is unavailable right now. Your calculated chart is unaffected.", "సహాయకుడు ప్రస్తుతం అందుబాటులో లేడు. మీ జాతకం ప్రభావితం కాలేదు.");
-      setTurns([...withUser, { role: "assistant", content: "", streaming: false, error: msg }]);
+      setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: false, error: msg }]);
     } finally {
       setBusy(false);
     }
+  }
+
+  useEffect(() => {
+    if (!activeId) return;
+    void fetchConversationAlignment(activeId).then((state) => {
+      setAlignmentScore(state.score);
+      setAlignmentHistory(state.history);
+    });
+  }, [activeId]);
+
+  async function reactToClaim(input: {
+    turnId: string;
+    claimId: string;
+    claimKind: string;
+    rating: "up" | "down";
+    reason?: string;
+    response: string;
+  }) {
+    const sessionId = activeIdRef.current;
+    if (!sessionId) return;
+    const result = await submitClaimFeedback(sessionId, input);
+    const next = await fetchConversationAlignment(sessionId);
+    setAlignmentScore(result.score);
+    setAlignmentHistory(next.history);
+    analyticsCapture("claim_feedback_submitted", {
+      conversation_session_id: sessionId,
+      claim_kind: input.claimKind,
+      rating: input.rating,
+      reason: input.reason,
+      alignment_score: result.score,
+    });
+    if (result.concernResolved)
+      analyticsCapture("concern_resolved", {
+        conversation_session_id: sessionId,
+        alignment_score: result.score,
+      });
   }
 
   function toggleMic() {
@@ -320,16 +481,19 @@ export function AskScreen() {
         ) : (
           turns.map((turn, i) =>
             turn.role === "user" ? (
-              <div className="msg-user" key={i}>
+              <div className="msg-user" key={turn.id || i}>
                 {turn.content}
               </div>
             ) : (
-              <Answer key={i} turn={turn} onFollowUp={ask} onDeeper={() => { const q = turns[i - 1]; if (q?.role === "user") ask(q.content, true); }} />
+              <Answer
+                key={turn.id || i}
+                turn={turn}
+                onFollowUp={ask}
+                onReact={reactToClaim}
+              />
             ),
           )
         )}
-        {/* room to keep the current question pinned near the top while streaming */}
-        {busy && <div className="tailspace" aria-hidden="true" />}
       </main>
 
       <div className="composer ask-screen">
@@ -418,8 +582,108 @@ const TOPIC_TE: Record<string, string> = {
   "overall momentum": "మొత్తం గమనం",
 };
 
+type ClaimFeedbackInput = {
+  turnId: string;
+  claimId: string;
+  claimKind: string;
+  rating: "up" | "down";
+  reason?: string;
+  response: string;
+};
+
+function materialClaims(text: string, prefix: string): Array<{ id: string; kind: string; text: string }> {
+  const claims: Array<{ id: string; kind: string; text: string }> = [];
+  let heading = "";
+  let kind = prefix;
+  let paragraph: string[] = [];
+  const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 42);
+  const push = (body: string) => {
+    const value = `${heading}${heading ? "\n" : ""}${body}`.trim();
+    if (!value) return;
+    const index = claims.length;
+    claims.push({ id: `${prefix}_${index}_${slug(value.slice(0, 70)) || "point"}`, kind, text: value });
+    heading = "";
+  };
+  const flushParagraph = () => {
+    if (paragraph.length) push(paragraph.join("\n"));
+    paragraph = [];
+  };
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    const headingMatch = /^(#{1,6})\s+(.+)$/.exec(trimmed);
+    if (headingMatch) {
+      flushParagraph();
+      heading = trimmed;
+      kind = slug(headingMatch[2]) || prefix;
+    } else if (/^(?:[-*+]\s+|\d+[.)]\s+)/.test(trimmed)) {
+      flushParagraph();
+      push(trimmed);
+    } else if (!trimmed) {
+      flushParagraph();
+    } else {
+      paragraph.push(line);
+    }
+  }
+  flushParagraph();
+  if (heading) push(heading);
+  return claims;
+}
+
+function AnswerFeedback({
+  turnId,
+  response,
+  onReact,
+}: {
+  turnId: string;
+  response: string;
+  onReact: (input: ClaimFeedbackInput) => Promise<void>;
+}) {
+  const { t } = useLang();
+  const [rating, setRating] = useState<"up" | "down" | null>(null);
+  const [chooseReason, setChooseReason] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const reasons = [
+    ["incorrect", t("Incorrect", "తప్పు")],
+    ["not_relevant", t("Not relevant", "సంబంధం లేదు")],
+    ["unclear", t("Unclear", "అస్పష్టం")],
+    ["missed_concern", t("Missed my concern", "నా ఆందోళనను గుర్తించలేదు")],
+    ["too_generic", t("Too generic", "చాలా సాధారణం")],
+    ["other", t("Other", "ఇతర")],
+  ];
+  async function submit(next: "up" | "down", reason?: string) {
+    setBusy(true);
+    try {
+      await onReact({ turnId, claimId: "complete_answer", claimKind: "complete_answer", rating: next, reason, response });
+      setRating(next);
+      setChooseReason(false);
+    } catch {
+      // Keep the controls available so the person can retry after a transient failure.
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="answer-feedback">
+      <span>{rating ? t("Thanks for the feedback", "మీ స్పందనకు ధన్యవాదాలు") : t("Was this answer helpful?", "ఈ సమాధానం ఉపయోగపడిందా?")}</span>
+      <button type="button" disabled={busy} className={rating === "up" ? "selected" : ""} aria-label={t("Useful", "ఉపయోగకరం")} onClick={() => void submit("up")}>↑</button>
+      <button type="button" disabled={busy} className={rating === "down" ? "selected" : ""} aria-label={t("Not useful", "ఉపయోగకరం కాదు")} onClick={() => setChooseReason(true)}>↓</button>
+      {chooseReason && (
+        <div className="claim-reasons" role="group" aria-label={t("What went wrong?", "ఏం తప్పు జరిగింది?")}>
+          {reasons.map(([value, label]) => (
+            <button key={value} type="button" disabled={busy} onClick={() => void submit("down", value)}>{label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Memoised: streaming updates only re-render the turn that is changing.
-const Answer = memo(function Answer({ turn, onFollowUp, onDeeper }: { turn: Turn; onFollowUp: (q: string) => void; onDeeper: () => void }) {
+const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
+  turn: Turn;
+  onFollowUp: (q: string) => void;
+  onReact: (input: ClaimFeedbackInput) => Promise<void>;
+}) {
   const { lang, t } = useLang();
   if (turn.streaming && !turn.content) {
     return (
@@ -451,7 +715,10 @@ const Answer = memo(function Answer({ turn, onFollowUp, onDeeper }: { turn: Turn
   const whyMatch = WHY_RE.exec(turn.content);
   const shortPart = whyMatch ? turn.content.slice(0, whyMatch.index) : turn.content;
   const whyPart = whyMatch ? turn.content.slice(whyMatch.index + whyMatch[0].length) : "";
+  const shortClaims = materialClaims(shortPart, "answer");
+  const detailClaims = materialClaims(whyPart, "reasoning");
   const outlook = s?.timingOutlook;
+  const pastTiming = s?.retrospectiveTiming;
 
   const jrows: Array<[string, string]> = [];
   if (s?.anchors?.lagna?.signName) jrows.push([`Ascendant ${signName2(s.anchors.lagna.signName, lang)}`, "Lagna · లగ్నం"]);
@@ -462,14 +729,22 @@ const Answer = memo(function Answer({ turn, onFollowUp, onDeeper }: { turn: Turn
   return (
     <article className="answer">
       <div className="md">
-        <Markdown text={shortPart} />
+        {shortClaims.map((claim) => (
+          <section className="response-claim" key={claim.id}>
+            <Markdown text={claim.text} />
+          </section>
+        ))}
       </div>
 
       {(whyPart.trim() || (turn.streaming && whyMatch)) && (
-        <details className="jy why" open>
+        <details className="jy why">
           <summary>{t("Why Sahadeva says this", "సహదేవ్ ఇలా ఎందుకు చెబుతున్నాడు")}</summary>
           <div className="jybody md">
-            <Markdown text={whyPart} />
+            {detailClaims.map((claim) => (
+              <section className="response-claim" key={claim.id}>
+                <Markdown text={claim.text} />
+              </section>
+            ))}
           </div>
         </details>
       )}
@@ -486,16 +761,37 @@ const Answer = memo(function Answer({ turn, onFollowUp, onDeeper }: { turn: Turn
           </p>
           <div className="tmwins">
             {outlook.windows.map((w) => (
-              <div className={`tmwin ${w.strength}`} key={w.startIso}>
-                <b>{w.label}</b>
-                <span>{w.reasons[0]}</span>
-              </div>
+              <details className={`tmwin ${w.strength}`} key={w.startIso}>
+                <summary><b>{w.label}</b><span>{t("View why", "ఎందుకో చూడండి")}</span></summary>
+                <p>{w.reasons.join(" · ")}</p>
+              </details>
             ))}
           </div>
           {outlook.sadeSati.active && (
             <p className="tmsade">{t(`Sade Sati is active (${outlook.sadeSati.stage} phase).`, `సాడే సాతి కొనసాగుతోంది (${outlook.sadeSati.stage} దశ).`)}</p>
           )}
           <p className="tmnote">{t("Calculated period-and-transit support, not a promise of events.", "గణించిన దశ-గోచార మద్దతు మాత్రమే, సంఘటనల హామీ కాదు.")}</p>
+        </div>
+      )}
+
+      {pastTiming && !turn.streaming && (
+        <div className="timing retrospective-timing">
+          <p className="tmtitle">{t("Plausible past periods", "గతంలో సంభావ్య కాలాలు")}</p>
+          <p className="tmnow">{pastTiming.range.label}</p>
+          <div className="tmwins">
+            {pastTiming.windows.length > 0 ? pastTiming.windows.map((w) => (
+              <details className={`tmwin ${w.strength}`} key={w.startIso}>
+                <summary><b>{w.label}</b><span>{t("View Dasha", "దశ చూడండి")}</span></summary>
+                <p>{[...w.periods, ...w.reasons].join(" · ")}</p>
+              </details>
+            )) : pastTiming.dashaSequence.filter((step) => step.relevance !== "neutral").slice(0, 4).map((step) => (
+              <details className="tmwin moderate" key={step.label}>
+                <summary><b>{step.label}</b><span>{t("View why", "ఎందుకో చూడండి")}</span></summary>
+                <p>{step.activates.join(" · ")}</p>
+              </details>
+            ))}
+          </div>
+          <p className="tmnote">{t("Calculated Dasha and transit candidates—not proof that a relationship happened or succeeded.", "గణించిన దశ మరియు గోచార సూచనలు మాత్రమే—సంబంధం జరిగింది లేదా విజయవంతమైంది అన్న నిర్ధారణ కాదు.")}</p>
         </div>
       )}
 
@@ -520,12 +816,6 @@ const Answer = memo(function Answer({ turn, onFollowUp, onDeeper }: { turn: Turn
         </div>
       )}
 
-      {!turn.streaming && whyMatch && (
-        <button className="deeper" type="button" onClick={onDeeper}>
-          {t("Go deeper: full 1000+ word reading on this question", "మరింత లోతుగా: ఈ ప్రశ్నపై పూర్తి విస్తృత పఠనం")}
-        </button>
-      )}
-
       {followUps.length > 0 && (
         <div className="fups">
           {followUps.slice(0, 3).map((q) => (
@@ -542,6 +832,9 @@ const Answer = memo(function Answer({ turn, onFollowUp, onDeeper }: { turn: Turn
           "సహదేవ్ ఫలితాలను జోస్యం చెప్పదు. శాస్త్ర నియమాలు ఏమి చెబుతున్నాయో, అవి ఎక్కడ విభేదిస్తున్నాయో మాత్రమే చెబుతుంది.",
         )}
       </p>
+      {!turn.streaming && turn.id && (
+        <AnswerFeedback turnId={turn.id} response={turn.content} onReact={onReact} />
+      )}
     </article>
   );
 });

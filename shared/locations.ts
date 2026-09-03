@@ -341,6 +341,7 @@ export const KNOWN_LOCATIONS: KnownLocation[] = [
   },
   {
     name: "Vizianagaram",
+    aliases: ["Vijayanagaram", "Vijaya Nagaram"],
     district: "Vizianagaram",
     state: "Andhra Pradesh",
     country: "India",
@@ -1129,10 +1130,10 @@ export function searchKnownLocations(query: string, limit = 20) {
   const direct = KNOWN_LOCATIONS.filter((location) =>
     locationHaystack(location).includes(needle),
   );
-  return uniqueLocations([
-    ...direct,
-    ...rankedLocationMatches(query, KNOWN_LOCATIONS).map(
-      (item) => item.location,
-    ),
-  ]).slice(0, limit);
+  const ranked = rankedLocationMatches(query, KNOWN_LOCATIONS).map(
+    (item) => item.location,
+  );
+  // Ranking puts exact names and aliases first. Catalogue-order substring
+  // matches fill the remainder for broad administrative searches.
+  return uniqueLocations([...ranked, ...direct]).slice(0, limit);
 }

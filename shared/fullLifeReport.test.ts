@@ -25,6 +25,16 @@ describe("full life report", () => {
       2,
     );
     expect(report.schemaVersion).toBe("sahadeva-full-life-report-1");
+    expect(Object.keys(report.futureTiming.domainOutlooks)).toEqual([
+      "career",
+      "marriage",
+      "wealth",
+      "education",
+      "children",
+      "property",
+      "spirituality",
+    ]);
+    expect(report.futureTiming.manifestationBoundary.home).toMatch(/does not establish relocation/);
     expect(report.plainLanguageReading.sections.length).toBeGreaterThan(5);
     expect(
       report.plainLanguageReading.sections.some(

@@ -1,4 +1,5 @@
 /* Today screen — ported from Web-Prototype/today-guidance.html, scoped. */
+.today-screen .today-heading { align-items: center; }
 .today-screen .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
 .today-screen .stack > * + * { margin-top: var(--space-4); }
 .today-screen .rowb { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }

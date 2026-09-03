@@ -70,7 +70,7 @@
 .sahadev-web *::before,
 .sahadev-web *::after { box-sizing: border-box; }
 
-/* App root fills the viewport and centres the phone, like the prototype body. */
+/* Responsive web application shell. */
 .sahadev-web {
   margin: 0;
   color: var(--fg);
@@ -80,11 +80,13 @@
   -webkit-font-smoothing: antialiased;
   display: flex;
   justify-content: center;
-  padding: 24px 16px 40px;
+  padding: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  background: var(--surface);
+  background: var(--bg);
 }
+.skip-link { position: fixed; top: 10px; left: 10px; z-index: 40; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--fg); color: var(--bg) !important; transform: translateY(-150%); }
+.skip-link:focus { transform: translateY(0); }
 .sahadev-web button { font: inherit; cursor: pointer; color: inherit; text-align: left; }
 .sahadev-web a { color: inherit; text-decoration: none; }
 /* Reliable, immediate taps on mobile — remove the 300ms delay and double-tap
@@ -115,41 +117,17 @@
 
 /* ── phone shell ─────────────────────────────────────────────────────────── */
 .phone {
-  width: 393px;
-  height: 852px;
+  width: 100%;
+  height: 100dvh;
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 46px;
-  box-shadow: var(--elev-raised);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
 }
-.island {
-  position: absolute;
-  top: 11px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 118px;
-  height: 34px;
-  border-radius: var(--radius-pill);
-  background: var(--fg);
-  z-index: 5;
-}
-.statusbar {
-  flex: 0 0 auto;
-  height: 54px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 0 28px 6px;
-  font-size: 14px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.statusbar .sbr { display: flex; align-items: center; gap: 6px; }
-.statusbar svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; }
 
 /* main scroll region (chart/today/etc. call it .screen; ask calls it .thread) */
 .screen {
@@ -170,6 +148,7 @@
   border-top: 1px solid var(--border);
   background: var(--surface);
 }
+.webbrand, .navidentity { display: none; }
 .tab {
   flex: 1;
   min-height: 52px;
@@ -254,7 +233,35 @@
   .sahadev-web *::before,
   .sahadev-web *::after { animation-duration: 0ms !important; transition-duration: 0ms !important; }
 }
-@media (max-width: 440px) {
-  .sahadev-web { padding: 0; }
-  .phone { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
+@media (min-width: 760px) {
+  .phone { display: block; padding-left: 232px; overflow: hidden; background: var(--surface-warm); }
+  .screen, .thread.ask-screen { height: 100%; max-width: 1120px; margin: 0 auto; padding: 48px clamp(32px, 6vw, 84px) 64px; background: var(--bg); }
+  .askhead.ask-screen, .composer.ask-screen, .topbar, .footer { max-width: 1120px; margin-left: auto; margin-right: auto; padding-left: clamp(32px, 6vw, 84px); padding-right: clamp(32px, 6vw, 84px); background: var(--bg); }
+  .askhead.ask-screen { padding-top: 32px; padding-bottom: 18px; }
+  .composer.ask-screen { padding-top: 16px; padding-bottom: 24px; }
+  .topbar { padding-top: 28px; }
+  .tabbar { position: absolute; inset: 0 auto 0 0; width: 232px; padding: 28px 18px 22px; flex-direction: column; gap: 6px; border: 0; border-right: 1px solid var(--border-soft); background: var(--surface); }
+  .webbrand { display: flex; align-items: center; gap: 11px; padding: 0 8px 30px; }
+  .brandmark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px; background: var(--fg); color: var(--bg); font: 600 19px/1 Georgia, serif; }
+  .webbrand > span:last-child, .navidentity div { min-width: 0; }
+  .webbrand b, .webbrand small, .navidentity b, .navidentity small { display: block; }
+  .webbrand b { font-size: 17px; letter-spacing: -.02em; }
+  .webbrand small, .navidentity small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab { flex: 0 0 auto; min-height: 48px; flex-direction: row; justify-content: flex-start; gap: 13px; padding: 0 13px; font-size: 15px; font-weight: 500; }
+  .tab[aria-current=page] { background: var(--bg); box-shadow: 0 1px 3px rgba(29,29,31,.06); }
+  .tab svg { width: 20px; height: 20px; }
+  .navidentity { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 15px 8px 0; border-top: 1px solid var(--border); }
+  .navidentity > span { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 14px; font-weight: 600; }
+  .navidentity b { max-width: 145px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .histdrawer { left: 232px; }
+  .histscrim { left: 232px; }
+  .shead h2, .askhead h2 { font-size: clamp(30px, 3vw, 42px); letter-spacing: -.035em; }
+  .more-screen .profiles, .more-screen .settings, .more-screen .navlist { max-width: 760px; }
+}
+
+@media (min-width: 1280px) {
+  .phone { padding-left: 264px; }
+  .tabbar { width: 264px; padding-left: 24px; padding-right: 24px; }
+  .histdrawer { left: 264px; }
+  .histscrim { left: 264px; }
 }

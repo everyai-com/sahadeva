@@ -61,10 +61,7 @@ export function TodayScreen() {
 
   const rahu = td?.inauspicious.rahuKaal;
   const rahuRange = rahu ? windowRange(rahu.startIso, rahu.endIso, tz) : "—";
-
-  // header eyebrow
   const dateLabel = td ? dayMonthYear(td.date + "T12:00:00Z", lang) : "";
-  const varaLabel = td ? weekday(td.fiveLimbs.vara, lang) : "";
   const placeLabel = profile?.place ?? td?.location.place ?? "";
 
   // dasha "running now"
@@ -77,15 +74,8 @@ export function TodayScreen() {
     <>
       <StatusBar />
       <main className="screen today-screen" id="content">
-        <header className="shead headrow">
-          <span>
-            <p className="eyebrow">
-              {varaLabel ? `${varaLabel} · ` : ""}
-              {dateLabel}
-              {placeLabel ? ` · ${placeLabel}` : ""}
-            </p>
-            <h2>{t("Today", "ఈ రోజు")}</h2>
-          </span>
+        <header className="shead headrow today-heading">
+          <h2>{t("Today", "ఈ రోజు")}</h2>
           <LangToggle />
         </header>
 
@@ -110,12 +100,12 @@ export function TodayScreen() {
               <p className="verdict">
                 {quality === "good"
                   ? t(
-                      `A supportive day for you. Keep ${rahuRange} clear of anything you have to sign, start or hand over.`,
-                      `మీకు అనుకూలమైన రోజు. ${rahuRange} మధ్య సంతకం చేయవలసినవి, కొత్తగా మొదలుపెట్టేవి పక్కన పెట్టండి.`,
+                      `A generally supportive day. ${rahuRange} is traditionally kept free for important new beginnings. If nothing important is planned, follow your day as usual.`,
+                      `సాధారణంగా అనుకూలమైన రోజు. ${rahuRange} సమయాన్ని ముఖ్యమైన కొత్త ప్రారంభాలకు సంప్రదాయంగా నివారిస్తారు. ముఖ్యమైన పని ఏదీ లేకపోతే, మీ రోజును మామూలుగానే కొనసాగించండి.`,
                     )
                   : t(
-                      `A mixed day. Keep ${rahuRange} clear of anything you have to sign, start or hand over.`,
-                      `మిశ్రమమైన రోజు. ${rahuRange} మధ్య సంతకం చేయవలసినవి పక్కన పెట్టండి.`,
+                      `A mixed day. Take important decisions slowly, especially during ${rahuRange}. Routine plans can continue as usual.`,
+                      `మిశ్రమమైన రోజు. ముఖ్యంగా ${rahuRange} సమయంలో ముఖ్యమైన నిర్ణయాలు నెమ్మదిగా తీసుకోండి. సాధారణ పనులను మామూలుగానే కొనసాగించవచ్చు.`,
                     )}
               </p>
               {tara && chandra && (
@@ -418,12 +408,4 @@ function TRow({ label, value }: { label: string; value: string }) {
       <span className="tv">{value}</span>
     </div>
   );
-}
-
-const WEEKDAYS_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const WEEKDAYS_TE = ["ఆదివారం", "సోమవారం", "మంగళవారం", "బుధవారం", "గురువారం", "శుక్రవారం", "శనివారం"];
-function weekday(vara: string, lang: "en" | "te"): string {
-  const i = WEEKDAYS_EN.indexOf(vara);
-  if (i < 0) return vara;
-  return lang === "te" ? WEEKDAYS_TE[i] : WEEKDAYS_EN[i];
 }

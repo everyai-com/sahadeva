@@ -25,7 +25,11 @@ async function ingest(file, minimumPopulation) {
     const columns = line.split("\t");
     if (columns.length < 19 || columns[6] !== "P") continue;
     const population = Number(columns[14] || 0);
-    if (population < minimumPopulation || !columns[17]) continue;
+    if (
+      (columns[8] !== "IN" && population < minimumPopulation) ||
+      !columns[17]
+    )
+      continue;
     const id = columns[0],
       aliases = columns[3].split(",").filter(Boolean).slice(0, 12);
     rows.set(id, {
@@ -43,8 +47,8 @@ async function ingest(file, minimumPopulation) {
 }
 
 // cities500 provides broad city coverage. allCountries supplements populated
-// places omitted from that extract; the population floor prevents an enormous
-// Worker bundle while explicit coordinates remain available for every locality.
+// places omitted from that extract. India keeps all populated-place features
+// because GeoNames reports population as unknown (0) for most villages.
 await ingest(citiesFile, 500);
 await ingest(allCountriesFile, 500);
 const records = [...rows.values()].sort(
