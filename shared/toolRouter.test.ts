@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { recommendTools } from "./toolRouter";
+import { ROUTER_GOLDEN } from "./toolRouter.golden";
 
 describe("tool router", () => {
-  const cases: Array<[string, string]> = [
-    ["Are Ravi and I good business partners?", "relationship-nonmarital"],
-    ["check our kundli match before marriage", "marriage-match"],
-    ["When will I get married?", "marriage-timing"],
-    ["Best date to start my company next month", "muhurta"],
-    ["Will I get the job? yes or no", "prashna"],
-    ["What's today's panchang and rahu kaal?", "daily-panchanga"],
-    ["What remedies should I do for my career?", "remedies"],
-    ["Tell me everything about my life", "full-report"],
-    ["Am I manglik?", "dosha"],
-    ["What is happening right now with saturn transit?", "transits-timing"],
-    ["Some open-ended question about meaning", "general-consultation"],
-  ];
-  it.each(cases)("routes %j -> %s", (q, intent) => {
-    expect(recommendTools(q).intent).toBe(intent);
+  it.each(ROUTER_GOLDEN.map((c) => [c.q, c.intent] as const))(
+    "routes %j -> %s",
+    (q, intent) => {
+      expect(recommendTools(q).intent).toBe(intent);
+    },
+  );
+
+  it("meets the routing-accuracy bar on the golden set", () => {
+    const correct = ROUTER_GOLDEN.filter(
+      (c) => recommendTools(c.q).intent === c.intent,
+    ).length;
+    const accuracy = correct / ROUTER_GOLDEN.length;
+    // Hard floor so a future edit that regresses routing fails CI.
+    expect(accuracy).toBeGreaterThanOrEqual(0.95);
   });
 
   it("always returns a non-empty ordered plan and a safety block", () => {

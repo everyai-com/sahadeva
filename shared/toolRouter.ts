@@ -55,7 +55,7 @@ const RULES: IntentRule[] = [
   {
     intent: "marriage-timing",
     test: T(
-      "when will i (get )?marr|marriage (time|timing|date|year|age)|时候|when.*wedding|delay in marriage|marriage window|when.*spouse",
+      "when will i (get )?marr|marriage (time|timing|date|year|age)|时候|when.*wedding|delay in marriage|marriage window|when.*spouse|(what age|which year|when).*(marry|marriage|wedding)|wedding.*(year|date|when|age)",
     ),
     primary: "get_marriage_readiness",
     why: "Combines compatibility (if a partner is given) with ranked marriage-timing windows from the natal chart.",
@@ -63,24 +63,26 @@ const RULES: IntentRule[] = [
     alternatives: ["find_marriage_windows"],
   },
   {
-    intent: "muhurta",
-    test: T(
-      "muhurt|auspicious (time|date|day)|good (time|date|day) (to|for)|best (time|date|day) (to|for)|when should i (start|launch|buy|travel|sign|register|move)|shubh|electional",
-    ),
-    primary: "find_muhurta",
-    why: "Ranks auspicious windows over a date range for a supported activity; use find_muhurta_with_natal_fit to weight the person's own chart.",
-    requiredArgs: ["activity", "startDate", "endDate", "place"],
-    alternatives: ["find_muhurta_with_natal_fit"],
-  },
-  {
+    // Checked before muhurta so "is today an auspicious day almanac" is read as
+    // an almanac lookup, not an electional search.
     intent: "daily-panchanga",
     test: T(
-      "panchang|panchanga|today('?s)? (tithi|nakshatra|stars|almanac)|rahu ?kal|choghadiya|hora|almanac|is today good|tithi|nakshatra today",
+      "panchang|panchanga|today('?s)? (tithi|nakshatra|stars|almanac)|rahu ?kal|choghadiya|\\bhora\\b|almanac|is today good|tithi|nakshatra today",
     ),
     primary: "get_panchanga",
     why: "Full daily almanac (tithi, nakshatra, yoga, karana, Rahu Kaal, Choghadiya) for a date and place; add natal for Tara/Chandra Bala.",
     requiredArgs: ["date", "place"],
     alternatives: ["get_natal_panchanga"],
+  },
+  {
+    intent: "muhurta",
+    test: T(
+      "muhur|auspicious (time|date|day)|good (time|date|day) (to|for)|best (time|date|day) (to|for)|when should i (start|launch|buy|travel|sign|register|move)|shubh|electional",
+    ),
+    primary: "find_muhurta",
+    why: "Ranks auspicious windows over a date range for a supported activity; use find_muhurta_with_natal_fit to weight the person's own chart.",
+    requiredArgs: ["activity", "startDate", "endDate", "place"],
+    alternatives: ["find_muhurta_with_natal_fit"],
   },
   {
     intent: "transits-timing",
@@ -135,7 +137,7 @@ const RULES: IntentRule[] = [
   {
     intent: "full-report",
     test: T(
-      "full (life )?report|complete (reading|report|analysis)|entire chart|everything about|life report|detailed report|full kundli|full horoscope|pdf|download",
+      "full (life )?report|complete( \\w+)? (reading|report|analysis)|entire chart|everything about|life report|detailed report|full kundli|full horoscope|pdf|download",
     ),
     primary: "generate_full_life_report",
     why: "Complete multi-domain life dossier; fetch individual sections with get_full_life_report_section and export with generate_report_pdf.",

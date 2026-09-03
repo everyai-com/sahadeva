@@ -12233,6 +12233,7 @@ app.post("/api/chat", async (c) => {
       clientSurface?: "web" | "mobile";
       responseDepth?: "standard" | "deep";
       responseStyle?: "layered" | "plain";
+      relationship?: string;
       lifeContext?: string;
       profileRef?: string;
       messages?: Array<{ role?: string; content?: string }>;
@@ -12242,6 +12243,13 @@ app.post("/api/chat", async (c) => {
     return c.json({ error: "Birth details are required" }, 400);
   const deepMobile = body.responseDepth === "deep";
   const layered = body.responseStyle === "layered" && !deepMobile;
+  // A non-marital relationship type switches the partner analysis from the
+  // marriage Ashtakoota to the gender-neutral relationship reading.
+  const relationshipType = (
+    RELATIONSHIP_TYPES as readonly string[]
+  ).includes(String(body.relationship))
+    ? (body.relationship as (typeof RELATIONSHIP_TYPES)[number])
+    : null;
   const lifeContext =
     typeof body.lifeContext === "string"
       ? body.lifeContext.replace(/\s+/g, " ").trim().slice(0, 600)
@@ -12851,7 +12859,21 @@ app.post("/api/chat", async (c) => {
                   name: partnerParsed.data.name,
                   place: partnerParsed.data.place,
                 },
-                compatibility: calculateCompatibility(chart, partnerChart),
+                ...(relationshipType
+                  ? {
+                      relationshipCompatibility:
+                        calculateRelationshipCompatibility(
+                          chart,
+                          partnerChart,
+                          relationshipType,
+                        ),
+                    }
+                  : {
+                      compatibility: calculateCompatibility(
+                        chart,
+                        partnerChart,
+                      ),
+                    }),
               };
             })()
           : {}),
@@ -12880,6 +12902,7 @@ app.post("/api/chat", async (c) => {
           ? "This is an explicit complete-profile request. Use `fullProfile` as the controlling dossier and finish every section. Produce a cohesive 2200-4000 word reading with progressive disclosure. Start with `## What this means in daily life`, using no unexplained astrology terms, followed by `### What to focus on`, `### What may need care`, and `### What may change next`; each must give bounded, practical, non-prescriptive guidance. Then continue with identity and temperament; education; employment and business; money and resources; love, marriage and partnerships; family, home and property; children, mentoring and creativity; health routines and resilience without diagnosis; spirituality and meaning. End with a clearly labelled `## Technical chart details` containing major strengths, Yogas and Doshas with cancellations, current Dasha and supplied next periods, contradictions, uncertainty and verification limits, and optional safe practical supports; then provide a concise final synthesis in ordinary language. Do not stop after the focused topic. Do not claim a golden age, guaranteed event, disease, lifespan, gemstone effect or remedy result. If output space becomes tight, shorten each section evenly but always provide the final synthesis."
           : "",
         "If a `compatibility` object is supplied, the user is comparing charts with partnerSubject: keep North Indian Ashtakoota and South Indian Porutham results separate, explain the calculated guna/kuta scores, each Porutham check, and dosha findings faithfully, note that matching is one traditional input among many, and never declare a match doomed or guaranteed.",
+        "If a `relationshipCompatibility` object is supplied, this is a NON-marital bond (see relationship.label — e.g. business partners, friends, siblings, parent and child): do not discuss marriage, romance, spouses or Ashtakoota. Explain the per-factor Tara, Graha Maitri, Gana, Yoni, Bhakoot and element evidence and the weighted harmony index in plain words, lead with the named strengths and frictions, and frame it as a reflective cultural lens on how the two people relate — never a verdict on the relationship's success.",
         "If a `prashna` object is supplied, this is a horary (Prashna) consultation: explain its judgment (direction, tier, observations, uncertainty) faithfully and never change its direction or score. Present it as a bounded traditional judgment, not a prediction.",
         "If a `muhurta` object is supplied, the user asked for auspicious timing: present the topWindows with their local times and scores, explain the strongest reasons, and note these are traditional quality windows, not guarantees.",
         "`timingOutlook` is the only source for any 'when', 'which period', 'best time' or 'what comes next' answer. Quote its windows by their labels (e.g. 'Mar 2028 to Sep 2029'), give the plain reason behind each window in one clause, mention now.summary for the present, and when windows is empty say plainly that no strongly marked window appears in the horizon. Treat sadeSati.active as a calculated fact. Never invent a window, month or year outside timingOutlook.",

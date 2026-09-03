@@ -565,6 +565,15 @@ const STRINGS = {
     comparingWith: "Comparing with",
     clearCompare: "stop",
     compareAsk: "Check our traditional marriage compatibility.",
+    relateAsk: "Check our traditional compatibility as",
+    relationshipOptions: [
+      { value: "", label: "⚭ Marriage" },
+      { value: "business_partner", label: "🤝 Business" },
+      { value: "friend", label: "🌟 Friend" },
+      { value: "sibling", label: "👨‍👩‍👧 Sibling" },
+      { value: "parent_child", label: "👪 Parent–child" },
+      { value: "colleague", label: "💼 Colleague" },
+    ],
     deletePerson: "Remove",
     today: "Today's panchanga",
     sunrise: "Sunrise",
@@ -775,6 +784,15 @@ const STRINGS = {
     comparingWith: "పోలిక:",
     clearCompare: "ఆపండి",
     compareAsk: "మా సాంప్రదాయ వివాహ పొంతన చూడండి.",
+    relateAsk: "మా సాంప్రదాయ పొంతన చూడండి —",
+    relationshipOptions: [
+      { value: "", label: "⚭ వివాహం" },
+      { value: "business_partner", label: "🤝 వ్యాపారం" },
+      { value: "friend", label: "🌟 స్నేహం" },
+      { value: "sibling", label: "👨‍👩‍👧 తోబుట్టువు" },
+      { value: "parent_child", label: "👪 తల్లిదండ్రి–బిడ్డ" },
+      { value: "colleague", label: "💼 సహోద్యోగి" },
+    ],
     deletePerson: "తొలగించండి",
     today: "నేటి పంచాంగం",
     sunrise: "సూర్యోదయం",
@@ -2040,16 +2058,22 @@ export default function ChatApp() {
     setPeople(me.people ?? []);
   }
 
-  function compareWith(person: Person) {
+  function compareWith(person: Person, relationship?: string) {
     if (!person.profile || !profile) return;
     setPartner(person.profile);
     setAccountOpen(false);
-    void sendWithPartner(person.profile);
+    void sendWithPartner(person.profile, relationship);
   }
 
-  async function sendWithPartner(partnerProfile: Profile) {
+  async function sendWithPartner(partnerProfile: Profile, relationship?: string) {
     if (!profile || busy) return;
-    const question = `${t.compareAsk} (${profile.name} + ${partnerProfile.name})`;
+    const label = relationship
+      ? (t.relationshipOptions.find((o) => o.value === relationship)?.label ??
+        relationship)
+      : "";
+    const question = relationship
+      ? `${t.relateAsk} ${label} (${profile.name} + ${partnerProfile.name})`
+      : `${t.compareAsk} (${profile.name} + ${partnerProfile.name})`;
     const next: Message[] = [...messages, { role: "user", content: question }];
     commitMessages(next);
     setBusy(true);
@@ -2062,6 +2086,7 @@ export default function ChatApp() {
         body: JSON.stringify({
           profile,
           partner: partnerProfile,
+          ...(relationship ? { relationship } : {}),
           clientSurface: "web",
           responseStyle: "layered",
           messages: next,
@@ -2587,7 +2612,7 @@ function AccountSheet({
   onEditBirth?: () => void;
   onSwitchPerson?: (person: Person) => void;
   onRemovePerson?: (person: Person) => void;
-  onCompare?: (person: Person) => void;
+  onCompare?: (person: Person, relationship?: string) => void;
   onAddPerson?: () => void;
 }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -2714,12 +2739,24 @@ function AccountSheet({
                             </em>
                           </button>
                           {!isActive && activeProfile && onCompare && (
-                            <button
-                              className="chip"
-                              onClick={() => onCompare(person)}
+                            <select
+                              className="chip compare-select"
+                              aria-label={t.compare}
+                              value=""
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                if (value === "__none") return;
+                                onCompare(person, value || undefined);
+                                event.target.value = "";
+                              }}
                             >
-                              ⚭ {t.compare}
-                            </button>
+                              <option value="__none">⚭ {t.compare}</option>
+                              {t.relationshipOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
                           )}
                           {!isActive && onRemovePerson && (
                             <button
