@@ -2,11 +2,56 @@ import type { ChartResult, GrahaName } from "./schema";
 import { LORDS } from "./compatibility";
 import { calculateDoshas } from "./doshas";
 import { detectAfflictions } from "./afflictionRemedies";
+import { jdToIso } from "./dashaCalendar";
 import {
   PLANET_REMEDIES,
   DOSHA_REMEDIES,
+  REMEDY_SOURCES,
   type PlanetName,
 } from "./remedyLibrary";
+
+// The nearest window in which a graha's remedy is traditionally most potent:
+// its own Mahadasha or Antardasha, taken from the calculated Vimshottari
+// timeline. Remedies are said to work best while the planet's period is active.
+function planetPotencyWindow(chart: ChartResult, planet: GrahaName) {
+  const nowMs = Date.now();
+  const candidates: Array<{
+    kind: "Mahadasha" | "Antardasha";
+    startMs: number;
+    endMs: number;
+  }> = [];
+  for (const maha of chart.advanced.vimshottariTimeline) {
+    if (maha.lord === planet)
+      candidates.push({
+        kind: "Mahadasha",
+        startMs: Date.parse(jdToIso(maha.startJulianDay)),
+        endMs: Date.parse(jdToIso(maha.endJulianDay)),
+      });
+    for (const antar of maha.subPeriods)
+      if (antar.lord === planet)
+        candidates.push({
+          kind: "Antardasha",
+          startMs: Date.parse(jdToIso(antar.startJulianDay)),
+          endMs: Date.parse(jdToIso(antar.endJulianDay)),
+        });
+  }
+  const active = candidates
+    .filter((c) => c.startMs <= nowMs && nowMs < c.endMs)
+    .sort((a, b) => a.endMs - b.endMs)[0];
+  const upcoming = candidates
+    .filter((c) => c.startMs > nowMs)
+    .sort((a, b) => a.startMs - b.startMs)[0];
+  const chosen = active ?? upcoming;
+  if (!chosen) return null;
+  const fmt = (ms: number) =>
+    new Date(ms).toISOString().slice(0, 7); // YYYY-MM
+  return {
+    kind: chosen.kind,
+    status: active ? ("active-now" as const) : ("upcoming" as const),
+    from: fmt(chosen.startMs),
+    to: fmt(chosen.endMs),
+  };
+}
 
 // Astrologer-style remedy engine. The principle that separates a real reading
 // from a generic list: you STRENGTHEN a functional benefic that is weak (with a
@@ -34,7 +79,7 @@ const NODES = new Set<GrahaName>(["Rahu", "Ketu"]);
 const houseLord = (lagnaSign: number, h: number): GrahaName =>
   LORDS[(lagnaSign + h - 1) % 12] as GrahaName;
 
-function functionalNature(lagnaSign: number) {
+export function functionalNature(lagnaSign: number) {
   const lords = (houses: number[]) =>
     new Set(houses.map((h) => houseLord(lagnaSign, h)));
   const trikonaLords = lords([1, 5, 9]);
@@ -72,6 +117,15 @@ export interface PlanetRemedyCard {
   conduct: string;
   lalKitab: string;
   supportive: { day: string; color: string; direction: string; deity: string };
+  timing: {
+    beginOn: string;
+    potencyWindow: {
+      kind: "Mahadasha" | "Antardasha";
+      status: "active-now" | "upcoming";
+      from: string;
+      to: string;
+    } | null;
+  };
 }
 
 export function buildComprehensiveRemedies(
@@ -136,6 +190,10 @@ export function buildComprehensiveRemedies(
         direction: lib.direction,
         deity: lib.deity,
       },
+      timing: {
+        beginOn: `Begin on a ${lib.weekday}, ideally in the waxing (Shukla) fortnight and in ${lib.sanskritName}'s hora; for an exact start moment, calculate a window with find_muhurta.`,
+        potencyWindow: planetPotencyWindow(chart, planet),
+      },
     };
     if (allowMantras)
       card.mantra = {
@@ -192,6 +250,9 @@ export function buildComprehensiveRemedies(
     priority: cards.map((c) => c.planet),
     planetRemedies: cards,
     doshaRemedies,
+    timingPrinciple:
+      "A remedy for a graha is traditionally most effective while that graha's Mahadasha or Antardasha is running (see each card's potencyWindow), begun on its weekday in the waxing fortnight. Conduct and charity help any time; a gemstone or mantra anushthana is best begun in a calculated muhurta.",
+    sourceCoverage: REMEDY_SOURCES,
     howToUse: [
       "Pick ONE or two remedies you can actually sustain — consistency matters more than quantity.",
       "Conduct and charity are the safest and are always appropriate; mantra japa suits most people.",

@@ -9,6 +9,28 @@
 // here is a guaranteed outcome, a medical/financial/legal instruction, or a
 // claim that a deity is angry — those framings are never used.
 
+// Classical works these remedies are traditionally attributed to. This is an
+// attribution list for transparency, NOT a claim of independent review — remedy
+// rules still pass through the same reviewed-rule pipeline before they can be
+// presented as verified citations.
+export const REMEDY_SOURCES = {
+  reviewStatus: "traditional-attribution-unreviewed",
+  works: [
+    { work: "Vedic Remedies in Astrology", author: "Sanjay Rath" },
+    {
+      work: "Brihat Parashara Hora Shastra",
+      author: "Maharishi Parashara (attrib.)",
+    },
+    { work: "Lal Kitab", author: "Pt. Roop Chand Joshi (attrib.)" },
+    { work: "Mantra Mahodadhi", author: "Mahidhara" },
+    {
+      work: "Widely-transmitted Graha Shanti tradition",
+      author: "oral/regional",
+    },
+  ],
+  note: "Beej mantras, gemstone correspondences, daana items and weekday/deity associations are standard across these traditions. Specific mantra text, gemstone weight and ritual procedure require qualified guidance.",
+} as const;
+
 export type PlanetName =
   | "Sun"
   | "Moon"
