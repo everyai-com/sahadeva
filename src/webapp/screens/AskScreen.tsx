@@ -173,6 +173,7 @@ export function AskScreen() {
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [answerStarted, setAnswerStarted] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -295,6 +296,7 @@ export function AskScreen() {
     if (!isGreeting) {
       setInput("");
       setBusy(true);
+      setAnswerStarted(false);
       setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: true }]);
       pinQuestionTop();
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -351,6 +353,7 @@ export function AskScreen() {
         { ...profile, language: lang },
         history,
         (cumulative) => {
+          if (cumulative.trim()) setAnswerStarted(true);
           setTurns([...withUser, { id: responseTurnId, role: "assistant", content: cumulative, streaming: true }]);
         },
         undefined,
@@ -390,6 +393,7 @@ export function AskScreen() {
       setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: false, error: msg }]);
     } finally {
       setBusy(false);
+      setAnswerStarted(false);
     }
   }
 
@@ -556,14 +560,14 @@ export function AskScreen() {
             </svg>
           </button>
           <button
-            className={`iconbtn sendbtn${busy ? " sending" : ""}`}
+            className={`iconbtn sendbtn${busy && !answerStarted ? " sending" : ""}`}
             type="button"
-            aria-label={busy ? t("Sahadeva is responding", "సహదేవ్ సమాధానం ఇస్తోంది") : t("Send", "పంపు")}
-            aria-busy={busy}
+            aria-label={busy && !answerStarted ? t("Sahadeva is preparing the answer", "సహదేవ్ సమాధానం సిద్ధం చేస్తోంది") : busy ? t("Answer is appearing", "సమాధానం కనిపిస్తోంది") : t("Send", "పంపు")}
+            aria-busy={busy && !answerStarted}
             disabled={busy || !input.trim()}
             onClick={() => ask(input)}
           >
-            {busy ? (
+            {busy && !answerStarted ? (
               <span className="sendspinner" aria-hidden="true" />
             ) : (
               <svg viewBox="0 0 24 24">
@@ -572,8 +576,8 @@ export function AskScreen() {
             )}
           </button>
         </div>
-        <p className={`sendstatus${busy ? " on" : ""}`} role="status" aria-live="polite">
-          {busy ? t("Reading your chart and preparing an answer…", "మీ జాతకాన్ని చదివి సమాధానం సిద్ధం చేస్తోంది…") : ""}
+        <p className={`sendstatus${busy && !answerStarted ? " on" : ""}`} role="status" aria-live="polite">
+          {busy && !answerStarted ? t("Reading your chart and preparing an answer…", "మీ జాతకాన్ని చదివి సమాధానం సిద్ధం చేస్తోంది…") : ""}
         </p>
       </div>
 
