@@ -20,6 +20,7 @@ import { Markdown } from "../md";
 import { getLifeContext } from "../lifeContext";
 import { requestsFullProfile } from "../../../shared/chatEvidenceRouting";
 import { AuthSheet } from "./AuthSheet";
+import { dashaRecallContext } from "../dashaRecall";
 import type { ReactNode } from "react";
 
 type Turn = ChatTurn & { id?: string; summary?: ChatSummary | null; streaming?: boolean; error?: string };
@@ -346,7 +347,7 @@ export function AskScreen() {
         },
         undefined,
         {
-          lifeContext: rememberedUserContext(threadsRef.current, getLifeContext()),
+          lifeContext: rememberedUserContext(threadsRef.current, [getLifeContext(), dashaRecallContext(profile)].filter(Boolean).join("\n")),
           deep,
           conversationSessionId: sessionId,
           conversationTurnId: userTurnId,
