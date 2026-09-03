@@ -91,6 +91,7 @@ import {
   buildRemedyProtocol,
 } from "../shared/remedies";
 import { buildAfflictionRemedyPlan } from "../shared/afflictionRemedies";
+import { buildComprehensiveRemedies } from "../shared/comprehensiveRemedies";
 import { chatNeedsClarification } from "../shared/chatClarify";
 import { calculateDevataProfile, type DevataLineageId } from "../shared/devata";
 import {
@@ -189,6 +190,7 @@ const redactConfirmationToken = (
 const INTERPRETIVE_TOOLS = new Set([
   "calculate_compatibility",
   "calculate_relationship_compatibility",
+  "build_remedy_repertoire",
   "get_panchanga",
   "find_muhurta",
   "calculate_doshas",
@@ -1321,6 +1323,45 @@ const mcpTools = [
             accessibilityNotes: { type: "array", items: { type: "string" } },
           },
         },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "build_remedy_repertoire",
+    title: "Full classical remedy repertoire for a chart",
+    description:
+      "Astrologer-style remedy engine. Works out each graha's functional nature for the ascendant and its afflictions, then returns the full classical repertoire — beej and Vedic mantras, gemstones (with traditional wearing caveats) for functional benefics only, daana, vrata, deity stotras, Lal Kitab and dosha remedies — each with a Dasha-based potency window telling you when it is most effective. Toggles include or omit gemstones, mantras and charity. Traditional practices offered as options, never guarantees; nodes and afflicted malefics are propitiated, never strengthened. No topic required.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        time: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        birthTimeAccuracyMinutes: {
+          type: "number",
+          minimum: 0,
+          maximum: 1440,
+          default: 5,
+        },
+        options: {
+          type: "object",
+          properties: {
+            allowGemstones: { type: "boolean", default: true },
+            allowMantras: { type: "boolean", default: true },
+            allowCharity: { type: "boolean", default: true },
+          },
+        },
+        language: { type: "string", enum: ["en", "te"], default: "en" },
       },
       anyOf: [
         { required: ["place"] },
@@ -2648,6 +2689,7 @@ const uniformLocationTools = new Set([
   "analyze_lal_kitab",
   "audit_chart_calculation",
   "suggest_safe_practice",
+  "build_remedy_repertoire",
   "calculate_devata_profile",
   "analyze_remedies",
   "analyze_transit_activation",
@@ -2897,6 +2939,17 @@ const mcpOutputSchemas: Record<string, unknown> = {
       "guruDevata",
       "kulaDevata",
       "birthTimeSensitivity",
+      "safety",
+    ],
+    additionalProperties: true,
+  },
+  build_remedy_repertoire: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "approach",
+      "functionalNature",
+      "planetRemedies",
       "safety",
     ],
     additionalProperties: true,
@@ -3686,6 +3739,7 @@ const publicMcpToolNames = new Set([
   "record_consultation_outcome",
   "get_validation_report",
   "suggest_safe_practice",
+  "build_remedy_repertoire",
   "calculate_devata_profile",
   "analyze_remedies",
   "analyze_transit_activation",
@@ -6698,6 +6752,49 @@ async function handleMcp(
         await calculateChartCached(env, parsed.data),
         { lineage },
       );
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "build_remedy_repertoire") {
+      const args = request.params?.arguments as Record<string, unknown> | undefined,
+        located = resolveToolLocation(
+          args,
+          String(args?.date || ""),
+          String(args?.time || "12:00"),
+        );
+      if (!located.location)
+        return located.resolution
+          ? placeRpcError(request.id, located.resolution)
+          : rpcError(
+              request.id,
+              -32602,
+              located.error || "Valid location details are required",
+            );
+      const parsed = birthInputSchema.safeParse({
+        ...args,
+        ...locationInput(located.location),
+        language: args?.language || "en",
+        methodology: "parashari",
+        focus: "general",
+        birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
+      });
+      if (!parsed.success)
+        return rpcError(
+          request.id,
+          -32602,
+          "Invalid chart details",
+          parsed.error.flatten(),
+        );
+      const chart = await calculateChartCached(env, parsed.data),
+        opts = args?.options as Record<string, unknown> | undefined,
+        structuredContent = buildComprehensiveRemedies(chart, {
+          allowGemstones: opts?.allowGemstones !== false,
+          allowMantras: opts?.allowMantras !== false,
+          allowCharity: opts?.allowCharity !== false,
+        });
       return rpcResult(request.id, {
         content: [{ type: "text", text: JSON.stringify(structuredContent) }],
         structuredContent,
