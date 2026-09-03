@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { useLang } from "./lang";
 import { useData } from "./data";
 import { navigate, type Route } from "./router";
-import { CosmithraMark } from "./design/GrahaIcon";
+import { SahadevaMark } from "./design/GrahaIcon";
 
 /** Live status bar — matches the prototype `.statusbar` markup. */
 export function StatusBar() {
@@ -46,8 +46,8 @@ export function TabBar({ current }: { current: "today" | "ask" | "chart" | "more
   return (
     <nav className="tabbar" data-od-id="tabbar">
       <div className="webbrand">
-        <CosmithraMark className="brandmark" size={42} />
-        <span><b>COSMITHRA</b><small>{t("Your cosmic companion", "మీ ఖగోళ సహచరి")}</small></span>
+        <SahadevaMark className="brandmark" size={42} />
+        <span><b>SAHADEVA</b><small>{t("Your cosmic companion", "మీ ఖగోళ సహచరి")}</small></span>
       </div>
       {tabs.map((tab) => (
         <a

@@ -300,8 +300,8 @@ export function TodayScreen() {
                   <TRow label={t("Season · half-year", "ఋతువు · అయనం")} value={`${td.calendar.ritu} · ${td.calendar.ayana}`} />
                   <p className="unavail">
                     {t(
-                      "Not shown: durmuhurtam, varjyam and amrita kalam. Cosmithra has the calculation but not a reviewed rule for them yet, so it will not guess.",
-                      "చూపించనివి: దుర్ముహూర్తం, వర్జ్యం, అమృత కాలం. కోస్మిత్ర దగ్గర లెక్క ఉంది, కానీ వీటికి సమీక్షించిన నియమం ఇంకా లేదు — కాబట్టి ఊహించి చెప్పదు.",
+                      "Not shown: durmuhurtam, varjyam and amrita kalam. Sahadeva has the calculation but not a reviewed rule for them yet, so it will not guess.",
+                      "చూపించనివి: దుర్ముహూర్తం, వర్జ్యం, అమృత కాలం. సహదేవ దగ్గర లెక్క ఉంది, కానీ వీటికి సమీక్షించిన నియమం ఇంకా లేదు — కాబట్టి ఊహించి చెప్పదు.",
                     )}
                   </p>
                 </div>

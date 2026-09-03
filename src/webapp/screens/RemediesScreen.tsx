@@ -124,8 +124,8 @@ export function RemediesScreen() {
               <h3>{t("Why these, and nothing more", "ఈవే ఎందుకు, ఇంకేమీ ఎందుకు కాదు")}</h3>
               <p>
                 {t(
-                  "Support is optional, and only the lowest-burden kind is appropriate. Cosmithra will not escalate to a ritual you did not need.",
-                  "పరిహారం ఐచ్ఛికం మాత్రమే, అందులోనూ అతి తక్కువ భారం ఉన్నదే సరిపోతుంది. మీకు అవసరం లేని పూజకు కోస్మిత్ర మిమ్మల్ని నెట్టదు.",
+                  "Support is optional, and only the lowest-burden kind is appropriate. Sahadeva will not escalate to a ritual you did not need.",
+                  "పరిహారం ఐచ్ఛికం మాత్రమే, అందులోనూ అతి తక్కువ భారం ఉన్నదే సరిపోతుంది. మీకు అవసరం లేని పూజకు సహదేవ మిమ్మల్ని నెట్టదు.",
                 )}
               </p>
               <div className="whyev">
@@ -254,7 +254,7 @@ export function RemediesScreen() {
             </section>
 
             <div className="warnbox">
-              <p>{t("Cosmithra will not:", "కోస్మిత్ర ఇవి చేయదు:")}</p>
+              <p>{t("Sahadeva will not:", "సహదేవ ఇవి చేయదు:")}</p>
               <ul>
                 <li>{t("replace medical, legal, financial or mental-health care;", "వైద్య, న్యాయ, ఆర్థిక లేదా మానసిక ఆరోగ్య సంరక్షణకు బదులు కాదు;")}</li>
                 <li>{t("sell you a gemstone or a costly ritual;", "మీకు రత్నం లేదా ఖరీదైన పూజ అమ్మదు;")}</li>

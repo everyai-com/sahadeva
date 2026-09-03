@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const out = new URL("../public/brand/cosmithra/", import.meta.url);
+const out = new URL("../public/brand/sahadeva/", import.meta.url);
 await mkdir(out, { recursive: true });
 await mkdir(new URL("graha/", out), { recursive: true });
 
@@ -37,18 +37,30 @@ for (const [id, body] of Object.entries(glyphs)) {
 }
 
 const markGeometry = `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="11" stroke-width="1.8"/><circle cx="32" cy="32" r="25" stroke-width="1" opacity=".72"/><path d="M32 4 40.2 16.8 54.6 9.4 47.2 23.8 60 32 47.2 40.2 54.6 54.6 40.2 47.2 32 60 23.8 47.2 9.4 54.6 16.8 40.2 4 32 16.8 23.8 9.4 9.4 23.8 16.8Z" stroke-width="1.35"/><path d="m32 7.8 6.8 17.4L56.2 32l-17.4 6.8L32 56.2l-6.8-17.4L7.8 32l17.4-6.8L32 7.8Z" stroke-width=".8" opacity=".78"/></g>`;
-await writeFile(new URL("mark.svg", out), svg(64, `<g style="color:${gold}">${markGeometry}</g>`, { viewBox: "0 0 64 64", title: "Cosmithra brand mark" }));
-await writeFile(new URL("mark-monochrome.svg", out), svg(64, `<g style="color:${ink}">${markGeometry}</g>`, { viewBox: "0 0 64 64", title: "Cosmithra monochrome brand mark" }));
-await writeFile(new URL("app-icon.svg", out), svg(512, `<defs><radialGradient id="bg"><stop stop-color="#24213B"/><stop offset="1" stop-color="#10121B"/></radialGradient></defs><rect width="64" height="64" rx="14" fill="url(#bg)"/><g style="color:#D6A64A">${markGeometry}</g>`, { viewBox: "0 0 64 64", title: "Cosmithra app icon" }));
-await writeFile(new URL("lockup.svg", out), svg(420, `<g transform="translate(0 4)" style="color:${gold}">${markGeometry}</g><text x="82" y="30" fill="${ink}" font-family="Georgia, 'Times New Roman', serif" font-size="24" letter-spacing="3.2">COSMITHRA</text><text x="83" y="49" fill="${ink}" font-family="Arial, sans-serif" font-size="8.5" letter-spacing="2.2">YOUR COSMIC COMPANION</text>`, { viewBox: "0 0 420 64", title: "Cosmithra logo" }));
+await writeFile(new URL("mark.svg", out), svg(64, `<g style="color:${gold}">${markGeometry}</g>`, { viewBox: "0 0 64 64", title: "Sahadeva brand mark" }));
+await writeFile(new URL("mark-monochrome.svg", out), svg(64, `<g style="color:${ink}">${markGeometry}</g>`, { viewBox: "0 0 64 64", title: "Sahadeva monochrome brand mark" }));
+await writeFile(new URL("app-icon.svg", out), svg(512, `<defs><radialGradient id="bg"><stop stop-color="#24213B"/><stop offset="1" stop-color="#10121B"/></radialGradient></defs><rect width="64" height="64" rx="14" fill="url(#bg)"/><g style="color:#D6A64A">${markGeometry}</g>`, { viewBox: "0 0 64 64", title: "Sahadeva app icon" }));
+await writeFile(new URL("lockup.svg", out), svg(420, `<g transform="translate(0 4)" style="color:${gold}">${markGeometry}</g><text x="82" y="30" fill="${ink}" font-family="Georgia, 'Times New Roman', serif" font-size="24" letter-spacing="3.2">SAHADEVA</text><text x="83" y="49" fill="${ink}" font-family="Arial, sans-serif" font-size="8.5" letter-spacing="2.2">YOUR COSMIC COMPANION</text>`, { viewBox: "0 0 420 64", title: "Sahadeva logo" }));
+await writeFile(new URL("lockup-reverse.svg", out), svg(420, `<g transform="translate(0 4)" style="color:#D6A64A">${markGeometry}</g><text x="82" y="30" fill="${pale}" font-family="Georgia, 'Times New Roman', serif" font-size="24" letter-spacing="3.2">SAHADEVA</text><text x="83" y="49" fill="${pale}" opacity=".76" font-family="Arial, sans-serif" font-size="8.5" letter-spacing="2.2">YOUR COSMIC COMPANION</text>`, { viewBox: "0 0 420 64", title: "Sahadeva reverse logo" }));
+await writeFile(new URL("wordmark.svg", out), svg(340, `<text x="4" y="34" fill="${ink}" font-family="Georgia, 'Times New Roman', serif" font-size="30" letter-spacing="4">SAHADEVA</text><text x="5" y="54" fill="${ink}" font-family="Arial, sans-serif" font-size="8.5" letter-spacing="2.3">YOUR COSMIC COMPANION</text>`, { viewBox: "0 0 340 64", title: "Sahadeva wordmark" }));
+await writeFile(new URL("stacked.svg", out), svg(240, `<g transform="translate(88 0)" style="color:${gold}">${markGeometry}</g><text x="120" y="91" text-anchor="middle" fill="${ink}" font-family="Georgia, 'Times New Roman', serif" font-size="25" letter-spacing="3.4">SAHADEVA</text><text x="120" y="110" text-anchor="middle" fill="${ink}" font-family="Arial, sans-serif" font-size="8" letter-spacing="2">YOUR COSMIC COMPANION</text>`, { viewBox: "0 0 240 128", title: "Sahadeva stacked logo" }));
 
 const registry = {
   schemaVersion: "1.0.0",
   license: "Repository license",
   philosophy: "Traditional in meaning. Modern in expression. Human in explanation.",
   sourceLayers: ["sanskrit", "literal", "classical", "consumer", "visual-dna"],
+  brandAssets: [
+    { id: "brand.mark", path: "mark.svg", canonical: true },
+    { id: "brand.mark.monochrome", path: "mark-monochrome.svg", canonical: true },
+    { id: "brand.lockup", path: "lockup.svg", canonical: true },
+    { id: "brand.lockup.reverse", path: "lockup-reverse.svg", canonical: true },
+    { id: "brand.wordmark", path: "wordmark.svg", canonical: true },
+    { id: "brand.stacked", path: "stacked.svg", canonical: true },
+    { id: "brand.app-icon", path: "app-icon.svg", canonical: true }
+  ],
   assets: Object.keys(glyphs).flatMap((id) => [24, 48, 128].map((size) => ({ id: `graha.${id}.${size}`, family: "navagraha", name: names[id], size, path: `graha/${id}-${size}.svg`, color: colors[id], canonical: true }))),
 };
 await writeFile(new URL("registry.json", out), `${JSON.stringify(registry, null, 2)}\n`);
 
-console.log(`Generated ${registry.assets.length + 4} canonical Cosmithra assets in ${join(out.pathname)}`);
+console.log(`Generated ${registry.assets.length + registry.brandAssets.length} canonical Sahadeva assets in ${join(out.pathname)}`);

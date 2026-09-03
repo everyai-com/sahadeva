@@ -239,8 +239,8 @@ function Results({
         </div>
         <p className="withheld">
           {t(
-            "There is no single number here on purpose. The South Indian tradition reports each porutham separately and does not roll them into one score — so Cosmithra does not either.",
-            "ఇక్కడ ఒకే ఒక సంఖ్య ఇవ్వకపోవడం ఉద్దేశపూర్వకమే. దక్షిణ భారత సంప్రదాయం ప్రతి పొరుత్తాన్ని విడిగా చెబుతుంది, అన్నిటినీ కలిపి ఒకే స్కోరుగా ఇవ్వదు — కాబట్టి కోస్మిత్ర కూడా ఇవ్వదు.",
+            "There is no single number here on purpose. The South Indian tradition reports each porutham separately and does not roll them into one score — so Sahadeva does not either.",
+            "ఇక్కడ ఒకే ఒక సంఖ్య ఇవ్వకపోవడం ఉద్దేశపూర్వకమే. దక్షిణ భారత సంప్రదాయం ప్రతి పొరుత్తాన్ని విడిగా చెబుతుంది, అన్నిటినీ కలిపి ఒకే స్కోరుగా ఇవ్వదు — కాబట్టి సహదేవ కూడా ఇవ్వదు.",
           )}
         </p>
       </section>

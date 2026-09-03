@@ -9,6 +9,43 @@
     "consumer",
     "visual-dna"
   ],
+  "brandAssets": [
+    {
+      "id": "brand.mark",
+      "path": "mark.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.mark.monochrome",
+      "path": "mark-monochrome.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.lockup",
+      "path": "lockup.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.lockup.reverse",
+      "path": "lockup-reverse.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.wordmark",
+      "path": "wordmark.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.stacked",
+      "path": "stacked.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.app-icon",
+      "path": "app-icon.svg",
+      "canonical": true
+    }
+  ],
   "assets": [
     {
       "id": "graha.surya.24",

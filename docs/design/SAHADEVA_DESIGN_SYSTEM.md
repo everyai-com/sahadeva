@@ -1,8 +1,8 @@
-# Cosmithra design system
+# Sahadeva design system
 
 ## Philosophy
 
-Cosmithra is a translation system, not an astrology skin. It carries a concept through five distinct layers without confusing one for another:
+Sahadeva is a translation system, not an astrology skin. It carries a concept through five distinct layers without confusing one for another:
 
 1. Sanskrit source identity
 2. Literal meaning
@@ -38,7 +38,7 @@ All glyphs are made from circle, arc, axis, ray, intersection, enclosure, break,
 | Rāhu | occluded circle | cover |
 | Ketu | fragmented tail | dissolve |
 
-Each is shipped as a monochrome-capable 24px glyph, 48px symbol, and 128px emblem. The asset registry at `public/brand/cosmithra/registry.json` is canonical. Do not invent alternates without versioning the registry.
+Each is shipped as a monochrome-capable 24px glyph, 48px symbol, and 128px emblem. The asset registry at `public/brand/sahadeva/registry.json` is canonical. Do not invent alternates without versioning the registry.
 
 ## Usage rules
 
@@ -51,8 +51,10 @@ Each is shipped as a monochrome-capable 24px glyph, 48px symbol, and 128px emble
 
 ## Asset license and reuse
 
-All deterministic SVG assets in `public/brand/cosmithra` are source-controlled with the application and inherit the repository license. Use `registry.json` for stable paths and identity metadata.
+All deterministic SVG assets in `public/brand/sahadeva` are source-controlled with the application and inherit the repository license unless a separate brand-asset license is adopted. Use `registry.json` for stable paths and identity metadata.
+
+The remaining production scope is tracked in `SAHADEVA_DESIGN_COMPLETION_ROADMAP.md`.
 
 ## Production and QA
 
-Run `node scripts/generate-cosmithra-assets.mjs` to reproduce the entire vector family from source. Every release must pass source, recognition, consumer, cultural, modernity, story, and 20px reduction tests. The monochrome glyph is authoritative; contextual material color is secondary.
+Run `node scripts/generate-sahadeva-assets.mjs` to reproduce the entire vector family from source. Every release must pass source, recognition, consumer, cultural, modernity, story, and 20px reduction tests. The monochrome glyph is authoritative; contextual material color is secondary.

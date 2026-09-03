@@ -109,7 +109,7 @@ export function MoreScreen() {
       <main className="screen more-screen" id="content">
         <header className="shead headrow">
           <span>
-            <p className="eyebrow">{t("Cosmithra", "కోస్మిత్ర")}</p>
+            <p className="eyebrow">{t("Sahadeva", "సహదేవ")}</p>
             <h2>{t("More", "మరిన్ని")}</h2>
           </span>
           <LangToggle />
@@ -224,8 +224,8 @@ export function MoreScreen() {
           <p className="sectitle">{t("About you", "మీ గురించి")}</p>
           <p className="small muted" style={{ marginBottom: "var(--space-2)" }}>
             {t(
-              "A line or two about your work, family and what is on your mind. Cosmithra uses it to make answers concrete instead of asking again.",
-              "మీ పని, కుటుంబం, మనసులో ఉన్న విషయం గురించి ఒకటి రెండు వాక్యాలు. మళ్లీ అడగకుండా సమాధానాలను నిర్దిష్టంగా ఇవ్వడానికి కోస్మిత్ర దీన్ని వాడుతుంది.",
+              "A line or two about your work, family and what is on your mind. Sahadeva uses it to make answers concrete instead of asking again.",
+              "మీ పని, కుటుంబం, మనసులో ఉన్న విషయం గురించి ఒకటి రెండు వాక్యాలు. మళ్లీ అడగకుండా సమాధానాలను నిర్దిష్టంగా ఇవ్వడానికి సహదేవ దీన్ని వాడుతుంది.",
             )}
           </p>
           <textarea

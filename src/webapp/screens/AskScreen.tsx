@@ -78,7 +78,7 @@ const TOPICS: Topic[] = [
 
 // The reply format (short answer + collapsible reasoning) is requested server-side
 // via responseStyle: "layered"; the heading below is where the two parts split.
-const WHY_RE = /^##\s+(?:Why (?:Cosmithra|Sahadeva) says this|(?:కోస్మిత్ర|సహదేవ్) ఇలా ఎందుకు చెబుతున్నాడు)\s*$/im;
+const WHY_RE = /^##\s+(?:Why (?:Sahadeva|Sahadeva) says this|(?:సహదేవ|సహదేవ్) ఇలా ఎందుకు చెబుతున్నాడు)\s*$/im;
 
 // Short greetings / small talk that should NOT trigger a full chart reading.
 const GREETING_RE =
@@ -738,7 +738,7 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
 
       {(whyPart.trim() || (turn.streaming && whyMatch)) && (
         <details className="jy why">
-          <summary>{t("Why Cosmithra says this", "కోస్మిత్ర ఇలా ఎందుకు చెబుతోంది")}</summary>
+          <summary>{t("Why Sahadeva says this", "సహదేవ ఇలా ఎందుకు చెబుతోంది")}</summary>
           <div className="jybody md">
             {detailClaims.map((claim) => (
               <section className="response-claim" key={claim.id}>
@@ -828,8 +828,8 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
 
       <p className="limitnote">
         {t(
-          "Cosmithra does not predict outcomes. It reports what the classical rules say and where they disagree.",
-          "కోస్మిత్ర ఫలితాలను జోస్యం చెప్పదు. శాస్త్ర నియమాలు ఏమి చెబుతున్నాయో, అవి ఎక్కడ విభేదిస్తున్నాయో మాత్రమే చెబుతుంది.",
+          "Sahadeva does not predict outcomes. It reports what the classical rules say and where they disagree.",
+          "సహదేవ ఫలితాలను జోస్యం చెప్పదు. శాస్త్ర నియమాలు ఏమి చెబుతున్నాయో, అవి ఎక్కడ విభేదిస్తున్నాయో మాత్రమే చెబుతుంది.",
         )}
       </p>
       {!turn.streaming && turn.id && (

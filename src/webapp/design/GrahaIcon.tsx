@@ -22,7 +22,7 @@ export function GrahaIcon({ name, size = 24, className, decorative = false }: Gr
   return (
     <img
       className={className}
-      src={`/brand/cosmithra/graha/${id}-${assetSize}.svg`}
+      src={`/brand/sahadeva/graha/${id}-${assetSize}.svg`}
       width={size}
       height={size}
       alt={decorative ? "" : `${name} symbol`}
@@ -31,6 +31,6 @@ export function GrahaIcon({ name, size = 24, className, decorative = false }: Gr
   );
 }
 
-export function CosmithraMark({ size = 40, className }: { size?: number; className?: string }) {
-  return <img className={className} src="/brand/cosmithra/mark.svg" width={size} height={size} alt="" aria-hidden="true" />;
+export function SahadevaMark({ size = 40, className }: { size?: number; className?: string }) {
+  return <img className={className} src="/brand/sahadeva/mark.svg" width={size} height={size} alt="" aria-hidden="true" />;
 }
