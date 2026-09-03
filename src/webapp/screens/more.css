@@ -43,3 +43,9 @@
 .more-screen .setrow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 14px 4px; }
 .more-screen .setlbl b { display: block; font-size: 17px; font-weight: 600; }
 .more-screen .setlbl span { display: block; font-size: var(--text-sm); color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+/* about-you context */
+.aboutyou .ctxbox { width: 100%; resize: vertical; min-height: 84px; padding: 12px 14px; font: inherit; font-size: 16px; line-height: 1.5; color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.aboutyou .ctxbox:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.aboutyou .ctxrow { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-2); }
+.aboutyou .ctxrow .edit { width: auto; margin-top: 0; }

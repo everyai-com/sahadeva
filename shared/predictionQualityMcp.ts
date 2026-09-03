@@ -22,7 +22,9 @@ export const PREDICTION_QUALITY_METHOD = {
   narrationRule:
     "Never collapse the confidence dimensions into a probability or certainty unless a versioned blind validation report supports that exact claim class.",
   sensitiveClaims:
-    "Retain source material for research and reviewed caution-led disclosure, but never diagnose illness, predict certain death or fertility, coerce marriage decisions, guarantee costly remedies, or recommend harm to people or animals.",
+    "Sensitive topics remain answerable through reflective possibilities and practical suggestions. Never diagnose illness, predict certain death or fertility, coerce marriage decisions, guarantee financial or remedy outcomes, accuse criminality or abuse, or recommend harm to people or animals.",
+  sensitiveTopicNarration:
+    "Restrict the unsafe claim, not the whole topic. When a proposed verdict must be withheld, offer a bounded reflection, uncertainty-aware planning guidance and optional real-world next steps instead.",
 } as const;
 
 export type TraditionLedger = {
@@ -78,6 +80,20 @@ export function auditPredictionClaim(input: {
     : blockers.length || opposing >= supporting
       ? "caution"
       : "publish";
+  const narration = decision === "publish"
+    ? {
+        mode: "evidence-linked-interpretation",
+        instruction: "Narrate the claim with supporting and opposing evidence and stated limits.",
+      }
+    : decision === "caution"
+      ? {
+          mode: "suggestion-only",
+          instruction: "Frame this only as a possibility and provide practical, optional suggestions; do not imply an outcome.",
+        }
+      : {
+          mode: "rewrite-unsafe-claim",
+          instruction: "Do not state this claim. Replace it with a bounded reflection or practical suggestion without predicting the outcome.",
+        };
   return {
     schemaVersion: "sahadeva-prediction-claim-audit-1",
     claim: input.claim,
@@ -94,6 +110,7 @@ export function auditPredictionClaim(input: {
       empiricallyCalibrated: input.empiricallyCalibrated === true,
     },
     decision: { action: decision, blockers },
+    narration,
     method: PREDICTION_QUALITY_METHOD,
   };
 }

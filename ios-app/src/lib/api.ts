@@ -89,6 +89,7 @@ export type ChatRequest = {
   mode?: ChatMode;
   messages: Message[];
   responseDepth?: "standard" | "deep";
+  lifeContext?: string;
   onSummary?: (summary: ChatSummary) => void;
   onDelta?: (text: string) => void;
 };
@@ -100,6 +101,8 @@ export async function chat(request: ChatRequest, attempt = 0): Promise<string> {
     mode: request.mode,
     clientSurface: "mobile",
     responseDepth: request.responseDepth ?? "standard",
+    responseStyle: "layered",
+    lifeContext: request.lifeContext || undefined,
     messages: request.messages,
   });
   if (response.status === 503 && attempt < 2) {

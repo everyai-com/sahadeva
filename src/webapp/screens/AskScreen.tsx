@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import "./ask.css";
 import { useLang, LangToggle } from "../lang";
 import { useData } from "../data";
@@ -6,6 +6,7 @@ import { StatusBar, TabBar } from "../shell";
 import { streamChat, type ChatSummary, type ChatTurn } from "../api";
 import { grahaName, signName, nakName } from "../format";
 import { Markdown } from "../md";
+import { getLifeContext } from "../lifeContext";
 import type { ReactNode } from "react";
 
 type Turn = ChatTurn & { summary?: ChatSummary | null; streaming?: boolean; error?: string };
@@ -63,12 +64,9 @@ const TOPICS: Topic[] = [
   },
 ];
 
-// Appended to the message sent to the model (not shown to the user) so replies
-// stay short and easy to read — this directly answers the "too much info" issue.
-const STYLE_EN =
-  "\n\nAnswer in simple, everyday language a normal person understands. Start with the single main takeaway in one short sentence, then at most 3 short bullet points. Keep it under about 130 words. Do not use house numbers, planet strength percentages, or technical jargon. But do not leave out the most important detail — if there is a key timing, a caution, or a condition that matters, include it plainly in one of the points.";
-const STYLE_TE =
-  "\n\nసామాన్యులకు అర్థమయ్యే సరళమైన, రోజువారీ భాషలో సమాధానం ఇవ్వండి. ముందుగా ముఖ్య విషయాన్ని ఒక్క చిన్న వాక్యంలో చెప్పండి, తర్వాత గరిష్ఠంగా 3 చిన్న పాయింట్లు. సుమారు 130 పదాల లోపు ఉంచండి. ఇంటి సంఖ్యలు, గ్రహ బల శాతాలు, సాంకేతిక పదాలు వాడకండి. కానీ ముఖ్యమైన విషయాన్ని వదిలివేయకండి — ముఖ్యమైన సమయం, ఒక హెచ్చరిక, లేదా ఒక షరతు ఉంటే దాన్ని ఒక పాయింట్‌లో స్పష్టంగా చెప్పండి.";
+// The reply format (short answer + collapsible reasoning) is requested server-side
+// via responseStyle: "layered"; the heading below is where the two parts split.
+const WHY_RE = /^##\s+(?:Why Sahadeva says this|సహదేవ్ ఇలా ఎందుకు చెబుతున్నాడు)\s*$/im;
 
 // Short greetings / small talk that should NOT trigger a full chart reading.
 const GREETING_RE =
@@ -198,9 +196,6 @@ export function AskScreen() {
   async function ask(text: string) {
     if (!profile || !text.trim() || busy) return;
     const question = text.trim();
-    const style = lang === "te" ? STYLE_TE : STYLE_EN;
-    // History shown to the user stays clean; the model gets a brevity instruction
-    // appended only to the current question.
     const base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
     const withUser: Turn[] = [...base, { role: "user", content: question }];
 
@@ -222,7 +217,7 @@ export function AskScreen() {
 
     const history: ChatTurn[] = [
       ...base.map((x) => ({ role: x.role, content: x.content })),
-      { role: "user", content: question + style },
+      { role: "user", content: question },
     ];
     setTurns([...withUser, { role: "assistant", content: "", streaming: true }]);
     setInput("");
@@ -230,9 +225,15 @@ export function AskScreen() {
     pinQuestionTop(); // bring the new question to the top; don't chase the bottom
 
     try {
-      const { text: reply, summary } = await streamChat({ ...profile, language: lang }, history, (cumulative) => {
-        setTurns([...withUser, { role: "assistant", content: cumulative, streaming: true }]);
-      });
+      const { text: reply, summary } = await streamChat(
+        { ...profile, language: lang },
+        history,
+        (cumulative) => {
+          setTurns([...withUser, { role: "assistant", content: cumulative, streaming: true }]);
+        },
+        undefined,
+        { lifeContext: getLifeContext() },
+      );
       const finalTurns: Turn[] = [...withUser, { role: "assistant", content: reply, summary, streaming: false }];
       setTurns(finalTurns);
       persistThread(finalTurns);
@@ -405,7 +406,20 @@ export function AskScreen() {
   );
 }
 
-function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => void }) {
+const TOPIC_TE: Record<string, string> = {
+  "career and work": "వృత్తి, ఉద్యోగం",
+  "marriage and partnership": "వివాహం, భాగస్వామ్యం",
+  "money and resources": "డబ్బు, వనరులు",
+  "education and learning": "చదువు, అభ్యాసం",
+  "children and creativity": "సంతానం, సృజనాత్మకత",
+  "home, property and vehicles": "ఇల్లు, ఆస్తి, వాహనాలు",
+  "meaning and spiritual practice": "ఆధ్యాత్మిక సాధన",
+  "health and vitality": "ఆరోగ్యం, శక్తి",
+  "overall momentum": "మొత్తం గమనం",
+};
+
+// Memoised: streaming updates only re-render the turn that is changing.
+const Answer = memo(function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => void }) {
   const { lang, t } = useLang();
   if (turn.streaming && !turn.content) {
     return (
@@ -427,9 +441,17 @@ function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => v
 
   const s = turn.summary;
   const followUps =
-    (s?.everyday?.dailyLife?.questions && s.everyday.dailyLife.questions.length
-      ? s.everyday.dailyLife.questions
-      : s?.fullProfile?.nextQuestions) || [];
+    (s?.followUps && s.followUps.length
+      ? s.followUps
+      : s?.everyday?.dailyLife?.questions && s.everyday.dailyLife.questions.length
+        ? s.everyday.dailyLife.questions
+        : s?.fullProfile?.nextQuestions) || [];
+
+  // Layered reply: the short answer, then reasoning behind a disclosure.
+  const whyMatch = WHY_RE.exec(turn.content);
+  const shortPart = whyMatch ? turn.content.slice(0, whyMatch.index) : turn.content;
+  const whyPart = whyMatch ? turn.content.slice(whyMatch.index + whyMatch[0].length) : "";
+  const outlook = s?.timingOutlook;
 
   const jrows: Array<[string, string]> = [];
   if (s?.anchors?.lagna?.signName) jrows.push([`Ascendant ${signName2(s.anchors.lagna.signName, lang)}`, "Lagna · లగ్నం"]);
@@ -440,8 +462,42 @@ function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => v
   return (
     <article className="answer">
       <div className="md">
-        <Markdown text={turn.content} />
+        <Markdown text={shortPart} />
       </div>
+
+      {(whyPart.trim() || (turn.streaming && whyMatch)) && (
+        <details className="jy why">
+          <summary>{t("Why Sahadeva says this", "సహదేవ్ ఇలా ఎందుకు చెబుతున్నాడు")}</summary>
+          <div className="jybody md">
+            <Markdown text={whyPart} />
+          </div>
+        </details>
+      )}
+
+      {outlook && !turn.streaming && (outlook.windows.length > 0 || outlook.sadeSati.active) && (
+        <div className="timing">
+          <p className="tmtitle">
+            {t("Timing windows", "అనుకూల సమయాలు")}
+            <span className="tmtopic"> · {lang === "te" ? TOPIC_TE[outlook.topicLabel] || outlook.topicLabel : outlook.topicLabel}</span>
+          </p>
+          <p className="tmnow">
+            <span className={`tmband ${outlook.now.band}`} aria-hidden="true" />
+            {t("Now", "ఇప్పుడు")}: {t(outlook.now.band === "strong" ? "strong support" : outlook.now.band === "moderate" ? "moderate support" : "building phase", outlook.now.band === "strong" ? "బలమైన మద్దతు" : outlook.now.band === "moderate" ? "మధ్యస్థ మద్దతు" : "నిర్మాణ దశ")}
+          </p>
+          <div className="tmwins">
+            {outlook.windows.map((w) => (
+              <div className={`tmwin ${w.strength}`} key={w.startIso}>
+                <b>{w.label}</b>
+                <span>{w.reasons[0]}</span>
+              </div>
+            ))}
+          </div>
+          {outlook.sadeSati.active && (
+            <p className="tmsade">{t(`Sade Sati is active (${outlook.sadeSati.stage} phase).`, `సాడే సాతి కొనసాగుతోంది (${outlook.sadeSati.stage} దశ).`)}</p>
+          )}
+          <p className="tmnote">{t("Calculated period-and-transit support, not a promise of events.", "గణించిన దశ-గోచార మద్దతు మాత్రమే, సంఘటనల హామీ కాదు.")}</p>
+        </div>
+      )}
 
       {jrows.length > 0 && (
         <details className="jy">
@@ -482,7 +538,7 @@ function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => v
       </p>
     </article>
   );
-}
+});
 
 // Summary sign names arrive as English canonical (e.g. "Kumbha"); map to Telugu when possible.
 function signName2(name: string, lang: "en" | "te"): string {

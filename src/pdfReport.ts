@@ -530,7 +530,7 @@ export async function buildChartPdf(
   page.y += 20;
   wrap(
     page,
-    "Astrology is presented as an interpretive cultural tradition, not scientific fact. This report does not provide medical, legal, financial, fertility, or deterministic life predictions.",
+    "Astrology is presented as an interpretive cultural tradition, not scientific fact. Sensitive topics are discussed only as possibilities and practical suggestions; this report does not provide medical diagnoses, legal verdicts, guaranteed financial returns, fertility outcomes, lifespan claims, or guaranteed events.",
     MARGIN,
     21,
     31,

@@ -5,6 +5,26 @@ import type { Profile, Thread } from "./types";
 // Same keys as the web client so the mental model stays identical.
 const PROFILE_KEY = "sahadeva.profile.v1";
 const THREADS_KEY = "sahadeva.threads.v1";
+const LIFE_CONTEXT_KEY = "sahadeva.lifeContext.v1";
+export const LIFE_CONTEXT_MAX = 600;
+
+export async function loadLifeContext(): Promise<string> {
+  try {
+    return ((await AsyncStorage.getItem(LIFE_CONTEXT_KEY)) || "").slice(0, LIFE_CONTEXT_MAX);
+  } catch {
+    return "";
+  }
+}
+
+export async function saveLifeContext(text: string): Promise<void> {
+  try {
+    const clean = text.replace(/\s+/g, " ").trim().slice(0, LIFE_CONTEXT_MAX);
+    if (clean) await AsyncStorage.setItem(LIFE_CONTEXT_KEY, clean);
+    else await AsyncStorage.removeItem(LIFE_CONTEXT_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 export async function loadProfile(): Promise<Profile | null> {
   try {

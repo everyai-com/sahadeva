@@ -14,7 +14,7 @@ export type Profile = {
   language: Language;
 };
 
-export type Message = { role: "user" | "assistant"; content: string };
+export type Message = { role: "user" | "assistant"; content: string; summary?: ChatSummary | null };
 
 export type Thread = {
   id: string;
@@ -66,6 +66,20 @@ export type ChatSummary = {
   };
   measuredStrengths?: { planet: string; ratio: number | null; avastha?: string }[];
   confidence?: { score?: number; level?: string };
+  followUps?: string[];
+  timingOutlook?: TimingOutlookSummary | null;
+};
+
+export type TimingOutlookSummary = {
+  topic: string;
+  topicLabel: string;
+  headline: string;
+  now: { score: number; band: "strong" | "moderate" | "quiet"; summary: string };
+  windows: { label: string; startIso: string; endIso: string; strength: "strong" | "moderate"; peakScore: number; reasons: string[] }[];
+  quietStretch: { label: string } | null;
+  dashaSequence: { label: string; relevance: "direct" | "supporting" | "neutral"; activates: string[] }[];
+  sadeSati: { active: boolean; stage: string | null; dhaiya: boolean; saturnHouseFromMoon: number };
+  notice: string;
 };
 
 export type Placement = {

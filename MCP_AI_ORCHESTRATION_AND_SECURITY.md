@@ -31,6 +31,12 @@ Traditions are interconnected only through the user's question and common calcul
 
 Remedies are connected by goal, belief, burden, cost and accessibility. Every item retains its originating tradition. When reviewed rules are unavailable, that tradition remains visible with a withheld status; the system does not invent a remedy.
 
+## Sensitive-topic narration
+
+Sensitive subjects are not categorically blocked. Clients may discuss money, relationships, fertility, health, legal concerns and safety as reflective possibilities, practical questions and optional planning suggestions. Restrictions apply to the unsafe claim form: diagnosis, accusation, coercive verdict, guaranteed return, guaranteed relationship or fertility outcome, certain legal outcome, death or lifespan claim, violence prediction, or any guaranteed event.
+
+When a claim audit returns `caution`, narrate it only as a possibility and offer low-risk steps that remain useful if the interpretation is wrong. When it returns `abstain`, omit the proposed verdict but continue helping on the topic with bounded reflection, uncertainty and appropriate real-world support. Do not turn a claim-level abstention into a topic-level refusal.
+
 ## Server security boundary
 
 - The MCP exports capabilities and bounded results, not repository files, source code, SQL, system prompts, secrets or environment variables.

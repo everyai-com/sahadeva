@@ -290,7 +290,7 @@ export function buildFullLifeReport(
       publishableKnowledgeRules: 0,
       prohibitedInferences: [...PROHIBITED_INFERENCES],
       notice:
-        "Traditional interpretations are reflective and unreviewed. Timing themes are not guaranteed events. Do not use this report as medical, legal, financial, fertility, lifespan, or deterministic advice.",
+        "Traditional interpretations are reflective and unreviewed. Sensitive topics may be explored as possibilities with optional practical suggestions, but timing themes are not guaranteed events and this report does not provide medical diagnosis, legal verdicts, guaranteed financial returns, fertility outcomes or lifespan predictions.",
     },
   };
 }

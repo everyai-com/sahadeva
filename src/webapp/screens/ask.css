@@ -124,3 +124,24 @@
 .ask-screen .wave i:nth-child(5) { height: 20px; animation-delay: 480ms; }
 .ask-screen .wave i:nth-child(6) { height: 9px; animation-delay: 600ms; }
 @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* layered answer: reasoning disclosure */
+.ask-screen details.why > summary { font-weight: 600; }
+.ask-screen details.why .jybody.md { font-size: 16px; }
+
+/* timing windows card (from the code-computed outlook) */
+.ask-screen .timing { margin-top: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-4); background: var(--surface); }
+.ask-screen .tmtitle { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.ask-screen .tmtopic { font-weight: 400; color: var(--muted); }
+.ask-screen .tmnow { display: flex; align-items: center; gap: 8px; font-size: var(--text-base); color: var(--fg); margin-bottom: var(--space-3); }
+.ask-screen .tmband { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+.ask-screen .tmband.strong { background: var(--accent); }
+.ask-screen .tmband.moderate { background: var(--accent); opacity: 0.55; }
+.ask-screen .tmwins { display: flex; flex-direction: column; gap: 8px; }
+.ask-screen .tmwin { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); border-left-width: 4px; }
+.ask-screen .tmwin.strong { border-left-color: var(--accent); }
+.ask-screen .tmwin.moderate { border-left-color: var(--muted); }
+.ask-screen .tmwin b { font-size: 16px; font-weight: 600; }
+.ask-screen .tmwin span { font-size: var(--text-sm); color: var(--muted); line-height: 1.45; }
+.ask-screen .tmsade { margin-top: var(--space-3); font-size: var(--text-base); }
+.ask-screen .tmnote { margin-top: var(--space-3); font-size: var(--text-xs); color: var(--meta); line-height: 1.5; }

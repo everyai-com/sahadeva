@@ -8,8 +8,13 @@ describe("prediction quality MCP contracts", () => {
     expect(result.synthesisPolicy).toContain("never inferred by averaging");
   });
   it("abstains from prohibited claims and cautions unreviewed claims", () => {
-    expect(auditPredictionClaim({ claim: "certain death", harmClass: "prohibited-output" }).decision.action).toBe("abstain");
-    expect(auditPredictionClaim({ claim: "career change", calculationCertified: true }).decision.action).toBe("caution");
+    const prohibited = auditPredictionClaim({ claim: "certain death", harmClass: "prohibited-output" });
+    expect(prohibited.decision.action).toBe("abstain");
+    expect(prohibited.narration.mode).toBe("rewrite-unsafe-claim");
+    expect(prohibited.narration.instruction).toContain("practical suggestion");
+    const unreviewed = auditPredictionClaim({ claim: "career change", calculationCertified: true });
+    expect(unreviewed.decision.action).toBe("caution");
+    expect(unreviewed.narration.mode).toBe("suggestion-only");
   });
   it("does not call counts predictive validation", () => {
     const result = validationReportFromCounts({ resolvedOutcomes: 99, blindOutcomes: 99 });

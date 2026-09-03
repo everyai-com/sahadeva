@@ -8,6 +8,7 @@ import { nakName, signName } from "../format";
 import { signOut, type Person } from "../api";
 import { AuthSheet } from "./AuthSheet";
 import { setOnboardingMode } from "../onboardingMode";
+import { getLifeContext, setLifeContext, LIFE_CONTEXT_MAX } from "../lifeContext";
 import type { ReactNode } from "react";
 
 const CHEV = (
@@ -27,6 +28,8 @@ export function MoreScreen() {
   const { profile, chart, account, people, activePersonId, refreshMe, activatePerson, deletePerson } = useData();
   const [authOpen, setAuthOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [context, setContext] = useState<string>(() => getLifeContext());
+  const [contextSaved, setContextSaved] = useState(false);
 
   async function handleSignOut() {
     await signOut().catch(() => {});
@@ -215,6 +218,41 @@ export function MoreScreen() {
             </button>
           ))}
         </div>
+
+        <section className="settings aboutyou">
+          <p className="sectitle">{t("About you", "మీ గురించి")}</p>
+          <p className="small muted" style={{ marginBottom: "var(--space-2)" }}>
+            {t(
+              "A line or two about your work, family and what is on your mind. Sahadeva uses it to make answers concrete instead of asking again.",
+              "మీ పని, కుటుంబం, మనసులో ఉన్న విషయం గురించి ఒకటి రెండు వాక్యాలు. మళ్లీ అడగకుండా సమాధానాలను నిర్దిష్టంగా ఇవ్వడానికి సహదేవ్ దీన్ని వాడతాడు.",
+            )}
+          </p>
+          <textarea
+            className="ctxbox"
+            rows={3}
+            maxLength={LIFE_CONTEXT_MAX}
+            placeholder={t("e.g. Software engineer in Hyderabad, married, thinking about moving abroad next year.", "ఉదా. హైదరాబాద్‌లో సాఫ్ట్‌వేర్ ఇంజనీర్, వివాహితుడు, వచ్చే ఏడాది విదేశాలకు వెళ్లాలని ఆలోచన.")}
+            value={context}
+            onChange={(e) => {
+              setContext(e.target.value);
+              setContextSaved(false);
+            }}
+          />
+          <div className="ctxrow">
+            <span className="small muted">{context.length}/{LIFE_CONTEXT_MAX}</span>
+            <button
+              className="edit"
+              type="button"
+              onClick={() => {
+                setLifeContext(context);
+                setContext(getLifeContext());
+                setContextSaved(true);
+              }}
+            >
+              {contextSaved ? t("Saved", "భద్రపరిచారు") : t("Save", "భద్రపరచు")}
+            </button>
+          </div>
+        </section>
 
         <section className="settings">
           <p className="sectitle">{t("Settings", "సెట్టింగ్‌లు")}</p>

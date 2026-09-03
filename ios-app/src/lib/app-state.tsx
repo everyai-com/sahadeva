@@ -22,8 +22,7 @@ import {
   newThreadId,
   normalizeThreads,
   saveProfile,
-  saveThreads,
-} from "./storage";
+  saveThreads, LIFE_CONTEXT_MAX, loadLifeContext, saveLifeContext } from "./storage";
 import { getStrings, type Strings } from "./strings";
 import type {
   Account,
@@ -54,6 +53,8 @@ type AppState = {
   people: Person[];
   partner: Profile | null;
   prashnaMode: boolean;
+  lifeContext: string;
+  setLifeContext: (text: string) => void;
   adoptProfile: (profile: Profile) => void;
   replaceProfile: (profile: Profile) => void;
   resetProfile: () => void;
@@ -98,6 +99,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [people, setPeople] = useState<Person[]>([]);
   const [partner, setPartner] = useState<Profile | null>(null);
   const [prashnaMode, setPrashnaMode] = useState(false);
+  const [lifeContext, setLifeContextState] = useState("");
+  const lifeContextRef = useRef("");
+  const setLifeContext = useCallback((text: string) => {
+    const clean = text.replace(/\s+/g, " ").trim().slice(0, LIFE_CONTEXT_MAX);
+    lifeContextRef.current = clean;
+    setLifeContextState(clean);
+    void saveLifeContext(clean);
+  }, []);
 
   const startedRef = useRef(false);
   const chartLoadingRef = useRef(false);
@@ -174,15 +183,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setBusy(true);
       setError("");
       try {
+        let turnSummary: ChatSummary | null = null;
         const reply = await chat({
           profile: activeProfile,
           partner: partnerOverride ?? undefined,
           mode,
           messages: history,
-          onSummary: setSummary,
+          lifeContext: lifeContextRef.current,
+          onSummary: (next) => {
+            turnSummary = next;
+            setSummary(next);
+          },
           onDelta: setDraft,
         });
-        commitMessages([...history, { role: "assistant", content: reply }]);
+        commitMessages([...history, { role: "assistant", content: reply, summary: turnSummary }]);
         const lastUser = history.at(-1);
         if (
           lastUser &&
@@ -245,12 +259,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [localProfile, localThreads, me] = await Promise.all([
+      const [localProfile, localThreads, me, storedContext] = await Promise.all([
         loadProfile(),
         loadThreads(),
         fetchMe(),
+        loadLifeContext(),
       ]);
       if (cancelled) return;
+      lifeContextRef.current = storedContext;
+      setLifeContextState(storedContext);
       let nextProfile = localProfile;
       let nextThreads = localThreads;
       if (me.signedIn && me.user) {
@@ -484,6 +501,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     people,
     partner,
     prashnaMode,
+    lifeContext,
+    setLifeContext,
     adoptProfile,
     replaceProfile,
     resetProfile,

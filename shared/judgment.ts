@@ -79,6 +79,7 @@ export type TopicJudgment = {
     status: "research-preview";
     prohibitedInferences: string[];
     notice: string;
+    allowedGuidance: string;
   };
   practicalQuestions: string[];
 };
@@ -350,6 +351,8 @@ export function buildTopicJudgment(
         "guaranteed event",
       ],
       notice: "This is a transparent traditional research model, not scientific prediction or professional advice.",
+      allowedGuidance:
+        "Discuss this domain as a possibility and offer practical, optional planning suggestions; do not turn it into a verdict or guarantee.",
     },
     practicalQuestions: config.questions,
   };

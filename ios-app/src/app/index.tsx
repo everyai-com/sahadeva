@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -21,7 +21,10 @@ import { useTheme } from "@/hooks/use-theme";
 import { useAppState } from "@/lib/app-state";
 import { sendReadingFeedback, sendTelemetry } from "@/lib/api";
 import { threadTitle } from "@/lib/storage";
-import type { Message } from "@/lib/types";
+import type { Message, TimingOutlookSummary } from "@/lib/types";
+
+// Layered replies split here: short answer above, reasoning behind a disclosure.
+const WHY_RE = /^##\s+(?:Why Sahadeva says this|సహదేవ్ ఇలా ఎందుకు చెబుతున్నాడు)\s*$/im;
 
 export default function ChatScreen() {
   const state = useAppState();
@@ -140,6 +143,8 @@ export default function ChatScreen() {
                   sendTelemetry("follow_up_started", { language: profile.language });
                 }}
                 onRegenerate={() => sendText(t.regenerateAsk)}
+                onAsk={sendText}
+                busy={state.busy}
                 t={t}
               />
             ))}
@@ -299,21 +304,55 @@ export default function ChatScreen() {
   );
 }
 
-function MessageBubble({
+function TimingCard({ outlook, t }: { outlook: TimingOutlookSummary; t: ReturnType<typeof useAppState>["t"] }) {
+  const theme = useTheme();
+  if (!outlook.windows.length && !outlook.sadeSati.active) return null;
+  const band = outlook.now.band === "strong" ? t.bandStrong : outlook.now.band === "moderate" ? t.bandModerate : t.bandQuiet;
+  return (
+    <View style={[styles.timingCard, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}>
+      <ThemedText type="smallBold">
+        {t.timingTitle} <ThemedText type="small" themeColor="textSecondary">· {outlook.topicLabel}</ThemedText>
+      </ThemedText>
+      <View style={styles.timingNow}>
+        <View style={[styles.timingDot, { backgroundColor: outlook.now.band === "quiet" ? theme.textSecondary : theme.accent, opacity: outlook.now.band === "moderate" ? 0.55 : 1 }]} />
+        <ThemedText type="small">{t.nowLabel}: {band}</ThemedText>
+      </View>
+      {outlook.windows.map((window) => (
+        <View
+          key={window.startIso}
+          style={[styles.timingWindow, { borderColor: theme.border, borderLeftColor: window.strength === "strong" ? theme.accent : theme.textSecondary, backgroundColor: theme.background }]}>
+          <ThemedText type="smallBold">{window.label}</ThemedText>
+          {window.reasons[0] ? <ThemedText type="small" themeColor="textSecondary">{window.reasons[0]}</ThemedText> : null}
+        </View>
+      ))}
+      {outlook.sadeSati.active && (
+        <ThemedText type="small">{t.sadeSatiActive}{outlook.sadeSati.stage ? ` (${outlook.sadeSati.stage})` : ""}.</ThemedText>
+      )}
+      <ThemedText type="small" themeColor="textSecondary">{t.timingNote}</ThemedText>
+    </View>
+  );
+}
+
+const MessageBubble = memo(function MessageBubble({
   message,
   language,
   onFollowUp,
   onRegenerate,
+  onAsk,
+  busy,
   t,
 }: {
   message: Message;
   language: "en" | "te";
   onFollowUp: () => void;
   onRegenerate: () => void;
+  onAsk: (text: string) => void;
+  busy: boolean;
   t: ReturnType<typeof useAppState>["t"];
 }) {
   const theme = useTheme();
   const [feedbackSent, setFeedbackSent] = useState("");
+  const [whyOpen, setWhyOpen] = useState(false);
   if (message.role === "user")
     return (
       <View style={[styles.bubbleUser, { backgroundColor: theme.accent }]}>
@@ -321,11 +360,39 @@ function MessageBubble({
       </View>
     );
   const long = message.content.length > 1200;
+  const whyMatch = WHY_RE.exec(message.content);
+  const shortPart = whyMatch ? message.content.slice(0, whyMatch.index) : message.content;
+  const whyPart = whyMatch ? message.content.slice(whyMatch.index + whyMatch[0].length).trim() : "";
+  const outlook = message.summary?.timingOutlook ?? null;
+  const followUps = message.summary?.followUps ?? [];
   return (
     <View style={styles.assistantWrap}>
       <View style={[styles.bubbleAssistant, { backgroundColor: theme.backgroundElement }]}>
-        <AssistantText text={message.content} />
+        <AssistantText text={shortPart} />
+        {whyPart !== "" && (
+          <View style={[styles.whyBox, { borderTopColor: theme.border }]}>
+            <Pressable onPress={() => setWhyOpen((value) => !value)} hitSlop={6} style={styles.whyHead}>
+              <ThemedText type="smallBold">{t.whyTitle}</ThemedText>
+              <ThemedText type="smallBold" themeColor="textSecondary">{whyOpen ? "–" : "+"}</ThemedText>
+            </Pressable>
+            {whyOpen && (
+              <View style={styles.whyBody}>
+                <AssistantText text={whyPart} />
+              </View>
+            )}
+          </View>
+        )}
       </View>
+      {outlook && <TimingCard outlook={outlook} t={t} />}
+      {followUps.length > 0 && (
+        <View style={styles.followRow}>
+          {followUps.slice(0, 3).map((question) => (
+            <Pressable key={question} disabled={busy} onPress={() => onAsk(question)} style={[styles.followChip, { borderColor: theme.border }]}>
+              <ThemedText type="small" style={{ color: theme.accent }}>→ {question}</ThemedText>
+            </Pressable>
+          ))}
+        </View>
+      )}
       {long && (
         <View style={styles.qualityRow}>
           {[
@@ -364,7 +431,7 @@ function MessageBubble({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
@@ -401,6 +468,15 @@ const styles = StyleSheet.create({
   },
   userText: { color: "#fff", fontWeight: "500" },
   assistantWrap: { gap: 8 },
+  whyBox: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
+  whyHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 36 },
+  whyBody: { marginTop: 6 },
+  timingCard: { alignSelf: "stretch", maxWidth: "94%", borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
+  timingNow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  timingDot: { width: 9, height: 9, borderRadius: 5 },
+  timingWindow: { borderWidth: 1, borderLeftWidth: 4, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },
+  followRow: { gap: 6, maxWidth: "94%" },
+  followChip: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9 },
   bubbleAssistant: {
     alignSelf: "flex-start",
     maxWidth: "94%",

@@ -138,6 +138,18 @@ export type ChatSummary = {
   currentTiming?: { mahadasha?: string | null; antardasha?: string | null; nextMahadasha?: { lord: string; startIso: string; endIso: string } | null };
   everyday?: { dailyLife?: { questions?: string[] } };
   fullProfile?: { nextQuestions?: string[] } | null;
+  followUps?: string[];
+  timingOutlook?: {
+    topic: string;
+    topicLabel: string;
+    headline: string;
+    now: { score: number; band: "strong" | "moderate" | "quiet"; summary: string };
+    windows: Array<{ label: string; startIso: string; endIso: string; strength: "strong" | "moderate"; peakScore: number; reasons: string[] }>;
+    quietStretch: { label: string } | null;
+    dashaSequence: Array<{ label: string; relevance: "direct" | "supporting" | "neutral"; activates: string[] }>;
+    sadeSati: { active: boolean; stage: string | null; dhaiya: boolean; saturnHouseFromMoon: number };
+    notice: string;
+  } | null;
 };
 
 /* ── low-level fetch helpers ───────────────────────────────────────────── */
@@ -393,11 +405,18 @@ export async function streamChat(
   messages: ChatTurn[],
   onDelta: (cumulativeText: string) => void,
   signal?: AbortSignal,
+  options: { lifeContext?: string } = {},
 ): Promise<{ text: string; summary: ChatSummary | null }> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ profile, messages, clientSurface: "web" }),
+    body: JSON.stringify({
+      profile,
+      messages,
+      clientSurface: "web",
+      responseStyle: "layered",
+      lifeContext: options.lifeContext || undefined,
+    }),
     signal,
   });
   if (res.status === 429) throw new Error("rate");

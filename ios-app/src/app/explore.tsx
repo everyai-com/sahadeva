@@ -21,7 +21,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { API_URL, createShareLink } from "@/lib/api";
 import { useAppState } from "@/lib/app-state";
 import { disableDailyReminder, enableDailyReminder } from "@/lib/notifications";
-import { loadReminder, saveReminder } from "@/lib/storage";
+import { LIFE_CONTEXT_MAX, loadReminder, saveReminder } from "@/lib/storage";
 
 export default function MoreScreen() {
   const state = useAppState();
@@ -34,6 +34,14 @@ export default function MoreScreen() {
   const [authError, setAuthError] = useState("");
   const [shareState, setShareState] = useState<"idle" | "busy" | "done" | "need-account">("idle");
   const [editOpen, setEditOpen] = useState(false);
+  const [contextDraft, setContextDraft] = useState(state.lifeContext);
+  const [contextSaved, setContextSaved] = useState(false);
+  // Re-sync the draft when hydration or account switching changes the stored context.
+  const [seenContext, setSeenContext] = useState(state.lifeContext);
+  if (seenContext !== state.lifeContext) {
+    setSeenContext(state.lifeContext);
+    setContextDraft(state.lifeContext);
+  }
   const [addOpen, setAddOpen] = useState(false);
   const [reminderOn, setReminderOn] = useState(false);
   const [reminderToken, setReminderToken] = useState<string | undefined>();
@@ -233,6 +241,35 @@ export default function MoreScreen() {
             </>
           )}
 
+          {/* About you: life context sent with every question */}
+          <ThemedText style={styles.eyebrow}>{t.aboutYou.toUpperCase()}</ThemedText>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+            <ThemedText type="small" themeColor="textSecondary">{t.aboutYouHint}</ThemedText>
+            <TextInput
+              value={contextDraft}
+              onChangeText={(value) => {
+                setContextDraft(value);
+                setContextSaved(false);
+              }}
+              placeholder={t.aboutYouPlaceholder}
+              placeholderTextColor={theme.textSecondary}
+              multiline
+              maxLength={LIFE_CONTEXT_MAX}
+              style={[styles.contextInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+            />
+            <View style={styles.contextRow}>
+              <ThemedText type="small" themeColor="textSecondary">{contextDraft.length}/{LIFE_CONTEXT_MAX}</ThemedText>
+              <Pressable
+                onPress={() => {
+                  state.setLifeContext(contextDraft);
+                  setContextSaved(true);
+                }}
+                hitSlop={8}>
+                <ThemedText type="smallBold" style={{ color: theme.accent }}>{contextSaved ? t.saved : t.save}</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+
           {/* Preferences */}
           <ThemedText style={styles.eyebrow}>{t.language.toUpperCase()}</ThemedText>
           <View style={styles.langRow}>
@@ -367,6 +404,8 @@ export default function MoreScreen() {
 }
 
 const styles = StyleSheet.create({
+  contextInput: { minHeight: 84, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, lineHeight: 22, marginTop: 8, textAlignVertical: "top" },
+  contextRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
   screen: { flex: 1 },
   flex: { flex: 1 },
   content: { padding: 18, gap: 12, paddingBottom: BottomTabInset + 60 },
