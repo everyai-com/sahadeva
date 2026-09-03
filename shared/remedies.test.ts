@@ -127,9 +127,16 @@ describe("remedy protocol", () => {
     ).toContainEqual(
       expect.objectContaining({ requirement: "separateCalculationCompleted" }),
     );
-    expect(JSON.stringify(result)).not.toMatch(
-      /wear|carat|initiation-only mantra:/i,
-    );
+    // The legacy protocol sections and the low-risk affliction plan stay free of
+    // casual gemstone/mantra prescriptions. Specific gemstone and mantra guidance
+    // now lives, deliberately and fully caveated, in `comprehensiveRepertoire`.
+    expect(
+      JSON.stringify({
+        traditionalChartRemedies: result.traditionalChartRemedies,
+        eligiblePractices: result.eligiblePractices,
+        afflictionRemedies: result.afflictionRemedies,
+      }),
+    ).not.toMatch(/wear|carat|initiation-only mantra:/i);
   });
   it("pins a passing and blocked policy context for every source-located remedy rule", () => {
     const passed: TraditionalRemedyGateContext = {

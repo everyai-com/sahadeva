@@ -3,6 +3,7 @@ import type { TopicJudgment } from "./judgment";
 import type { ChartResult } from "./schema";
 import { calculateDevataProfile } from "./devata";
 import { buildAfflictionRemedyPlan } from "./afflictionRemedies";
+import { buildComprehensiveRemedies } from "./comprehensiveRemedies";
 
 export type RemedyRecord = {
   id: string;
@@ -878,6 +879,13 @@ export function buildChartRemedyProtocol(
       maximumBurden: preferences.maximumBurden,
       maximumCost: preferences.maximumCost,
       allowPrayer: preferences.allowPrayer,
+      allowCharity: preferences.allowCharity,
+    }),
+    comprehensiveRepertoire: buildComprehensiveRemedies(chart, {
+      // A gemstone is a real cost, so only include stone recommendations when
+      // the user's cost ceiling allows it; mantras follow the prayer preference.
+      allowGemstones: preferences.maximumCost === "low",
+      allowMantras: preferences.allowPrayer,
       allowCharity: preferences.allowCharity,
     }),
     traditionalChartRemedies: assessedTraditionalChartRemedies,
