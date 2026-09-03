@@ -145,3 +145,6 @@
 .ask-screen .tmwin span { font-size: var(--text-sm); color: var(--muted); line-height: 1.45; }
 .ask-screen .tmsade { margin-top: var(--space-3); font-size: var(--text-base); }
 .ask-screen .tmnote { margin-top: var(--space-3); font-size: var(--text-xs); color: var(--meta); line-height: 1.5; }
+
+.ask-screen .deeper { display: block; width: 100%; margin-top: var(--space-4); min-height: 48px; padding: 0 var(--space-4); border: 1px solid var(--accent); border-radius: var(--radius-md); background: transparent; color: var(--accent); font-size: var(--text-base); font-weight: 600; text-align: left; }
+.ask-screen .deeper:hover { background: var(--border-soft); }

@@ -193,7 +193,7 @@ export function AskScreen() {
     if (activeIdRef.current === id) newChat();
   }
 
-  async function ask(text: string) {
+  async function ask(text: string, deep = false) {
     if (!profile || !text.trim() || busy) return;
     const question = text.trim();
     const base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
@@ -232,7 +232,7 @@ export function AskScreen() {
           setTurns([...withUser, { role: "assistant", content: cumulative, streaming: true }]);
         },
         undefined,
-        { lifeContext: getLifeContext() },
+        { lifeContext: getLifeContext(), deep },
       );
       const finalTurns: Turn[] = [...withUser, { role: "assistant", content: reply, summary, streaming: false }];
       setTurns(finalTurns);
@@ -324,7 +324,7 @@ export function AskScreen() {
                 {turn.content}
               </div>
             ) : (
-              <Answer key={i} turn={turn} onFollowUp={ask} />
+              <Answer key={i} turn={turn} onFollowUp={ask} onDeeper={() => { const q = turns[i - 1]; if (q?.role === "user") ask(q.content, true); }} />
             ),
           )
         )}
@@ -419,7 +419,7 @@ const TOPIC_TE: Record<string, string> = {
 };
 
 // Memoised: streaming updates only re-render the turn that is changing.
-const Answer = memo(function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => void }) {
+const Answer = memo(function Answer({ turn, onFollowUp, onDeeper }: { turn: Turn; onFollowUp: (q: string) => void; onDeeper: () => void }) {
   const { lang, t } = useLang();
   if (turn.streaming && !turn.content) {
     return (
@@ -466,7 +466,7 @@ const Answer = memo(function Answer({ turn, onFollowUp }: { turn: Turn; onFollow
       </div>
 
       {(whyPart.trim() || (turn.streaming && whyMatch)) && (
-        <details className="jy why">
+        <details className="jy why" open>
           <summary>{t("Why Sahadeva says this", "సహదేవ్ ఇలా ఎందుకు చెబుతున్నాడు")}</summary>
           <div className="jybody md">
             <Markdown text={whyPart} />
@@ -518,6 +518,12 @@ const Answer = memo(function Answer({ turn, onFollowUp }: { turn: Turn; onFollow
           {s.anchors?.moon?.signName && <span className="evchip">Moon · {signName2(s.anchors.moon.signName, lang)}</span>}
           {s.currentTiming?.mahadasha && <span className="evchip">{grahaName(s.currentTiming.mahadasha, lang)} dasha</span>}
         </div>
+      )}
+
+      {!turn.streaming && whyMatch && (
+        <button className="deeper" type="button" onClick={onDeeper}>
+          {t("Go deeper: full 1000+ word reading on this question", "మరింత లోతుగా: ఈ ప్రశ్నపై పూర్తి విస్తృత పఠనం")}
+        </button>
       )}
 
       {followUps.length > 0 && (

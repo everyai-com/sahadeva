@@ -352,7 +352,7 @@ const MessageBubble = memo(function MessageBubble({
 }) {
   const theme = useTheme();
   const [feedbackSent, setFeedbackSent] = useState("");
-  const [whyOpen, setWhyOpen] = useState(false);
+  const [whyOpen, setWhyOpen] = useState(true);
   if (message.role === "user")
     return (
       <View style={[styles.bubbleUser, { backgroundColor: theme.accent }]}>

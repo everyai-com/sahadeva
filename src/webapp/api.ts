@@ -405,7 +405,7 @@ export async function streamChat(
   messages: ChatTurn[],
   onDelta: (cumulativeText: string) => void,
   signal?: AbortSignal,
-  options: { lifeContext?: string } = {},
+  options: { lifeContext?: string; deep?: boolean } = {},
 ): Promise<{ text: string; summary: ChatSummary | null }> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -414,7 +414,8 @@ export async function streamChat(
       profile,
       messages,
       clientSurface: "web",
-      responseStyle: "layered",
+      responseStyle: options.deep ? "plain" : "layered",
+      responseDepth: options.deep ? "deep" : "standard",
       lifeContext: options.lifeContext || undefined,
     }),
     signal,
