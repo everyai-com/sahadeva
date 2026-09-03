@@ -283,15 +283,29 @@ export function AskScreen() {
       activeIdRef.current = sessionId;
       setActiveId(sessionId);
     }
+    const base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
+    const userTurnId = newTurnId();
+    const withUser: Turn[] = [...base, { id: userTurnId, role: "user", content: question }];
+
+    // Paint the person's message before analytics, persistence, profile
+    // serialization, or the reading request can occupy the main thread.
+    // This is especially noticeable in mobile Safari on slower devices.
+    const isGreeting = GREETING_RE.test(question);
+    const responseTurnId = newTurnId();
+    if (!isGreeting) {
+      setInput("");
+      setBusy(true);
+      setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: true }]);
+      pinQuestionTop();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+
     analyticsCapture("prompt_submitted", {
       conversation_session_id: sessionId,
       input_length_band: question.length < 80 ? "short" : question.length < 300 ? "medium" : "long",
       input_method: listening ? "voice" : "text",
       response_depth: deep ? "deep" : "standard",
     });
-    const base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
-    const userTurnId = newTurnId();
-    const withUser: Turn[] = [...base, { id: userTurnId, role: "user", content: question }];
     // Save scoring in the background so a new chat appears immediately.
     void (async () => {
       try {
@@ -313,7 +327,7 @@ export function AskScreen() {
     })();
 
     // Greetings / small talk: reply conversationally, don't run a reading.
-    if (GREETING_RE.test(question)) {
+    if (isGreeting) {
       const greetText = t(
         `Namaste${firstName ? " " + firstName : ""}! I can read your chart with you. What would you like to know — your career, marriage, health, money, or the timing right now?`,
         `నమస్తే${firstName ? " " + firstName : ""}! మీ జాతకాన్ని మీతో కలిసి చదవగలను. మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు — వృత్తి, వివాహం, ఆరోగ్యం, డబ్బు, లేదా ప్రస్తుత సమయం?`,
@@ -332,12 +346,6 @@ export function AskScreen() {
       ...base.map((x) => ({ role: x.role, content: x.content })),
       { role: "user", content: question },
     ];
-    const responseTurnId = newTurnId();
-    setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: true }]);
-    setInput("");
-    setBusy(true);
-    pinQuestionTop(); // bring the new question to the top; don't chase the bottom
-
     try {
       const { text: reply, summary } = await streamChat(
         { ...profile, language: lang },
