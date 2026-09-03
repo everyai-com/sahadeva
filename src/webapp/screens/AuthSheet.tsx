@@ -11,7 +11,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * On success it adopts the account's saved chart, or seeds a new account with
  * the local chart, then closes.
  */
-export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AuthSheet({ open, onClose, onAuthenticated }: { open: boolean; onClose: () => void; onAuthenticated?: () => unknown | Promise<unknown> }) {
   const { t } = useLang();
   const { profile, refreshMe } = useData();
   const [mode, setMode] = useState<"signin" | "signup">("signup");
@@ -43,6 +43,7 @@ export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => voi
       // Refresh atomically from the account; this also clears any guest chart
       // when the signed-in account has no person of its own.
       await refreshMe();
+      await onAuthenticated?.();
       reset();
       onClose();
     } catch (e) {

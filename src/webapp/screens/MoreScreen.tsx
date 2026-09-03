@@ -17,6 +17,8 @@ const CHEV = (
   </svg>
 );
 
+const SIGN_GLOSS_EN = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+
 function personSummary(person: Person, lang: "en" | "te"): string {
   const p = person.profile;
   if (!p) return "—";
@@ -178,15 +180,22 @@ export function MoreScreen() {
           ) : profile ? (
             <div className="pcard">
               <p className="pn">{profile.name}</p>
-              <p className="pb">
-                {profile.date} · {profile.birthTimeConfidence === "none" ? t("time not known", "సమయం తెలియదు") : profile.time} · {profile.place}
-                {moon && lagna ? (
-                  <>
-                    <br />
-                    {signName(lagna.sign, lang)} lagna · {nakName(moon.nakshatra, lang)} · {signName(moon.sign, lang)}
-                  </>
-                ) : null}
-              </p>
+              <dl className="profilefacts">
+                <div><dt>{t("Date of birth", "పుట్టిన తేదీ")}</dt><dd className="mono">{profile.date}</dd></div>
+                <div><dt>{t("Birth time", "పుట్టిన సమయం")}</dt><dd className="mono">{profile.birthTimeConfidence === "none" ? t("Not known", "తెలియదు") : profile.time}</dd></div>
+                <div className="wide"><dt>{t("Place of birth", "పుట్టిన ప్రదేశం")}</dt><dd>{profile.place}</dd></div>
+                {lagna && <div><dt>{t("Ascendant (Lagna)", "లగ్న రాశి")}</dt><dd>{signName(lagna.sign, lang)}{lang === "en" ? ` · ${SIGN_GLOSS_EN[lagna.sign]} rising` : ""}</dd></div>}
+                {moon && <div><dt>{t("Birth star (Nakshatra)", "జన్మ నక్షత్రం")}</dt><dd>{nakName(moon.nakshatra, lang)}</dd></div>}
+                {moon && <div><dt>{t("Moon sign (Rashi)", "చంద్ర రాశి")}</dt><dd>{signName(moon.sign, lang)}{lang === "en" ? ` · ${SIGN_GLOSS_EN[moon.sign]}` : ""}</dd></div>}
+              </dl>
+              {moon && lagna && (
+                <p className="profilehelp">
+                  {t(
+                    "Lagna is the sign rising at your birth. Nakshatra is the Moon’s birth star; Rashi is the Moon’s zodiac sign.",
+                    "లగ్నం మీ పుట్టిన సమయంలో ఉదయించిన రాశి. నక్షత్రం చంద్రుని జన్మ నక్షత్రం; రాశి చంద్రుడు ఉన్న రాశి.",
+                  )}
+                </p>
+              )}
               <button className="edit" type="button" onClick={editActive}>
                 {t("Edit birth details", "జనన వివరాలు మార్చు")}
               </button>

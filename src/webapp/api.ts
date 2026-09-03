@@ -429,7 +429,7 @@ export async function saveConversationToAccount(
           id: thread.id,
           title: thread.title,
           updatedAt: new Date(thread.updatedAt).toISOString(),
-          messages: thread.turns.map(({ role, content }) => ({ role, content })),
+          messages: thread.turns.map(({ id, role, content }) => ({ id, role, content })),
         })),
         activeThreadId: activeThreadId ?? "",
       }),
@@ -442,7 +442,7 @@ export async function saveConversationToAccount(
 
 /* ── chat streaming ────────────────────────────────────────────────────── */
 
-export type ChatTurn = { role: "user" | "assistant"; content: string };
+export type ChatTurn = { id?: string; role: "user" | "assistant"; content: string };
 
 export type AlignmentSnapshot = { score: number; cause: string; created_at: string };
 export type AlignmentState = { score: number; concernOpen?: boolean; history: AlignmentSnapshot[] };

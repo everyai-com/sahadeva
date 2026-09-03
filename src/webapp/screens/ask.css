@@ -54,14 +54,35 @@
 
 .ask-screen .msg-user { align-self: flex-end; max-width: 86%; background: var(--surface); color: var(--fg); border: 1px solid var(--border-soft); border-radius: var(--radius-lg); padding: 12px 16px; font-size: 17px; line-height: 1.5; margin-top: var(--space-6); }
 
-.response-claim + .response-claim { border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); margin-top: 18px; padding-top: 8px; }
-.answer-feedback { align-items: center; color: var(--muted); display: flex; flex-wrap: wrap; font-size: 12px; gap: 7px; margin: 18px 0 4px; }
-.answer-feedback > button { align-items: center; background: transparent; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--muted); display: inline-flex; font-size: 15px; height: 30px; justify-content: center; min-width: 34px; }
-.answer-feedback > button:hover { border-color: var(--muted); color: var(--fg); }
-.answer-feedback > button.selected { background: var(--surface); border-color: var(--fg); color: var(--fg); }
+.insight-list { display: grid; gap: 10px; }
+.insight-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: clip; transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard); }
+.insight-card:hover { border-color: var(--muted); }
+.insight-card > summary { align-items: flex-start; cursor: pointer; display: flex; font-size: 17px; font-weight: 550; gap: 14px; justify-content: space-between; line-height: 1.55; list-style: none; padding: 15px 16px; text-wrap: pretty; }
+.insight-card > summary::-webkit-details-marker { display: none; }
+.insight-card > summary::after { color: var(--muted); content: "+"; flex: 0 0 auto; font-family: var(--font-mono); font-weight: 500; }
+.insight-card[open] > summary::after { content: "–"; }
+.insight-card.reacted.up { border-left: 3px solid #47745a; }
+.insight-card.reacted.down { border-left: 3px solid #a35e55; }
+.insight-body { border-top: 1px solid var(--border-soft); padding: 13px 16px 15px; }
+.insight-question { color: var(--muted); font-size: var(--text-sm); line-height: 1.45; margin: 0 0 10px; }
+.insight-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.insight-actions button { align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--fg); display: inline-flex; font-size: var(--text-sm); gap: 6px; min-height: 40px; padding: 0 12px; transition: background var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard); }
+.insight-actions button:hover { background: var(--border-soft); }
+.insight-actions button:active { transform: scale(.98); }
+.insight-actions button.selected { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.detail-insights .insight-card { background: var(--bg); }
 .claim-reasons { display: flex; flex-basis: 100%; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
 .claim-reasons button { background: var(--surface); border: 1px solid color-mix(in srgb, var(--ink) 13%, transparent); border-radius: 999px; color: var(--ink-soft); font-size: 11px; padding: 6px 9px; }
 .ask-screen .answer { margin-top: var(--space-5); }
+.assistant-turn { display: contents; }
+.save-chat-card { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; margin-top: var(--space-6); padding: 18px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-lg); }
+.save-chat-icon { width: 40px; height: 40px; display: grid; place-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; color: var(--fg); }
+.save-chat-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+.save-chat-card h3 { font-size: 17px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+.save-chat-card p { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 5px 0 14px; text-wrap: pretty; }
+.save-chat-card button { min-height: 44px; padding: 0 15px; border: 0; border-radius: var(--radius-md); background: var(--fg); color: var(--bg); font-size: 15px; font-weight: 600; transition: background var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard); }
+.save-chat-card button:hover { background: var(--fg-2); }
+.save-chat-card button:active { transform: scale(.98); }
 .ask-screen .averdict { font-size: var(--text-lg); line-height: 1.5; font-weight: 500; white-space: pre-wrap; }
 
 /* rendered markdown reply */

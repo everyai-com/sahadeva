@@ -19,6 +19,7 @@ import { grahaName, signName, nakName } from "../format";
 import { Markdown } from "../md";
 import { getLifeContext } from "../lifeContext";
 import { requestsFullProfile } from "../../../shared/chatEvidenceRouting";
+import { AuthSheet } from "./AuthSheet";
 import type { ReactNode } from "react";
 
 type Turn = ChatTurn & { id?: string; summary?: ChatSummary | null; streaming?: boolean; error?: string };
@@ -109,14 +110,24 @@ function serverThreads(value: StoredConversation | null): Thread[] {
   if (!value) return [];
   if (Array.isArray(value)) {
     return value.length
-      ? [{ id: newThreadId(), title: titleFrom(value), updatedAt: Date.now(), turns: value }]
+      ? normalizeThreads([{ id: "legacy-conversation", title: titleFrom(value), updatedAt: Date.now(), turns: value }])
       : [];
   }
-  return (value.threads || []).map((thread) => ({
+  return normalizeThreads((value.threads || []).map((thread) => ({
     id: thread.id,
     title: thread.title || titleFrom(thread.messages),
     updatedAt: typeof thread.updatedAt === "number" ? thread.updatedAt : Date.parse(thread.updatedAt) || Date.now(),
     turns: thread.messages || [],
+  })));
+}
+
+function normalizeThreads(threads: Thread[]): Thread[] {
+  return threads.map((thread) => ({
+    ...thread,
+    turns: thread.turns.map((turn, index) => ({
+      ...turn,
+      id: turn.id || `r-legacy-${(thread.id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 48) || "conversation")}-${index}`,
+    })),
   }));
 }
 function titleFrom(turns: StoredTurn[]): string {
@@ -164,6 +175,7 @@ export function AskScreen() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
   const [alignmentScore, setAlignmentScore] = useState(50);
   const [alignmentHistory, setAlignmentHistory] = useState<AlignmentSnapshot[]>([]);
   const threadRef = useRef<HTMLElement>(null);
@@ -183,7 +195,7 @@ export function AskScreen() {
   useEffect(() => {
     storageScopeRef.current = storageScope;
     const restored = account ? serverThreads(conversation) : loadThreads(storageScope);
-    const localFallback = restored.length ? restored : loadThreads(storageScope);
+    const localFallback = normalizeThreads(restored.length ? restored : loadThreads(storageScope));
     threadsRef.current = localFallback;
     setThreads(localFallback);
     setTurns([]);
@@ -485,12 +497,21 @@ export function AskScreen() {
                 {turn.content}
               </div>
             ) : (
-              <Answer
-                key={turn.id || i}
-                turn={turn}
-                onFollowUp={ask}
-                onReact={reactToClaim}
-              />
+              <div className="assistant-turn" key={turn.id || i}>
+                <Answer turn={turn} onFollowUp={ask} onReact={reactToClaim} />
+                {!account && !turn.streaming && !turn.error && turns.slice(0, i + 1).filter((item) => item.role === "user").length === 3 && (
+                  <aside className="save-chat-card" aria-label={t("Save this conversation", "ఈ సంభాషణను భద్రపరచండి")}>
+                    <span className="save-chat-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 0-4 4v2M7 9h10a2 2 0 0 1 2 2v8H5v-8a2 2 0 0 1 2-2Z" /></svg>
+                    </span>
+                    <div>
+                      <h3>{t("Keep this conversation", "ఈ సంభాషణను ఉంచుకోండి")}</h3>
+                      <p>{t("Add your email to create an account. We’ll back up this chat and your chart so you can continue on any device.", "ఖాతా సృష్టించడానికి మీ ఇమెయిల్‌ను జోడించండి. ఈ చాట్, మీ జాతకాన్ని భద్రపరుస్తాం; ఏ పరికరంలోనైనా కొనసాగించవచ్చు.")}</p>
+                      <button type="button" onClick={() => setAuthOpen(true)}>{t("Save with email", "ఇమెయిల్‌తో భద్రపరచండి")}</button>
+                    </div>
+                  </aside>
+                )}
+              </div>
             ),
           )
         )}
@@ -566,6 +587,11 @@ export function AskScreen() {
       </aside>
 
       <TabBar current="ask" />
+      <AuthSheet
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onAuthenticated={() => saveConversationToAccount(threadsRef.current, activeIdRef.current)}
+      />
     </>
   );
 }
@@ -629,13 +655,13 @@ function materialClaims(text: string, prefix: string): Array<{ id: string; kind:
   return claims;
 }
 
-function AnswerFeedback({
+function InsightCard({
   turnId,
-  response,
+  claim,
   onReact,
 }: {
   turnId: string;
-  response: string;
+  claim: { id: string; kind: string; text: string };
   onReact: (input: ClaimFeedbackInput) => Promise<void>;
 }) {
   const { t } = useLang();
@@ -650,31 +676,41 @@ function AnswerFeedback({
     ["too_generic", t("Too generic", "చాలా సాధారణం")],
     ["other", t("Other", "ఇతర")],
   ];
-  async function submit(next: "up" | "down", reason?: string) {
+  async function submit(next: "up" | "down", reason?: string, keepReasonPicker = false) {
     setBusy(true);
     try {
-      await onReact({ turnId, claimId: "complete_answer", claimKind: "complete_answer", rating: next, reason, response });
+      await onReact({ turnId, claimId: claim.id, claimKind: claim.kind, rating: next, reason, response: claim.text });
       setRating(next);
-      setChooseReason(false);
+      if (!keepReasonPicker) setChooseReason(false);
     } catch {
       // Keep the controls available so the person can retry after a transient failure.
     } finally {
       setBusy(false);
     }
   }
+  const plain = claim.text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/\*\*|__|`/g, "")
+    .trim();
   return (
-    <div className="answer-feedback">
-      <span>{rating ? t("Thanks for the feedback", "మీ స్పందనకు ధన్యవాదాలు") : t("Was this answer helpful?", "ఈ సమాధానం ఉపయోగపడిందా?")}</span>
-      <button type="button" disabled={busy} className={rating === "up" ? "selected" : ""} aria-label={t("Useful", "ఉపయోగకరం")} onClick={() => void submit("up")}>↑</button>
-      <button type="button" disabled={busy} className={rating === "down" ? "selected" : ""} aria-label={t("Not useful", "ఉపయోగకరం కాదు")} onClick={() => setChooseReason(true)}>↓</button>
-      {chooseReason && (
-        <div className="claim-reasons" role="group" aria-label={t("What went wrong?", "ఏం తప్పు జరిగింది?")}>
-          {reasons.map(([value, label]) => (
-            <button key={value} type="button" disabled={busy} onClick={() => void submit("down", value)}>{label}</button>
-          ))}
+    <details className={`insight-card${rating ? ` reacted ${rating}` : ""}`}>
+      <summary><span>{plain}</span></summary>
+      <div className="insight-body">
+        <p className="insight-question">{rating ? t("Response saved. Sahadeva will consider it in your next question.", "మీ స్పందన భద్రపరచబడింది. మీ తదుపరి ప్రశ్నలో సహదేవ దాన్ని పరిగణిస్తుంది.") : t("Does this match your experience or belief?", "ఇది మీ అనుభవం లేదా నమ్మకానికి సరిపోతుందా?")}</p>
+        <div className="insight-actions">
+          <button type="button" disabled={busy} className={rating === "up" ? "selected" : ""} aria-pressed={rating === "up"} onClick={() => void submit("up")}>↑ <span>{t("Matches", "సరిపోతుంది")}</span></button>
+          <button type="button" disabled={busy} className={rating === "down" ? "selected" : ""} aria-pressed={rating === "down"} onClick={() => { setChooseReason(true); void submit("down", "other", true); }}>↓ <span>{t("Conflicts", "విరుద్ధంగా ఉంది")}</span></button>
         </div>
-      )}
-    </div>
+        {chooseReason && (
+          <div className="claim-reasons" role="group" aria-label={t("What did not match?", "ఏది సరిపోలలేదు?")}>
+            {reasons.slice(0, -1).map(([value, label]) => (
+              <button key={value} type="button" disabled={busy} onClick={() => void submit("down", value)}>{label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -728,22 +764,18 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
 
   return (
     <article className="answer">
-      <div className="md">
+      <div className="insight-list">
         {shortClaims.map((claim) => (
-          <section className="response-claim" key={claim.id}>
-            <Markdown text={claim.text} />
-          </section>
+          turn.id ? <InsightCard key={claim.id} turnId={turn.id} claim={claim} onReact={onReact} /> : <div className="md" key={claim.id}><Markdown text={claim.text} /></div>
         ))}
       </div>
 
       {(whyPart.trim() || (turn.streaming && whyMatch)) && (
         <details className="jy why">
           <summary>{t("Why Sahadeva says this", "సహదేవ ఇలా ఎందుకు చెబుతోంది")}</summary>
-          <div className="jybody md">
+          <div className="jybody insight-list detail-insights">
             {detailClaims.map((claim) => (
-              <section className="response-claim" key={claim.id}>
-                <Markdown text={claim.text} />
-              </section>
+              turn.id ? <InsightCard key={claim.id} turnId={turn.id} claim={claim} onReact={onReact} /> : <div className="md" key={claim.id}><Markdown text={claim.text} /></div>
             ))}
           </div>
         </details>
@@ -832,9 +864,6 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
           "సహదేవ ఫలితాలను జోస్యం చెప్పదు. శాస్త్ర నియమాలు ఏమి చెబుతున్నాయో, అవి ఎక్కడ విభేదిస్తున్నాయో మాత్రమే చెబుతుంది.",
         )}
       </p>
-      {!turn.streaming && turn.id && (
-        <AnswerFeedback turnId={turn.id} response={turn.content} onReact={onReact} />
-      )}
     </article>
   );
 });
