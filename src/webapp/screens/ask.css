@@ -138,6 +138,12 @@
 .ask-screen .sendbtn { border-color: transparent; background: var(--fg); color: var(--bg); }
 .ask-screen .sendbtn:hover { background: var(--fg-2); color: var(--bg); }
 .ask-screen .sendbtn:active { transform: scale(.97); }
+.ask-screen .sendbtn:disabled { cursor: default; opacity: .42; }
+.ask-screen .sendbtn.sending { opacity: 1; }
+.ask-screen .sendspinner { width: 20px; height: 20px; border: 2px solid color-mix(in srgb, var(--bg) 38%, transparent); border-top-color: var(--bg); border-radius: 50%; animation: sendspin .75s linear infinite; }
+.ask-screen .sendstatus { color: var(--muted); font-size: 12px; line-height: 1.4; min-height: 17px; margin: 6px 4px 0; opacity: 0; transition: opacity var(--motion-fast) var(--ease-standard); }
+.ask-screen .sendstatus.on { opacity: 1; }
+@keyframes sendspin { to { transform: rotate(360deg); } }
 .ask-screen .iconbtn[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
 .ask-screen .listen { display: none; align-items: center; gap: var(--space-3); padding: 12px 4px 4px; }

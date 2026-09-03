@@ -546,12 +546,26 @@ export function AskScreen() {
               <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
             </svg>
           </button>
-          <button className="iconbtn sendbtn" type="button" aria-label={t("Send", "పంపు")} onClick={() => ask(input)}>
-            <svg viewBox="0 0 24 24">
-              <path d="M5 12h13M12 5l7 7-7 7" />
-            </svg>
+          <button
+            className={`iconbtn sendbtn${busy ? " sending" : ""}`}
+            type="button"
+            aria-label={busy ? t("Sahadeva is responding", "సహదేవ్ సమాధానం ఇస్తోంది") : t("Send", "పంపు")}
+            aria-busy={busy}
+            disabled={busy || !input.trim()}
+            onClick={() => ask(input)}
+          >
+            {busy ? (
+              <span className="sendspinner" aria-hidden="true" />
+            ) : (
+              <svg viewBox="0 0 24 24">
+                <path d="M5 12h13M12 5l7 7-7 7" />
+              </svg>
+            )}
           </button>
         </div>
+        <p className={`sendstatus${busy ? " on" : ""}`} role="status" aria-live="polite">
+          {busy ? t("Reading your chart and preparing an answer…", "మీ జాతకాన్ని చదివి సమాధానం సిద్ధం చేస్తోంది…") : ""}
+        </p>
       </div>
 
       {/* chat history drawer (ChatGPT / Claude style) */}
