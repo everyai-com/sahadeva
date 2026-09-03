@@ -30,6 +30,10 @@ import {
 import { buildFullLifeReport } from "../shared/fullLifeReport";
 import { buildEverydayReading } from "../shared/everydayReading";
 import { calculateCompatibility } from "../shared/compatibility";
+import {
+  calculateRelationshipCompatibility,
+  RELATIONSHIP_TYPES,
+} from "../shared/relationshipCompatibility";
 import { buildDailyPanchanga } from "../shared/dailyPanchanga";
 import {
   MUHURTA_RULEBOOK,
@@ -181,6 +185,7 @@ const redactConfirmationToken = (
 });
 const INTERPRETIVE_TOOLS = new Set([
   "calculate_compatibility",
+  "calculate_relationship_compatibility",
   "get_panchanga",
   "find_muhurta",
   "calculate_doshas",
@@ -587,6 +592,56 @@ const mcpTools = [
               default: 5,
             },
           },
+        },
+        language: { type: "string", enum: ["en", "te"], default: "en" },
+      },
+    },
+  },
+  {
+    name: "calculate_relationship_compatibility",
+    title: "Relationship compatibility (business, friends, siblings, and more)",
+    description:
+      "Gender-neutral Nakshatra compatibility between any two people for a chosen bond — business partner, friend, sibling, colleague, mentor/student, roommate or general. Resolves both places, calculates both charts, and returns per-factor Tara, Graha Maitri, Gana, Yoni, Bhakoot and Moon-element evidence weighted for that relationship, plus a 0-100 harmony index. Traditional research preview; never a verdict on any relationship.",
+    inputSchema: {
+      type: "object",
+      required: ["personA", "personB", "relationship"],
+      properties: {
+        personA: {
+          type: "object",
+          required: ["name", "date", "time", "place"],
+          properties: {
+            name: { type: "string" },
+            date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+            time: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+            place: { type: "string" },
+            birthTimeAccuracyMinutes: {
+              type: "number",
+              minimum: 0,
+              maximum: 1440,
+              default: 5,
+            },
+          },
+        },
+        personB: {
+          type: "object",
+          required: ["name", "date", "time", "place"],
+          properties: {
+            name: { type: "string" },
+            date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+            time: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+            place: { type: "string" },
+            birthTimeAccuracyMinutes: {
+              type: "number",
+              minimum: 0,
+              maximum: 1440,
+              default: 5,
+            },
+          },
+        },
+        relationship: {
+          type: "string",
+          enum: [...RELATIONSHIP_TYPES],
+          default: "general",
         },
         language: { type: "string", enum: ["en", "te"], default: "en" },
       },
@@ -2622,6 +2677,19 @@ for (const tool of mcpTools) {
         locationAlternatives;
     }
   }
+  if (tool.name === "calculate_relationship_compatibility")
+    for (const key of ["personA", "personB"]) {
+      const person = schema.properties?.[key] as {
+        required?: string[];
+        properties?: Record<string, unknown>;
+        anyOf?: unknown[];
+      };
+      person.required = (person.required || []).filter(
+        (field) => field !== "place",
+      );
+      person.properties = { ...person.properties, ...coordinateProperties };
+      person.anyOf = locationAlternatives;
+    }
   if (tool.name === "calculate_compatibility")
     for (const key of ["bride", "groom"]) {
       const person = schema.properties?.[key] as {
@@ -3072,6 +3140,27 @@ const mcpOutputSchemas: Record<string, unknown> = {
       ashtakoota: { type: "object" },
       porutham: { type: "object" },
       kujaDosha: { type: "object" },
+      sourceCoverage: { type: "object" },
+      safety: { type: "object" },
+    },
+  },
+  calculate_relationship_compatibility: {
+    type: "object",
+    required: [
+      "schemaVersion",
+      "relationship",
+      "subjects",
+      "harmony",
+      "factors",
+      "sourceCoverage",
+      "safety",
+    ],
+    properties: {
+      schemaVersion: { const: "sahadeva-relationship-compatibility-1" },
+      relationship: { type: "object" },
+      subjects: { type: "object" },
+      harmony: { type: "object" },
+      factors: { type: "array" },
       sourceCoverage: { type: "object" },
       safety: { type: "object" },
     },
@@ -3581,6 +3670,7 @@ const publicMcpToolNames = new Set([
   "generate_full_life_report",
   "get_full_life_report_section",
   "calculate_compatibility",
+  "calculate_relationship_compatibility",
   "get_panchanga",
   "find_muhurta",
   "calculate_doshas",
@@ -5227,6 +5317,85 @@ async function handleMcp(
       const structuredContent = calculateCompatibility(
         bride.chart,
         groom.chart,
+      );
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "calculate_relationship_compatibility") {
+      const args = request.params?.arguments as
+        | {
+            personA?: Record<string, unknown>;
+            personB?: Record<string, unknown>;
+            relationship?: unknown;
+            language?: unknown;
+          }
+        | undefined;
+      const relationship = (
+        RELATIONSHIP_TYPES as readonly string[]
+      ).includes(String(args?.relationship))
+        ? (args!.relationship as (typeof RELATIONSHIP_TYPES)[number])
+        : "general";
+      const resolvePerson = (person: Record<string, unknown> | undefined) => {
+        const resolved = resolveToolLocation(
+          person,
+          String(person?.date || ""),
+          String(person?.time || "12:00"),
+        );
+        if (!resolved.location)
+          return {
+            error:
+              resolved.error || resolved.resolution?.status === "ambiguous"
+                ? "Place is ambiguous"
+                : "Location is incomplete",
+            place: resolved.resolution,
+          };
+        const parsed = birthInputSchema.safeParse({
+          ...person,
+          ...locationInput(resolved.location),
+          language: args?.language || "en",
+          methodology: "parashari",
+          focus: "general",
+          birthTimeAccuracyMinutes: person?.birthTimeAccuracyMinutes ?? 5,
+        });
+        return parsed.success
+          ? { chart: calculateChart(parsed.data) }
+          : { error: "Invalid birth details", details: parsed.error.flatten() };
+      };
+      const personA = resolvePerson(args?.personA),
+        personB = resolvePerson(args?.personB);
+      if (!personA.chart || !personB.chart) {
+        const candidates = (result: typeof personA) =>
+          result.place?.matches?.map((place) => ({
+            label: locationLabel(place),
+            latitude: place.latitude,
+            longitude: place.longitude,
+            timezone: place.timezone,
+          })) || [];
+        return rpcError(
+          request.id,
+          -32602,
+          "Both people need valid, unambiguous known places",
+          {
+            personA: {
+              error: personA.error,
+              details: personA.details,
+              candidates: candidates(personA),
+            },
+            personB: {
+              error: personB.error,
+              details: personB.details,
+              candidates: candidates(personB),
+            },
+          },
+        );
+      }
+      const structuredContent = calculateRelationshipCompatibility(
+        personA.chart,
+        personB.chart,
+        relationship,
       );
       return rpcResult(request.id, {
         content: [{ type: "text", text: JSON.stringify(structuredContent) }],

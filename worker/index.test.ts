@@ -315,6 +315,9 @@ describe("Sahadeva MCP", () => {
       "calculate_gochara_from_known_place",
     );
     expect(tools.map((tool) => tool.name)).toContain("calculate_compatibility");
+    expect(tools.map((tool) => tool.name)).toContain(
+      "calculate_relationship_compatibility",
+    );
     expect(tools.map((tool) => tool.name)).toContain("get_panchanga");
     expect(tools.map((tool) => tool.name)).toContain("find_muhurta");
     expect(tools.map((tool) => tool.name)).toContain("calculate_doshas");
@@ -335,7 +338,7 @@ describe("Sahadeva MCP", () => {
       "record_consultation_outcome",
     );
     expect(tools.map((tool) => tool.name)).toContain("get_validation_report");
-    expect(tools).toHaveLength(54);
+    expect(tools).toHaveLength(55);
     expect(tools.map((tool) => tool.name)).not.toContain(
       "calculate_south_indian_chart",
     );

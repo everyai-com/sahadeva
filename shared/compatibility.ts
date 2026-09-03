@@ -2,7 +2,7 @@ import { NAKSHATRAS, SIGNS } from "./constants";
 import type { ChartResult, GrahaName } from "./schema";
 import { PROHIBITED_INFERENCES } from "./safety";
 
-const LORDS = [
+export const LORDS = [
   "Mars",
   "Venus",
   "Mercury",
@@ -18,7 +18,7 @@ const LORDS = [
 ] as const;
 const VARNA = [3, 2, 1, 4, 3, 2, 1, 4, 3, 2, 1, 4] as const; // Shudra=1, Vaishya=2, Kshatriya=3, Brahmin=4
 const VARNA_NAMES = ["", "Shudra", "Vaishya", "Kshatriya", "Brahmin"];
-const GANA = [
+export const GANA = [
   "Deva",
   "Manushya",
   "Rakshasa",
@@ -47,7 +47,7 @@ const GANA = [
   "Manushya",
   "Deva",
 ];
-const NADI = [
+export const NADI = [
   "Aadi",
   "Madhya",
   "Antya",
@@ -76,7 +76,7 @@ const NADI = [
   "Madhya",
   "Antya",
 ].map((value) => (value === "Manushya" ? "Madhya" : value));
-const YONI = [
+export const YONI = [
   "Horse",
   "Elephant",
   "Sheep",
@@ -105,7 +105,7 @@ const YONI = [
   "Cow",
   "Elephant",
 ];
-const YONI_ENEMIES = new Set(
+export const YONI_ENEMIES = new Set(
   [
     "Horse:Buffalo",
     "Elephant:Lion",
@@ -187,9 +187,9 @@ const VEDHA_PAIRS = new Set(
   ].flatMap(([a, b]) => [`${a}:${b}`, `${b}:${a}`]),
 );
 
-const nakIndex = (name: string) =>
+export const nakIndex = (name: string) =>
   NAKSHATRAS.indexOf(name as (typeof NAKSHATRAS)[number]);
-const relation = (from: string, to: string) =>
+export const relation = (from: string, to: string) =>
   FRIENDS[from]?.includes(to)
     ? "friend"
     : ENEMIES[from]?.includes(to)
