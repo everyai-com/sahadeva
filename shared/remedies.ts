@@ -2,6 +2,7 @@ import type { EvidenceObservation, QuestionCategory } from "./consultation";
 import type { TopicJudgment } from "./judgment";
 import type { ChartResult } from "./schema";
 import { calculateDevataProfile } from "./devata";
+import { buildAfflictionRemedyPlan } from "./afflictionRemedies";
 
 export type RemedyRecord = {
   id: string;
@@ -872,6 +873,13 @@ export function buildChartRemedyProtocol(
       birthTimeSensitivity: devata.birthTimeSensitivity,
       devataProfile: devata,
     },
+    afflictionRemedies: buildAfflictionRemedyPlan(chart, {
+      beliefMode: preferences.beliefMode,
+      maximumBurden: preferences.maximumBurden,
+      maximumCost: preferences.maximumCost,
+      allowPrayer: preferences.allowPrayer,
+      allowCharity: preferences.allowCharity,
+    }),
     traditionalChartRemedies: assessedTraditionalChartRemedies,
     traditionalRemedyStatus: "calculated-candidates-with-publication-gates",
     sourceCoverage: {
