@@ -12769,6 +12769,40 @@ app.post("/api/transcribe", async (c) => {
     return c.json({ error: "Unsupported transcription language." }, 400);
 
   try {
+    const useHighAccuracyProvider = requestedLanguage === "te" || requestedLanguage === "auto";
+    if (useHighAccuracyProvider) {
+      if (!c.env.OPENAI_API_KEY)
+        return c.json({ error: "High-accuracy Telugu transcription is temporarily unavailable." }, 503);
+      const openAiForm = new FormData();
+      openAiForm.append("file", audio, audio.name || "voice.m4a");
+      openAiForm.append("model", "gpt-4o-transcribe");
+      openAiForm.append("response_format", "json");
+      openAiForm.append("temperature", "0");
+      if (requestedLanguage === "te") openAiForm.append("language", "te");
+      openAiForm.append(
+        "prompt",
+        "Transcribe exactly in the speaker's language and native script without translating. Telugu must use Telugu script. Preserve Indian names, places, dates, and Jyotisha terms: రాహు, కేతు, లగ్నం, రాశి, నక్షత్రం, వింశోత్తరి, మహాదశ, అంతర్దశ, ఉత్తర ఫల్గుణి, వృశ్చికం, కన్య, షడ్బలం, పంచాంగం.",
+      );
+      const upstream = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { authorization: `Bearer ${c.env.OPENAI_API_KEY}` },
+        body: openAiForm,
+      });
+      const result = (await upstream.json().catch(() => ({}))) as { text?: string; language?: string; error?: { message?: string } };
+      const text = String(result.text || "").trim();
+      if (!upstream.ok || !text)
+        return c.json({ error: "High-accuracy transcription is temporarily unavailable. Please try again." }, 503);
+      c.header("Cache-Control", "no-store");
+      return c.json({
+        text,
+        language: result.language || (requestedLanguage === "auto" ? null : requestedLanguage),
+        languageProbability: null,
+        duration: null,
+        provider: "openai-gpt-4o-transcribe",
+        stored: false,
+      });
+    }
+
     const bytes = new Uint8Array(await audio.arrayBuffer());
     const languagePrompt = requestedLanguage === "te"
       ? "ఇది తెలుగు జ్యోతిష సంప్రదింపు. మాట్లాడిన మాటలను అనువదించకుండా సహజమైన తెలుగు లిపిలోనే ఖచ్చితంగా రాయండి. పదాలు: రాహు, కేతు, లగ్నం, రాశి, నక్షత్రం, వింశోత్తరి, మహాదశ, అంతర్దశ, ఉత్తర ఫల్గుణి, వృశ్చికం, కన్య, షడ్బలం, పంచాంగం."
@@ -12794,6 +12828,7 @@ app.post("/api/transcribe", async (c) => {
       language: result.transcription_info?.language || (requestedLanguage === "auto" ? null : requestedLanguage),
       languageProbability: result.transcription_info?.language_probability ?? null,
       duration: result.transcription_info?.duration ?? null,
+      provider: "cloudflare-whisper-large-v3-turbo",
       stored: false,
     });
   } catch {

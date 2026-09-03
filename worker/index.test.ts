@@ -108,7 +108,7 @@ describe("Sahadeva MCP", () => {
     let input: Record<string, unknown> = {};
     const form = new FormData();
     form.append("audio", new File([new Uint8Array([1, 2, 3, 4])], "voice.webm", { type: "audio/webm" }));
-    form.append("language", "te");
+    form.append("language", "en");
     const response = await app.request(
       "http://localhost/api/transcribe",
       { method: "POST", body: form },
@@ -119,15 +119,15 @@ describe("Sahadeva MCP", () => {
           run: async (nextModel: string, nextInput: Record<string, unknown>) => {
             model = nextModel;
             input = nextInput;
-            return { text: "నా వృత్తి గురించి చెప్పండి", transcription_info: { language: "te", duration: 2.4 } };
+            return { text: "Tell me about my career", transcription_info: { language: "en", duration: 2.4 } };
           },
         },
       } as never,
     );
     expect(response.status).toBe(200);
     expect(model).toBe("@cf/openai/whisper-large-v3-turbo");
-    expect(input).toMatchObject({ language: "te", task: "transcribe", vad_filter: true });
-    expect(await response.json()).toMatchObject({ text: "నా వృత్తి గురించి చెప్పండి", language: "te", stored: false });
+    expect(input).toMatchObject({ language: "en", task: "transcribe", vad_filter: true });
+    expect(await response.json()).toMatchObject({ text: "Tell me about my career", language: "en", stored: false });
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
   it("rejects unsupported transcription languages before inference", async () => {
