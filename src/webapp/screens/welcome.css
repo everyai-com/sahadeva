@@ -1,12 +1,15 @@
 /* First-run language chooser. */
-.welcome-screen { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; padding: 24px 28px 40px; text-align: center; }
+.welcome-screen { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; padding: 24px 28px 40px; text-align: center; position: relative; overflow: hidden; }
+.welcome-screen::before { content: ""; position: absolute; width: 34rem; aspect-ratio: 1; left: 50%; top: 42%; transform: translate(-50%, -50%); border: 1px solid var(--border); border-radius: 50%; box-shadow: 0 0 0 5rem rgba(169,139,82,.025), 0 0 0 10rem rgba(169,139,82,.018); pointer-events: none; }
+.welcome-screen > * { position: relative; z-index: 1; }
+.welcome-screen .welcome-mark { margin: 0 auto 12px; }
 .welcome-screen .brand { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
-.welcome-screen h1 { font-size: 40px; letter-spacing: var(--tracking-display); margin-top: 10px; }
+.welcome-screen h1 { font-size: 42px; letter-spacing: var(--tracking-display); margin-top: 10px; color: var(--cultural-ink); }
 .welcome-screen .wsub { color: var(--muted); font-size: var(--text-base); line-height: 1.5; margin-top: var(--space-3); }
 .welcome-screen .wprompt { margin-top: var(--space-8); font-size: var(--text-base); font-weight: 600; }
 .welcome-screen .wprompt span { display: block; font-weight: 400; color: var(--muted); margin-top: 2px; }
 .welcome-screen .wbtns { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-5); }
-.welcome-screen .wbtn { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 64px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--fg); font-size: 21px; font-weight: 600; transition: background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+.welcome-screen .wbtn { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 64px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: rgba(255,255,255,.88); color: var(--fg); font-size: 21px; font-weight: 600; transition: transform var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
 .welcome-screen .wbtn:hover { background: var(--border-soft); border-color: var(--muted); }
 .welcome-screen .wbtn .native { font-size: 21px; }
 .welcome-screen .wbtn .roman { font-size: var(--text-sm); color: var(--muted); font-weight: 500; }

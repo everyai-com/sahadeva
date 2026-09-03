@@ -57,7 +57,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
-      let title = "Sahadeva";
+      let title = "Cosmithra";
       let body = "Your daily panchanga is ready.";
       try {
         const response = await fetch("/api/push/brief", { credentials: "include" });

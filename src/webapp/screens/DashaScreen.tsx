@@ -207,7 +207,7 @@ function RecallBox({ lord, open, setOpen }: { lord: string; open: string | null;
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={t("Write what this stretch was really like. Sahadev keeps it beside the dates.", "ఈ కాలం నిజంగా ఎలా గడిచిందో రాయండి. సహదేవ్ దాన్ని తేదీల పక్కనే ఉంచుతుంది.")}
+          placeholder={t("Write what this stretch was really like. Cosmithra keeps it beside the dates.", "ఈ కాలం నిజంగా ఎలా గడిచిందో రాయండి. కోస్మిత్ర దాన్ని తేదీల పక్కనే ఉంచుతుంది.")}
           aria-label={lord}
         />
         <div className="ra">

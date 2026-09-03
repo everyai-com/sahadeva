@@ -1,30 +1,29 @@
-/* ============================================================================
-   Sahadev web app — shared design system.
-   Ported verbatim from the Web-Prototype screens so the React app matches the
-   prototypes pixel for pixel. Screen-specific rules live in ./screens/*.css,
-   each scoped under a screen-root class to avoid collisions.
-   ============================================================================ */
+/* Cosmithra — Sanskrit-grounded product design tokens. */
 :root {
-  --bg: #ffffff;
-  --surface: #f5f5f7;
-  --surface-warm: #fbfbfd;
-  --fg: #1d1d1f;
-  --fg-2: #424245;
-  --muted: #6e6e73;
-  --meta: #86868b;
-  --border: #d2d2d7;
-  --border-soft: #e8e8ed;
-  --accent: #0071e3;
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --surface-warm: #f1f0ec;
+  --surface-raised: #fbfaf6;
+  --fg: #20201e;
+  --fg-2: #45443f;
+  --muted: #6c6b67;
+  --meta: #7d7b74;
+  --border: #e2e0da;
+  --border-soft: #ebe9e3;
+  --accent: #665f8e;
   --accent-on: #ffffff;
-  --accent-hover: #0077ed;
-  --accent-active: #0066cc;
-  --success: #16a34a;
-  --warn:    #eab308;
-  --danger:  #dc2626;
+  --accent-hover: #58517f;
+  --accent-active: #4d4770;
+  --cultural-ink: #242532;
+  --copper: #b87327;
+  --gold: #a98b52;
+  --success: #367c50;
+  --warn: #a06e19;
+  --danger: #a83f34;
   --font-display:
-    "SF Pro Display", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    "Fraunces", "Iowan Old Style", Georgia, serif;
   --font-body:
-    "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    "Inter", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
   --font-mono:
     "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
   --text-xs:   12px;
@@ -33,11 +32,11 @@
   --text-lg:   21px;
   --text-xl:   28px;
   --text-2xl:  40px;
-  --text-3xl:  56px;
-  --text-4xl:  80px;
-  --leading-body:  1.47;
-  --leading-tight: 1.05;
-  --tracking-display: -0.015em;
+  --text-3xl:  48px;
+  --text-4xl:  64px;
+  --leading-body: 1.55;
+  --leading-tight: 1.08;
+  --tracking-display: -0.025em;
   --space-1:  4px;
   --space-2:  8px;
   --space-3:  12px;
@@ -51,19 +50,40 @@
   --section-y-phone:   40px;
   --radius-sm:   8px;
   --radius-md:   12px;
-  --radius-lg:   18px;
+  --radius-lg:   16px;
   --radius-pill: 980px;
   --elev-flat:   none;
   --elev-ring:   0 0 0 1px var(--border);
-  --elev-raised: 0 12px 32px rgba(0, 0, 0, 0.08);
+  --elev-raised: 0 18px 46px rgba(36, 37, 50, 0.08);
   --focus-ring: 0 0 0 4px color-mix(in oklab, var(--accent), transparent 65%);
   --motion-fast:   150ms;
   --motion-base:   220ms;
   --ease-standard: cubic-bezier(0.28, 0, 0.22, 1);
-  --container-max:            1024px;
+  --container-max:            1200px;
   --container-gutter-desktop: 22px;
   --container-gutter-tablet:  18px;
   --container-gutter-phone:   16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171716;
+    --surface: #1f1f1d;
+    --surface-warm: #191918;
+    --surface-raised: #282825;
+    --fg: #f2f1ed;
+    --fg-2: #d0cec7;
+    --muted: #aaa9a3;
+    --meta: #92918b;
+    --border: #343431;
+    --border-soft: #2a2a27;
+    --accent: #9189bd;
+    --accent-hover: #a39bce;
+    --accent-active: #7e76aa;
+    --cultural-ink: #f2f1ed;
+    --copper: #d39958;
+    --gold: #c6a669;
+  }
 }
 
 .sahadev-web *,
@@ -83,7 +103,9 @@
   padding: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 78% -15%, rgba(169, 139, 82, .09), transparent 34rem),
+    var(--bg);
 }
 .skip-link { position: fixed; top: 10px; left: 10px; z-index: 40; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--fg); color: var(--bg) !important; transform: translateY(-150%); }
 .skip-link:focus { transform: translateY(0); }
@@ -102,7 +124,7 @@
 .sahadev-web h3 {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 560;
   line-height: var(--leading-tight);
   text-wrap: balance;
 }
@@ -146,7 +168,8 @@
   gap: 2px;
   padding: 6px 10px 22px;
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-warm) 94%, transparent);
+  backdrop-filter: blur(16px);
 }
 .webbrand, .navidentity { display: none; }
 .tab {
@@ -168,7 +191,7 @@
 }
 .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; }
 .tab:hover { background: var(--border-soft); color: var(--fg); }
-.tab[aria-current=page] { color: var(--fg); }
+.tab[aria-current=page] { color: var(--accent); }
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 
 /* top bar with back button (chart/dasha/match/remedies) */
@@ -185,7 +208,7 @@
 
 /* ── shared header / typography utilities ────────────────────────────────── */
 .shead { padding: 8px 0 14px; }
-.eyebrow { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.07em; color: var(--muted); margin: 0 0 6px; }
+.eyebrow { font-family: var(--font-body); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; color: var(--copper); margin: 0 0 6px; }
 .muted { color: var(--muted); }
 .small { font-size: var(--text-sm); line-height: 1.55; }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
@@ -212,12 +235,12 @@
    first WITHOUT a generic before "Anek Telugu", so English stays in the Latin
    font and only Telugu glyphs (absent from those faces) fall through to Anek. */
 .sahadev-web[lang=te] {
-  font-family: "SF Pro Text", "Helvetica Neue", Helvetica, Arial, "Anek Telugu", "Noto Sans Telugu", sans-serif;
+  font-family: "Inter", "Anek Telugu", "Noto Sans Telugu", sans-serif;
 }
 .sahadev-web[lang=te] h1,
 .sahadev-web[lang=te] h2,
 .sahadev-web[lang=te] h3 {
-  font-family: "SF Pro Display", "Helvetica Neue", Helvetica, Arial, "Anek Telugu", "Noto Sans Telugu", sans-serif;
+  font-family: "Fraunces", "Anek Telugu", "Noto Sans Telugu", serif;
 }
 .sahadev-web[lang=te] input,
 .sahadev-web[lang=te] textarea,
@@ -234,27 +257,27 @@
   .sahadev-web *::after { animation-duration: 0ms !important; transition-duration: 0ms !important; }
 }
 @media (min-width: 760px) {
-  .phone { display: block; padding-left: 232px; overflow: hidden; background: var(--surface-warm); }
+  .phone { display: block; padding-left: 248px; overflow: hidden; background: var(--surface-warm); }
   .screen, .thread.ask-screen { height: 100%; max-width: 1120px; margin: 0 auto; padding: 48px clamp(32px, 6vw, 84px) 64px; background: var(--bg); }
   .askhead.ask-screen, .composer.ask-screen, .topbar, .footer { max-width: 1120px; margin-left: auto; margin-right: auto; padding-left: clamp(32px, 6vw, 84px); padding-right: clamp(32px, 6vw, 84px); background: var(--bg); }
   .askhead.ask-screen { padding-top: 32px; padding-bottom: 18px; }
   .composer.ask-screen { padding-top: 16px; padding-bottom: 24px; }
   .topbar { padding-top: 28px; }
-  .tabbar { position: absolute; inset: 0 auto 0 0; width: 232px; padding: 28px 18px 22px; flex-direction: column; gap: 6px; border: 0; border-right: 1px solid var(--border-soft); background: var(--surface); }
+  .tabbar { position: absolute; inset: 0 auto 0 0; width: 248px; padding: 28px 18px 22px; flex-direction: column; gap: 6px; border: 0; border-right: 1px solid var(--border); background: rgba(241,240,236,.9); }
   .webbrand { display: flex; align-items: center; gap: 11px; padding: 0 8px 30px; }
-  .brandmark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px; background: var(--fg); color: var(--bg); font: 600 19px/1 Georgia, serif; }
+  .brandmark { width: 42px; height: 42px; display: block; }
   .webbrand > span:last-child, .navidentity div { min-width: 0; }
   .webbrand b, .webbrand small, .navidentity b, .navidentity small { display: block; }
-  .webbrand b { font-size: 17px; letter-spacing: -.02em; }
+  .webbrand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: .04em; }
   .webbrand small, .navidentity small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tab { flex: 0 0 auto; min-height: 48px; flex-direction: row; justify-content: flex-start; gap: 13px; padding: 0 13px; font-size: 15px; font-weight: 500; }
-  .tab[aria-current=page] { background: var(--bg); box-shadow: 0 1px 3px rgba(29,29,31,.06); }
+  .tab[aria-current=page] { background: var(--surface); box-shadow: inset 3px 0 0 var(--copper); }
   .tab svg { width: 20px; height: 20px; }
   .navidentity { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 15px 8px 0; border-top: 1px solid var(--border); }
   .navidentity > span { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 14px; font-weight: 600; }
   .navidentity b { max-width: 145px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-  .histdrawer { left: 232px; }
-  .histscrim { left: 232px; }
+  .histdrawer { left: 248px; }
+  .histscrim { left: 248px; }
   .shead h2, .askhead h2 { font-size: clamp(30px, 3vw, 42px); letter-spacing: -.035em; }
   .more-screen .profiles, .more-screen .settings, .more-screen .navlist { max-width: 760px; }
 }

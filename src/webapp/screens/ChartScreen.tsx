@@ -5,6 +5,7 @@ import { useData } from "../data";
 import { navigate } from "../router";
 import { StatusBar, TabBar } from "../shell";
 import { dms, grahaAbbr, grahaName, nakName, signName, SIGN_LORDS } from "../format";
+import { GrahaIcon } from "../design/GrahaIcon";
 import type { VargaPlacement } from "../api";
 import { setOnboardingMode } from "../onboardingMode";
 
@@ -190,6 +191,7 @@ export function ChartScreen() {
               <div className="lgrid">
                 {["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"].map((g) => (
                   <div key={g}>
+                    <GrahaIcon name={g} size={24} decorative />
                     <b>{grahaAbbr(g)}</b>
                     {grahaName(g, lang)}
                   </div>

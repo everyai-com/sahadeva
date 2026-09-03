@@ -1,4 +1,5 @@
 import "./welcome.css";
+import { CosmithraMark } from "../design/GrahaIcon";
 import { useLang, type Lang } from "../lang";
 import { StatusBar } from "../shell";
 
@@ -19,7 +20,8 @@ export function WelcomeScreen({ onChosen }: { onChosen: (l: Lang) => void }) {
     <>
       <StatusBar />
       <div className="welcome-screen">
-        <p className="brand">Sahadev · సహదేవ్</p>
+        <CosmithraMark size={72} className="welcome-mark" />
+        <p className="brand">Cosmithra · కోస్మిత్ర</p>
         <h1>Namaste</h1>
         <p className="wsub">
           A transparent Jyotish reading of your chart.
