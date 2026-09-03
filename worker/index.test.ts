@@ -195,7 +195,7 @@ describe("Sahadeva MCP", () => {
     expect(systemPrompt).toContain('"topic":"career"');
     expect(systemPrompt).toContain("supportingEvidence");
     expect(systemPrompt).toContain("opposingEvidence");
-    expect(systemPrompt).toContain("700-1200 words");
+    expect(systemPrompt).toContain("900-1400 words");
     expect(systemPrompt).toContain("Direct answer in ordinary daily-life language");
     expect(systemPrompt).toContain("then Technical chart details");
     expect(systemPrompt).toContain("code has already done 93% of the factual work");

@@ -1716,6 +1716,8 @@ export default function ChatApp() {
         profileRef: profileSnapshot?.profileRef,
         partner: partner ?? undefined,
         mode: modeRef.current,
+        clientSurface: "web",
+        responseStyle: "layered",
         messages: history,
       }),
     });
@@ -2060,6 +2062,8 @@ export default function ChatApp() {
         body: JSON.stringify({
           profile,
           partner: partnerProfile,
+          clientSurface: "web",
+          responseStyle: "layered",
           messages: next,
         }),
       });
