@@ -207,6 +207,7 @@ export function AskScreen() {
   const recorderChunksRef = useRef<Blob[]>([]);
   const submitRecordingRef = useRef(false);
   const transcriptionAbortRef = useRef<AbortController | null>(null);
+  const answerAbortRef = useRef<AbortController | null>(null);
   const voiceInputRef = useRef(false);
   const activeIdRef = useRef<string | null>(null);
   const threadsRef = useRef<Thread[]>(threads);
@@ -379,15 +380,19 @@ export function AskScreen() {
       ...base.map((x) => ({ role: x.role, content: x.content })),
       { role: "user", content: modelQuestion },
     ];
+    let streamedText = "";
+    const answerController = new AbortController();
+    answerAbortRef.current = answerController;
     try {
       const { text: reply, summary } = await streamChat(
         { ...profile, language: lang },
         history,
         (cumulative) => {
+          streamedText = cumulative;
           if (cumulative.trim()) setAnswerStarted(true);
           setTurns([...withUser, { id: responseTurnId, role: "assistant", content: cumulative, streaming: true }]);
         },
-        undefined,
+        answerController.signal,
         {
           lifeContext: rememberedUserContext(threadsRef.current, [getLifeContext(), dashaRecallContext(profile)].filter(Boolean).join("\n")),
           deep,
@@ -419,11 +424,20 @@ export function AskScreen() {
         // A completed answer must not remain loading if scoring is unavailable.
       });
     } catch (e) {
+      if ((e as DOMException).name === "AbortError") {
+        const stoppedTurns: Turn[] = streamedText.trim()
+          ? [...withUser, { id: responseTurnId, role: "assistant", content: streamedText.trim(), streaming: false }]
+          : withUser;
+        setTurns(stoppedTurns);
+        persistThread(stoppedTurns);
+        return;
+      }
       const msg = String((e as Error).message) === "rate"
         ? t("Too many questions just now — try again in a moment.", "ఇప్పుడే చాలా ప్రశ్నలు — కొద్ది సేపటిలో మళ్లీ ప్రయత్నించండి.")
         : t("The assistant is unavailable right now. Your calculated chart is unaffected.", "సహాయకుడు ప్రస్తుతం అందుబాటులో లేడు. మీ జాతకం ప్రభావితం కాలేదు.");
       setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: false, error: msg }]);
     } finally {
+      answerAbortRef.current = null;
       setBusy(false);
       setAnswerStarted(false);
     }
@@ -565,6 +579,7 @@ export function AskScreen() {
 
   useEffect(() => () => {
     transcriptionAbortRef.current?.abort();
+    answerAbortRef.current?.abort();
     if (recorderRef.current?.state !== "inactive") {
       submitRecordingRef.current = false;
       recorderRef.current?.stop();
@@ -730,15 +745,17 @@ export function AskScreen() {
             </svg>
           </button>
           <button
-            className={`iconbtn sendbtn${busy && !answerStarted ? " sending" : ""}`}
+            className={`iconbtn sendbtn${busy ? " sending" : ""}`}
             type="button"
-            aria-label={busy && !answerStarted ? t("Sahadeva is preparing the answer", "సహదేవ్ సమాధానం సిద్ధం చేస్తోంది") : busy ? t("Answer is appearing", "సమాధానం కనిపిస్తోంది") : t("Send", "పంపు")}
+            aria-label={busy ? t("Stop response", "సమాధానాన్ని ఆపండి") : t("Send", "పంపు")}
             aria-busy={busy && !answerStarted}
-            disabled={busy || !input.trim()}
-            onClick={() => ask(input)}
+            disabled={!busy && !input.trim()}
+            onClick={() => busy ? answerAbortRef.current?.abort() : ask(input)}
           >
             {busy && !answerStarted ? (
               <span className="sendspinner" aria-hidden="true" />
+            ) : busy ? (
+              <span className="stopsquare" aria-hidden="true" />
             ) : (
               <svg viewBox="0 0 24 24">
                 <path d="M5 12h13M12 5l7 7-7 7" />
