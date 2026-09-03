@@ -6,6 +6,7 @@ import { StatusBar, TabBar } from "../shell";
 import {
   fetchConversationAlignment,
   recordConversationInput,
+  recordResponseIntentCoverage,
   transcribeAudio,
   streamChat,
   submitClaimFeedback,
@@ -14,6 +15,7 @@ import {
   type ChatSummary,
   type ChatTurn,
   type StoredConversation,
+  type ResponseIntentPoint,
 } from "../api";
 import { analyticsCapture } from "../../analytics";
 import { grahaName, signName, nakName } from "../format";
@@ -25,7 +27,7 @@ import { dashaRecallContext } from "../dashaRecall";
 import type { ReactNode } from "react";
 import { chartAskContextText, takeChartAskContext, type ChartAskContext } from "../chartAskContext";
 
-type Turn = ChatTurn & { id?: string; summary?: ChatSummary | null; streaming?: boolean; error?: string };
+type Turn = ChatTurn & { id?: string; summary?: ChatSummary | null; intentPoints?: ResponseIntentPoint[]; streaming?: boolean; error?: string };
 
 // The top life areas people ask about first, shown as selectable cards.
 type Topic = { id: string; en: string; te: string; icon: ReactNode; qEn: string; qTe: string };
@@ -89,9 +91,11 @@ const GREETING_RE =
   /^(hi+|hey+|hello+|hii+|hiya|yo|hai|namaste|namaskar(am)?|vandanam|good\s?(morning|afternoon|evening|night)|thanks?|thank you|ok(ay)?|nice|cool|హాయ్|హలో|నమస్తే|నమస్కారం|వందనం|ధన్యవాదాలు|థాంక్స్|సరే|బాగుంది)[\s!.…]*$/i;
 
 /* ── chat history (threads persisted locally, ChatGPT-style) ────────────── */
-type StoredTurn = { id?: string; role: "user" | "assistant"; content: string; summary?: ChatSummary | null };
+type StoredTurn = { id?: string; role: "user" | "assistant"; content: string; summary?: ChatSummary | null; intentPoints?: ResponseIntentPoint[] };
 type Thread = { id: string; title: string; updatedAt: number; turns: StoredTurn[] };
 const THREADS_KEY = "sahadev.webchat.threads.v2";
+const GUEST_EMAIL_KEY = "sahadeva.guest-consent-email.v1";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function loadThreads(scope: string): Thread[] {
   try {
@@ -182,6 +186,10 @@ export function AskScreen() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [guestEmail, setGuestEmail] = useState(() => {
+    try { return localStorage.getItem(GUEST_EMAIL_KEY) || ""; } catch { return ""; }
+  });
+  const [emailDraft, setEmailDraft] = useState(guestEmail);
   const [alignmentScore, setAlignmentScore] = useState(50);
   const [alignmentHistory, setAlignmentHistory] = useState<AlignmentSnapshot[]>([]);
   const [chartContext, setChartContext] = useState<ChartAskContext | null>(() => takeChartAskContext());
@@ -237,7 +245,7 @@ export function AskScreen() {
   function persistThread(turnsArr: Turn[]) {
     const stored: StoredTurn[] = turnsArr
       .filter((x) => !x.streaming && (x.content || x.summary))
-      .map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null }));
+      .map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null, intentPoints: x.intentPoints }));
     if (!stored.some((x) => x.role === "user")) return;
     const now = Date.now();
     const prev = threadsRef.current;
@@ -262,7 +270,7 @@ export function AskScreen() {
   function openThread(th: Thread) {
     activeIdRef.current = th.id;
     setActiveId(th.id);
-    setTurns(th.turns.map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null })));
+    setTurns(th.turns.map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null, intentPoints: x.intentPoints })));
     setHistoryOpen(false);
     scrollToBottom();
   }
@@ -380,7 +388,8 @@ export function AskScreen() {
           fullProfile: requestsFullProfile(modelQuestion),
         },
       );
-      const finalTurns: Turn[] = [...withUser, { id: responseTurnId, role: "assistant", content: reply, summary, streaming: false }];
+      const intentPoints = await recordResponseIntentCoverage(sessionId, responseTurnId, userTurnId, reply).catch(() => []);
+      const finalTurns: Turn[] = [...withUser, { id: responseTurnId, role: "assistant", content: reply, summary, intentPoints, streaming: false }];
       setTurns(finalTurns);
       persistThread(finalTurns);
       analyticsCapture("response_completed", {
@@ -614,15 +623,32 @@ export function AskScreen() {
             ) : (
               <div className="assistant-turn" key={turn.id || i}>
                 <Answer turn={turn} onFollowUp={ask} onReact={reactToClaim} />
-                {!account && !turn.streaming && !turn.error && turns.slice(0, i + 1).filter((item) => item.role === "user").length === 3 && (
+                {!account && !turn.streaming && !turn.error && turns.slice(0, i + 1).filter((item) => item.role === "user").length === 4 && !guestEmail && (
                   <aside className="save-chat-card" aria-label={t("Save this conversation", "ఈ సంభాషణను భద్రపరచండి")}>
                     <span className="save-chat-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 0-4 4v2M7 9h10a2 2 0 0 1 2 2v8H5v-8a2 2 0 0 1 2-2Z" /></svg>
                     </span>
                     <div>
-                      <h3>{t("Keep this conversation", "ఈ సంభాషణను ఉంచుకోండి")}</h3>
-                      <p>{t("Add your email to create an account. We’ll back up this chat and your chart so you can continue on any device.", "ఖాతా సృష్టించడానికి మీ ఇమెయిల్‌ను జోడించండి. ఈ చాట్, మీ జాతకాన్ని భద్రపరుస్తాం; ఏ పరికరంలోనైనా కొనసాగించవచ్చు.")}</p>
-                      <button type="button" onClick={() => setAuthOpen(true)}>{t("Save with email", "ఇమెయిల్‌తో భద్రపరచండి")}</button>
+                      <h3>{t("Keep your progress", "మీ పురోగతిని ఉంచుకోండి")}</h3>
+                      <p>{t("With your consent, we’ll remember this email on this device and use it to prefill account creation later. No account is created yet.", "మీ సమ్మతితో, ఈ పరికరంలో మీ ఇమెయిల్‌ను గుర్తుంచుకుని, తర్వాత ఖాతా సృష్టించేటప్పుడు ముందే నింపుతాం. ఇప్పుడు ఖాతా సృష్టించబడదు.")}</p>
+                      <div className="consent-email-row">
+                        <input type="email" value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} placeholder="you@example.com" aria-label={t("Email", "ఇమెయిల్")} />
+                        <button type="button" disabled={!EMAIL_RE.test(emailDraft.trim())} onClick={() => {
+                          const email = emailDraft.trim();
+                          try { localStorage.setItem(GUEST_EMAIL_KEY, email); } catch { /* ignore */ }
+                          setGuestEmail(email);
+                        }}>{t("I agree", "నేను అంగీకరిస్తున్నాను")}</button>
+                      </div>
+                    </div>
+                  </aside>
+                )}
+                {!account && !turn.streaming && !turn.error && turns.slice(0, i + 1).filter((item) => item.role === "user").length === 8 && (
+                  <aside className="save-chat-card account-invite" aria-label={t("Create your account", "మీ ఖాతా సృష్టించండి")}>
+                    <span className="save-chat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 0-4 4v2M7 9h10a2 2 0 0 1 2 2v8H5v-8a2 2 0 0 1 2-2Z" /></svg></span>
+                    <div>
+                      <h3>{t("Take your chart and chats with you", "మీ జాతకం, చాట్‌లను మీతో ఉంచుకోండి")}</h3>
+                      <p>{guestEmail ? t(`Create an account with ${guestEmail}. Your chart and this conversation will be saved privately.`, `${guestEmail}తో ఖాతా సృష్టించండి. మీ జాతకం, ఈ సంభాషణ గోప్యంగా భద్రపరచబడతాయి.`) : t("Add your email to create an account and save your chart and conversation privately.", "ఖాతా సృష్టించి మీ జాతకం, సంభాషణను గోప్యంగా భద్రపరచడానికి ఇమెయిల్ జోడించండి.")}</p>
+                      <button type="button" onClick={() => setAuthOpen(true)}>{t("Create account", "ఖాతా సృష్టించండి")}</button>
                     </div>
                   </aside>
                 )}
@@ -730,6 +756,7 @@ export function AskScreen() {
       <TabBar current="ask" />
       <AuthSheet
         open={authOpen}
+        initialEmail={guestEmail}
         onClose={() => setAuthOpen(false)}
         onAuthenticated={() => saveConversationToAccount(threadsRef.current, activeIdRef.current)}
       />
@@ -892,8 +919,13 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
   const whyMatch = WHY_RE.exec(turn.content);
   const shortPart = whyMatch ? turn.content.slice(0, whyMatch.index) : turn.content;
   const whyPart = whyMatch ? turn.content.slice(whyMatch.index + whyMatch[0].length) : "";
-  const shortClaims = materialClaims(shortPart, "answer");
-  const detailClaims = materialClaims(whyPart, "reasoning");
+  const backendPoints = turn.intentPoints ?? [];
+  const shortClaims = backendPoints.length
+    ? backendPoints.filter((point) => shortPart.includes(point.text)).map((point) => ({ id: point.id, kind: point.intent, text: point.text }))
+    : materialClaims(shortPart, "answer");
+  const detailClaims = backendPoints.length
+    ? backendPoints.filter((point) => whyPart.includes(point.text)).map((point) => ({ id: point.id, kind: point.intent, text: point.text }))
+    : materialClaims(whyPart, "reasoning");
   const outlook = s?.timingOutlook;
   const pastTiming = s?.retrospectiveTiming;
 

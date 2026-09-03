@@ -441,7 +441,7 @@ export async function saveConversationToAccount(
           id: thread.id,
           title: thread.title,
           updatedAt: new Date(thread.updatedAt).toISOString(),
-          messages: thread.turns.map(({ id, role, content }) => ({ id, role, content })),
+          messages: thread.turns.map(({ id, role, content, intentPoints }) => ({ id, role, content, intentPoints })),
         })),
         activeThreadId: activeThreadId ?? "",
       }),
@@ -454,7 +454,8 @@ export async function saveConversationToAccount(
 
 /* ── chat streaming ────────────────────────────────────────────────────── */
 
-export type ChatTurn = { id?: string; role: "user" | "assistant"; content: string };
+export type ResponseIntentPoint = { id: string; intent: string; text: string };
+export type ChatTurn = { id?: string; role: "user" | "assistant"; content: string; intentPoints?: ResponseIntentPoint[] };
 
 export type AlignmentSnapshot = { score: number; cause: string; created_at: string };
 export type AlignmentState = { score: number; concernOpen?: boolean; history: AlignmentSnapshot[] };
@@ -478,6 +479,23 @@ export async function recordConversationInput(
   });
   if (!res.ok) throw new Error("alignment-input");
   return (await res.json()) as { score: number; concernOpen: boolean };
+}
+
+export async function recordResponseIntentCoverage(
+  sessionId: string,
+  turnId: string,
+  inputTurnId: string,
+  response: string,
+): Promise<ResponseIntentPoint[]> {
+  const res = await fetch(`/api/conversations/${encodeURIComponent(sessionId)}/response-coverage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ turnId, inputTurnId, response }),
+  });
+  if (!res.ok) throw new Error("intent-coverage");
+  const data = (await res.json()) as { points?: ResponseIntentPoint[] };
+  return data.points ?? [];
 }
 
 export async function submitClaimFeedback(

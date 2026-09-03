@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./auth.css";
 import { useLang } from "../lang";
 import { useData } from "../data";
@@ -11,7 +11,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * On success it adopts the account's saved chart, or seeds a new account with
  * the local chart, then closes.
  */
-export function AuthSheet({ open, onClose, onAuthenticated }: { open: boolean; onClose: () => void; onAuthenticated?: () => unknown | Promise<unknown> }) {
+export function AuthSheet({ open, onClose, onAuthenticated, initialEmail = "" }: { open: boolean; onClose: () => void; onAuthenticated?: () => unknown | Promise<unknown>; initialEmail?: string }) {
   const { t } = useLang();
   const { profile, refreshMe } = useData();
   const [mode, setMode] = useState<"signin" | "signup">("signup");
@@ -21,6 +21,10 @@ export function AuthSheet({ open, onClose, onAuthenticated }: { open: boolean; o
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open && initialEmail) setEmail(initialEmail);
+  }, [open, initialEmail]);
 
   const emailOk = EMAIL_RE.test(email.trim());
   const pwOk = password.length >= 8;

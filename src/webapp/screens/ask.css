@@ -228,3 +228,7 @@
   line-height: 1;
   cursor: pointer;
 }
+.consent-email-row { display: flex; gap: 8px; margin-top: 12px; }
+.consent-email-row input { min-width: 0; flex: 1; min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); color: var(--fg); font-size: var(--text-sm); }
+.consent-email-row button { flex: 0 0 auto; }
+.consent-email-row button:disabled { opacity: .4; cursor: not-allowed; }

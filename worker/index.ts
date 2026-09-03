@@ -35,6 +35,7 @@ import {
   RELATIONSHIP_TYPES,
 } from "../shared/relationshipCompatibility";
 import { recommendTools } from "../shared/toolRouter";
+import { classifyResponseCoverage } from "../shared/conversationIntent";
 import { buildDailyPanchanga } from "../shared/dailyPanchanga";
 import {
   MUHURTA_RULEBOOK,
@@ -8887,7 +8888,7 @@ app.put("/api/me/conversation", async (c) => {
   if (Number(c.req.header("content-length") || 0) > 262_144)
     return c.json({ error: "Request body too large" }, 413);
   const body = await c.req
-    .json<{ messages?: Array<{ id?: string; role?: string; content?: string }> }>()
+    .json<{ messages?: Array<{ id?: string; role?: string; content?: string; intentPoints?: Array<{ id?: string; intent?: string; text?: string }> }> }>()
     .catch(() => null);
   if (
     !Array.isArray(body?.messages) &&
@@ -8897,7 +8898,7 @@ app.put("/api/me/conversation", async (c) => {
   const active = await activePersonRow(c.env, user.id);
   if (!active) return c.json({ error: "No active person" }, 409);
   const cleanMessages = (
-    input: Array<{ id?: string; role?: string; content?: string }> | undefined,
+    input: Array<{ id?: string; role?: string; content?: string; intentPoints?: Array<{ id?: string; intent?: string; text?: string }> }> | undefined,
   ) =>
     (Array.isArray(input) ? input : [])
       .filter(
@@ -8910,16 +8911,21 @@ app.put("/api/me/conversation", async (c) => {
         id: alignmentSessionIdPattern.test(String(item.id || "")) ? String(item.id) : undefined,
         role: item.role,
         content: item.content!.slice(0, 8000),
+        intentPoints: (Array.isArray(item.intentPoints) ? item.intentPoints : []).slice(0, 40).map((point) => ({
+          id: String(point.id || "").slice(0, 80),
+          intent: String(point.intent || "general-consultation").slice(0, 40),
+          text: String(point.text || "").slice(0, 4000),
+        })),
       }));
   // New thread-aware shape: { threads: [...], activeThreadId } — falls back
   // to a plain message array for older clients.
   const rawBody = body as unknown as {
-    messages?: Array<{ id?: string; role?: string; content?: string }>;
+    messages?: Array<{ id?: string; role?: string; content?: string; intentPoints?: Array<{ id?: string; intent?: string; text?: string }> }>;
     threads?: Array<{
       id?: string;
       title?: string;
       updatedAt?: string;
-      messages?: Array<{ id?: string; role?: string; content?: string }>;
+      messages?: Array<{ id?: string; role?: string; content?: string; intentPoints?: Array<{ id?: string; intent?: string; text?: string }> }>;
     }>;
     activeThreadId?: string;
   };
@@ -12181,6 +12187,7 @@ async function recordAlignmentInput(
   const current = await alignmentContext(env, sessionId, userId);
   if (!current) return null;
   const normalized = input.toLowerCase().replace(/\s+/g, " ").trim();
+  const intent = recommendTools(input);
   const inputHash = await sha256(normalized);
   const correction =
     /\b(?:wrong|incorrect|misunderstood|misread|not what i|you missed|you forgot|doesn'?t answer|confused|that is false)\b|(?:తప్పు|అర్థం కాలేదు|నా ప్రశ్న కాదు|మిస్ అయ్య)/i.test(
@@ -12226,6 +12233,9 @@ async function recordAlignmentInput(
     env.DB.prepare(
       "INSERT INTO conversation_alignment_snapshots(id,session_id,turn_id,score,cause,created_at) VALUES(?,?,?,?,?,?)",
     ).bind(crypto.randomUUID(), sessionId, turnId, score, `user_input:${cause}`, now),
+    env.DB.prepare(
+      "INSERT INTO conversation_turn_intents(id,session_id,turn_id,input_intent,matched_intents_json,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_id,turn_id) DO UPDATE SET input_intent=excluded.input_intent,matched_intents_json=excluded.matched_intents_json",
+    ).bind(crypto.randomUUID(), sessionId, turnId, intent.intent, JSON.stringify(intent.matchedIntents), now),
   ]);
   return alignmentContext(env, sessionId, userId);
 }
@@ -12317,6 +12327,32 @@ app.post("/api/conversations/:sessionId/input", async (c) => {
   });
 });
 
+app.post("/api/conversations/:sessionId/response-coverage", async (c) => {
+  if (Number(c.req.header("content-length") || 0) > 40_000)
+    return c.json({ error: "Request body too large" }, 413);
+  const sessionId = c.req.param("sessionId");
+  const body = await c.req.json<{ turnId?: string; inputTurnId?: string; response?: string }>().catch(() => null);
+  const turnId = String(body?.turnId || "");
+  const inputTurnId = String(body?.inputTurnId || "");
+  const response = String(body?.response || "");
+  if (!alignmentSessionIdPattern.test(sessionId) || !alignmentSessionIdPattern.test(turnId) || !alignmentSessionIdPattern.test(inputTurnId) || response.length < 2 || response.length > 30_000)
+    return c.json({ error: "Valid response is required" }, 400);
+  const user = await sessionUser(c.env, c.req.raw);
+  const session = await alignmentContext(c.env, sessionId, user?.id || null);
+  if (session?.user_id && session.user_id !== user?.id) return c.json({ error: "Session not found" }, 404);
+  await ensureAlignmentSession(c.env, sessionId, user?.id || null);
+  const now = new Date().toISOString();
+  const points = await Promise.all(classifyResponseCoverage(response).map(async ({ text, position, intent }) => {
+    const pointHash = await sha256(text.replace(/\s+/g, " ").trim());
+    const id = `point_${position}_${pointHash.slice(0, 12)}`;
+    return { id, intent, text, pointHash, position };
+  }));
+  if (points.length) await c.env.DB.batch(points.map((point) => c.env.DB.prepare(
+    "INSERT INTO conversation_response_points(id,session_id,turn_id,input_turn_id,point_id,intent_label,point_hash,position,created_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,turn_id,point_id) DO UPDATE SET input_turn_id=excluded.input_turn_id,intent_label=excluded.intent_label,point_hash=excluded.point_hash,position=excluded.position"
+  ).bind(crypto.randomUUID(), sessionId, turnId, inputTurnId, point.id, point.intent, point.pointHash, point.position, now)));
+  return c.json({ points: points.map(({ id, intent, text }) => ({ id, intent, text })) }, 201);
+});
+
 app.post("/api/conversations/:sessionId/claim-feedback", async (c) => {
   if (Number(c.req.header("content-length") || 0) > 40_000)
     return c.json({ error: "Request body too large" }, 413);
@@ -12358,9 +12394,13 @@ app.post("/api/conversations/:sessionId/claim-feedback", async (c) => {
   )
     .bind(sessionId, turnId, claimId)
     .first<{ rating: "up" | "down" }>();
+  const responsePoint = await c.env.DB.prepare(
+    "SELECT intent_label FROM conversation_response_points WHERE session_id=? AND turn_id=? AND point_id=?",
+  ).bind(sessionId, turnId, claimId).first<{ intent_label: string }>();
+  const feedbackIntent = responsePoint?.intent_label || recommendTools(response).intent;
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    "INSERT INTO conversation_claim_feedback(id,session_id,turn_id,claim_id,claim_kind,rating,reason,response_hash,user_id,created_at,updated_at,claim_text) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,turn_id,claim_id) DO UPDATE SET rating=excluded.rating,reason=excluded.reason,claim_text=excluded.claim_text,updated_at=excluded.updated_at,user_id=COALESCE(conversation_claim_feedback.user_id,excluded.user_id)",
+    "INSERT INTO conversation_claim_feedback(id,session_id,turn_id,claim_id,claim_kind,rating,reason,response_hash,user_id,created_at,updated_at,claim_text,intent_label) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,turn_id,claim_id) DO UPDATE SET rating=excluded.rating,reason=excluded.reason,claim_text=excluded.claim_text,intent_label=excluded.intent_label,updated_at=excluded.updated_at,user_id=COALESCE(conversation_claim_feedback.user_id,excluded.user_id)",
   )
     .bind(
       crypto.randomUUID(),
@@ -12375,6 +12415,7 @@ app.post("/api/conversations/:sessionId/claim-feedback", async (c) => {
       now,
       now,
       response.replace(/\s+/g, " ").trim().slice(0, 2000),
+      feedbackIntent,
     )
     .run();
 
