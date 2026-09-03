@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "status": "candidate-pending-human-cultural-review",
+  "artDirection": "Museum-quality contemporary Indian editorial illustration: 50% modern editorial restraint, 30% Indian classical compositional memory, 20% celestial abstraction.",
+  "generationMethod": "OpenAI built-in image generation",
+  "assets": [
+    { "id": "graha.surya.illustration.v1", "path": "surya-v1.webp", "motifs": ["ordered radiance", "lotus", "seven-horse chariot"], "review": "required" },
+    { "id": "graha.chandra.illustration.v1", "path": "chandra-v1.webp", "motifs": ["whole lunar disc", "phase", "Soma nourishment"], "review": "required" },
+    { "id": "graha.mangala.illustration.v1", "path": "mangala-v1.webp", "motifs": ["red earth", "shakti", "directional force"], "review": "required" },
+    { "id": "graha.budha.illustration.v1", "path": "budha-v1.webp", "motifs": ["gentle intelligence", "yellow-gold", "connection"], "review": "required" },
+    { "id": "graha.guru.illustration.v1", "path": "guru-v1.webp", "motifs": ["teacher", "benevolence", "expansion"], "review": "required" },
+    { "id": "graha.shukra.illustration.v1", "path": "shukra-v1.webp", "motifs": ["Guru", "clarity", "restoration"], "review": "required" },
+    { "id": "graha.shani.illustration.v1", "path": "shani-v1.webp", "motifs": ["anjana blue-black", "weight", "crow"], "review": "required" },
+    { "id": "graha.rahu.illustration.v1", "path": "rahu-v1.webp", "motifs": ["eclipse", "partial form", "serpent"], "review": "required" },
+    { "id": "graha.ketu.illustration.v1", "path": "ketu-v1.webp", "motifs": ["severance", "smoke", "dissolution"], "review": "required" }
+  ]
+}

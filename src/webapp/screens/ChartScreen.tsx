@@ -41,7 +41,8 @@ const HOUSES: House[] = [
   { t: "Letting go", tTe: "వదిలివేయడం", tr: "Vyaya bhava · వ్యయ భావం · விய பாவம்", g: "Expense, sleep, distant places and release from things.", gTe: "ఖర్చు, నిద్ర, దూర ప్రదేశాలు, విడుదల." },
 ];
 
-type Cell = { planet: string; deg: string; flags: string };
+type Cell = { name: string; planet: string; deg: string; flags: string };
+const BHAVA_IDS = ["tanu","dhana","sahaja","bandhu","putra","ari","yuvati","randhra","dharma","karma","labha","vyaya"];
 
 export function ChartScreen() {
   const { lang, t } = useLang();
@@ -72,7 +73,7 @@ export function ChartScreen() {
     const own = SIGN_LORDS[p.sign] === p.name;
     const flags = [p.retro ? "R" : "", own ? "own" : ""].filter(Boolean).join(" · ");
     const arr = bySign.get(p.sign) ?? [];
-    arr.push({ planet: grahaAbbr(p.name), deg: p.deg != null ? dms(p.deg) : "", flags });
+    arr.push({ name: p.name, planet: grahaAbbr(p.name), deg: p.deg != null ? dms(p.deg) : "", flags });
     bySign.set(p.sign, arr);
   }
 
@@ -146,6 +147,7 @@ export function ChartScreen() {
                     </span>
                     {cells.map((c, j) => (
                       <span className="pl" key={j}>
+                        <GrahaIcon name={c.name} size={20} decorative />
                         {c.planet}
                         {c.deg && <span className="dg">{c.deg}</span>}
                         {c.flags && <span className="dg">{c.flags}</span>}
@@ -219,7 +221,7 @@ export function ChartScreen() {
           <div className="grabber" aria-hidden="true" />
           {house && sheetSign && openHouse && (
             <>
-              <h3>{t(`House ${openHouse.house} — ${house.t}`, `${openHouse.house}వ భావం — ${house.tTe}`)}</h3>
+              <h3><img className="bhava-icon" src={`/brand/sahadeva/bhava/${BHAVA_IDS[openHouse.house - 1]}-48.svg`} alt="" />{t(`House ${openHouse.house} — ${house.t}`, `${openHouse.house}వ భావం — ${house.tTe}`)}</h3>
               <p className="strn">
                 {house.tr} &nbsp;·&nbsp; {sheetSign.full || sheetSign.k} ({sheetSign.en})
               </p>
@@ -238,6 +240,7 @@ export function ChartScreen() {
                     return (
                       <div className="prow" key={i}>
                         <span className="pn">
+                          <GrahaIcon name={p.name} size={24} decorative />
                           {grahaName(p.name, lang)}
                           <span>{p.name}</span>
                         </span>

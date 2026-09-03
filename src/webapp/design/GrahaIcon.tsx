@@ -21,7 +21,7 @@ export function GrahaIcon({ name, size = 24, className, decorative = false }: Gr
   const assetSize = size === 20 || size === 32 ? 24 : size;
   return (
     <img
-      className={className}
+      className={`graha-icon graha-icon--${id}${className ? ` ${className}` : ""}`}
       src={`/brand/sahadeva/graha/${id}-${assetSize}.svg`}
       width={size}
       height={size}

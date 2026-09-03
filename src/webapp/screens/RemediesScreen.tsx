@@ -110,6 +110,7 @@ export function RemediesScreen() {
         <div className="topbtns">
           {TOPICS.map((tp) => (
             <button key={tp.id} className="topbtn" type="button" aria-pressed={topic === tp.id} onClick={() => setTopic(tp.id)}>
+              <img src={`/brand/sahadeva/life-area/${tp.id === "wealth" ? "money" : tp.id === "relationships" ? "love" : tp.id}-24.svg`} alt="" />
               {lang === "te" ? tp.te : tp.en}
             </button>
           ))}
@@ -197,6 +198,7 @@ export function RemediesScreen() {
                   return (
                     <div className="hrow" key={f.family}>
                       <span className="hn">
+                        <img src={`/brand/sahadeva/remedy/${f.family === "fasting" ? "vrata" : f.family === "worship" || f.family === "ritual" ? "puja" : f.family === "charity" ? "dana" : f.family}-24.svg`} alt="" />
                         {fl ? (lang === "te" ? fl.te : fl.en) : f.family}
                         <span>{f.reasons?.[0] || f.requiredReview?.[0] || t("Needs independent review before use.", "వాడకముందు స్వతంత్ర సమీక్ష అవసరం.")}</span>
                       </span>

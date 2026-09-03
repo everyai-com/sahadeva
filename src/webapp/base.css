@@ -1,3 +1,5 @@
+@import "./design/sahadeva-ui.css";
+
 /* Sahadeva — Sanskrit-grounded product design tokens. */
 :root {
   --bg: #f7f6f2;

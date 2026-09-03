@@ -1,0 +1,38 @@
+.sd-button { min-height:48px; padding:0 20px; border-radius:12px; border:1px solid transparent; display:inline-flex; align-items:center; justify-content:center; gap:8px; font-weight:600; transition:transform 150ms var(--ease-standard),background 180ms var(--ease-standard),border-color 180ms var(--ease-standard); }
+.sd-button:hover { transform:translateY(-1px); }
+.sd-button:active { transform:translateY(1px) scale(.99); }
+.sd-button--primary { background:var(--accent); color:var(--accent-on); }
+.sd-button--primary:hover { background:var(--accent-hover); }
+.sd-button--secondary { background:var(--surface); border-color:var(--border); }
+.sd-button--quiet { background:transparent; color:var(--accent); }
+.sd-chip { display:inline-flex; align-items:center; gap:9px; min-height:42px; padding:6px 11px; border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+.sd-chip img,.sd-chip svg { width:22px; height:22px; }
+.sd-chip b,.sd-chip small { display:block; }
+.sd-chip b { font-size:14px; }
+.sd-chip small { color:var(--muted); font-size:12px; }
+.sd-confidence { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--fg-2); }
+.sd-confidence i { width:9px; height:9px; border-radius:50%; border:2px solid currentColor; }
+.sd-confidence--calculated { color:#367c50; }.sd-confidence--classical { color:#a06e19; }.sd-confidence--synthesis { color:#536f9d; }.sd-confidence--variant { color:#7b5c93; }
+.sd-explanation { max-width:720px; padding:22px 24px 26px; background:var(--surface); border:1px solid var(--border); border-radius:16px; }
+.sd-kicker { color:var(--copper); font-size:13px; font-weight:650; letter-spacing:.06em; }.sd-what { font-family:var(--font-display); font-size:24px; line-height:1.28; margin-top:6px; }
+.sd-why,.sd-action { display:grid; grid-template-columns:minmax(80px,110px) 1fr; gap:14px; padding-top:16px; margin-top:16px; border-top:1px solid var(--border-soft); }
+.sd-explanation details { margin-top:18px; }.sd-explanation summary { color:var(--accent); cursor:pointer; min-height:44px; display:flex; align-items:center; }
+.sd-state { max-width:720px; display:grid; grid-template-columns:42px 1fr; gap:16px; padding:22px; border:1px solid var(--border); border-radius:16px; background:var(--surface); }
+.sd-state__glyph { width:36px; height:36px; fill:none; stroke:var(--muted); stroke-width:1.55; stroke-linecap:round; stroke-linejoin:round; }
+.sd-state h3 { font-size:19px; }.sd-state footer { margin-top:14px; }.sd-state--loading .sd-state__glyph { animation:sd-cycle 1.2s linear infinite; }
+.sd-state--error { border-left:3px solid var(--danger); }.sd-state--uncertain,.sd-state--partial { border-left:3px solid var(--warn); }
+.sd-timeline { display:flex; min-height:54px; overflow:hidden; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.sd-timeline__segment { min-width:32px; padding:10px 8px; display:flex; align-items:center; justify-content:center; border-left:1px solid var(--border); color:var(--muted); font-size:12px; }
+.sd-timeline__segment:first-child { border-left:0; }.sd-timeline__segment.is-past { opacity:.55; }.sd-timeline__segment.is-current { background:color-mix(in srgb,var(--accent) 13%,var(--surface)); color:var(--fg); box-shadow:inset 0 -3px var(--accent); }.sd-timeline__segment.is-future { background:var(--surface-raised); }
+@keyframes sd-cycle { to { transform:rotate(360deg); } }
+@keyframes graha-radiate { 50% { transform:scale(1.035); filter:brightness(1.08); } }
+@keyframes graha-cycle { 50% { transform:rotate(3deg); opacity:.78; } }
+@keyframes graha-connect { 50% { transform:translateX(1px); } }
+@keyframes graha-expand { 50% { transform:scale(1.025); } }
+@keyframes graha-clarify { 50% { filter:blur(.25px) brightness(1.12); } }
+@keyframes graha-settle { from { transform:translateY(-1px); } to { transform:translateY(1px); } }
+@keyframes graha-cover { 50% { opacity:.66; transform:translateX(-1px); } }
+@keyframes graha-dissolve { 50% { opacity:.62; transform:translateY(1px); } }
+.graha-icon { transform-origin:center; }
+.graha-icon--surya:hover { animation:graha-radiate 700ms var(--ease-standard); }.graha-icon--chandra:hover { animation:graha-cycle 800ms var(--ease-standard); }.graha-icon--mangala:hover { transform:translate(1px,-1px); transition:transform 220ms var(--ease-standard); }.graha-icon--budha:hover { animation:graha-connect 360ms var(--ease-standard); }.graha-icon--guru:hover { animation:graha-expand 800ms var(--ease-standard); }.graha-icon--shukra:hover { animation:graha-clarify 550ms var(--ease-standard); }.graha-icon--shani:hover { animation:graha-settle 900ms var(--ease-standard); }.graha-icon--rahu:hover { animation:graha-cover 800ms var(--ease-standard); }.graha-icon--ketu:hover { animation:graha-dissolve 800ms var(--ease-standard); }
+@media (prefers-reduced-motion:reduce){.sd-state__glyph{animation:none!important}.sd-button{transition:none}}

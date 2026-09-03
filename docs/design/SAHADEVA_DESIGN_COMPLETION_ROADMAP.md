@@ -1,5 +1,20 @@
 # Sahadeva design-system completion roadmap
 
+## V1 production status
+
+- Complete: shared UI primitives and seven canonical data/application states
+- Complete: 12 Rāśi families at 24, 48, and 128px
+- Complete: 12 Bhāva families at 24, 48, and 128px
+- Complete: 27 Nakṣatra glyph/emblem families at 24 and 128px
+- Complete: 30-state Tithi, 27 Yoga, 11 Karaṇa, and seven daily-time families
+- Complete: proportional reusable timeline component and Navagraha motion grammar
+- Complete: Navagraha and Bhāva integration in the South Indian chart
+- Complete: 12 consumer life-area and nine remedy families
+- Candidate set complete: nine Navagraha narrative illustrations
+- External sign-off required: qualified human cultural/iconographic review of narrative illustrations
+
+The live visual catalogue is generated at `public/brand/sahadeva/catalog.html`; canonical machine-readable inventory is in `system-registry.json`.
+
 The foundation and Navagraha family establish the language, but they are not the whole product system. The remaining work should follow this order so later assets inherit proven geometry instead of becoming disconnected illustrations.
 
 ## 1. Brand governance

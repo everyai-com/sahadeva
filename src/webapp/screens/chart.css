@@ -16,7 +16,8 @@
 .chart-screen .cell .top { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.02em; }
 .chart-screen .cell .sname { color: var(--muted); }
 .chart-screen .cell .hnum { color: var(--meta); }
-.chart-screen .cell .pl { font-size: 12.5px; line-height: 1.35; font-weight: 500; }
+.chart-screen .cell .pl { font-size: 12.5px; line-height: 1.35; font-weight: 500; display:flex; align-items:center; gap:3px; }
+.chart-screen .cell .pl img { width:16px; height:16px; opacity:.82; }
 .chart-screen .cell .pl .dg { font-family: var(--font-mono); font-size: 9.5px; color: var(--muted); margin-left: 2px; }
 .chart-screen .cell .lg { display: inline-block; margin-top: 2px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.05em; color: var(--accent-on); background: var(--accent); border-radius: var(--radius-sm); padding: 1px 5px; }
 .chart-screen .center { grid-column: 2 / 4; grid-row: 2 / 4; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; padding: 8px; }
@@ -47,12 +48,15 @@
 .chart-screen .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; background: var(--surface); border-top: 1px solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-5) var(--space-6); transform: translateY(101%); transition: transform var(--motion-base) var(--ease-standard); max-height: 74%; overflow-y: auto; }
 .chart-screen .sheet.on { transform: translateY(0); }
 .chart-screen .grabber { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--border); margin: 0 auto var(--space-4); }
-.chart-screen .sheet h3 { margin-bottom: 6px; }
+.chart-screen .sheet h3 { margin-bottom: 6px; display:flex; align-items:center; gap:10px; }
+.chart-screen .sheet .bhava-icon { width:40px; height:40px; }
 .chart-screen .sheet .strn { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); margin-bottom: var(--space-4); }
 .chart-screen .sheet .sgov { font-size: 17px; line-height: 1.55; }
 .chart-screen .sheet .plist { margin-top: var(--space-4); border-top: 1px solid var(--border-soft); }
 .chart-screen .sheet .prow { display: flex; justify-content: space-between; gap: var(--space-3); padding: 11px 0; border-bottom: 1px solid var(--border-soft); font-size: var(--text-base); }
-.chart-screen .sheet .prow .pn span { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); }
+.chart-screen .sheet .prow .pn { display:grid; grid-template-columns:24px auto; gap:2px 8px; align-items:center; }
+.chart-screen .sheet .prow .pn img { grid-row:1 / 3; }
+.chart-screen .sheet .prow .pn span { grid-column:2; display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); }
 .chart-screen .sheet .prow .pd { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--muted); white-space: nowrap; align-self: center; }
 .chart-screen .sheet .empty { padding: 12px 0; color: var(--muted); font-size: var(--text-base); }
 .chart-screen .sheetact { display: flex; gap: var(--space-2); margin-top: var(--space-5); }

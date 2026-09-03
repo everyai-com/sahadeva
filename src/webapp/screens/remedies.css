@@ -1,6 +1,7 @@
 /* Remedies — ported from Web-Prototype/remedies-tracker.html, scoped. */
 .remedies-screen .topbtns { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
-.remedies-screen .topbtn { min-height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--text-sm); font-weight: 500; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+.remedies-screen .topbtn { min-height: 44px; padding: 0 13px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--muted); font-size: var(--text-sm); font-weight: 500; display:inline-flex; align-items:center; gap:7px; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+.remedies-screen .topbtn img { width:20px; height:20px; }
 .remedies-screen .topbtn[aria-pressed=true] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .remedies-screen .topbtn:hover { background: var(--border-soft); color: var(--fg); }
 .remedies-screen .topbtn[aria-pressed=true]:hover { background: var(--fg); color: var(--bg); }
@@ -34,6 +35,7 @@
 .remedies-screen .hrow { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); padding: 13px 0; border-top: 1px solid var(--border-soft); }
 .remedies-screen .hrow:first-of-type { border-top: 0; }
 .remedies-screen .hn { font-size: var(--text-base); line-height: 1.4; }
+.remedies-screen .hn > img { width:24px; height:24px; margin-right:8px; vertical-align:middle; }
 .remedies-screen .hn span { display: block; font-size: var(--text-sm); color: var(--muted); margin-top: 3px; line-height: 1.5; }
 .remedies-screen .hstat { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); white-space: nowrap; padding-top: 3px; }
 
