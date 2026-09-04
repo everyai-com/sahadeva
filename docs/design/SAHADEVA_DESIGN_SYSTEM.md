@@ -38,7 +38,7 @@ All glyphs are made from circle, arc, axis, ray, intersection, enclosure, break,
 | Rāhu | occluded circle | cover |
 | Ketu | fragmented tail | dissolve |
 
-Each is shipped as a monochrome-capable 24px glyph, 48px symbol, and 128px emblem. The asset registry at `public/brand/sahadeva/registry.json` is canonical. Do not invent alternates without versioning the registry.
+Each is shipped as a monochrome-capable 24px glyph, 48px symbol, and 128px emblem. The Navagraha registry at `public/brand/sahadeva/registry.json` and system registry at `public/brand/sahadeva/system-registry.json` are canonical. Do not invent alternates without versioning the registries.
 
 ## Usage rules
 
@@ -57,4 +57,4 @@ The remaining production scope is tracked in `SAHADEVA_DESIGN_COMPLETION_ROADMAP
 
 ## Production and QA
 
-Run `node scripts/generate-sahadeva-assets.mjs` to reproduce the entire vector family from source. Every release must pass source, recognition, consumer, cultural, modernity, story, and 20px reduction tests. The monochrome glyph is authoritative; contextual material color is secondary.
+Run `node scripts/generate-sahadeva-assets.mjs` and `node scripts/generate-sahadeva-system-assets.mjs` to reproduce the vector families from source. Every release must pass source, recognition, consumer, cultural, modernity, story, and 20px reduction tests. The monochrome glyph is authoritative; contextual material color is secondary. Source and approval status are governed by `SAHADEVA_ASSET_PROVENANCE.md`; visual consistency never substitutes for cultural validation.

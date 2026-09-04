@@ -84,7 +84,32 @@ for (let i=0;i<karanas.length;i++) {
   await writeFile(new URL(`panchanga/karana/${karanas[i]}.svg`, root), svg(body, 24, `${karanas[i]} Karana`));
 }
 
-const registry = { schemaVersion:"1.0.0", generatedAt:"source-controlled", families:{ rashi:rashi.map(x=>x.id), bhava:bhava.map(x=>x.id), nakshatra:nakshatra.map(x=>x.id), lifeArea:lifeAreas.map(x=>x.id), remedy:remedy.map(x=>x.id), timing:timings.map(x=>x.id), tithi:Array.from({length:30},(_,i)=>i+1), yoga:yogaNames, karana:karanas } };
+const registry = {
+  schemaVersion:"1.1.0",
+  generatedAt:"source-controlled",
+  provenance:{
+    policy:"research-informed-modern-visual-interpretation",
+    culturalApproval:"pending-qualified-human-review",
+    sourceLedger:"/docs/design/SAHADEVA_ASSET_PROVENANCE.md",
+    sources:{
+      bpHs:{ title:"Bṛhat Parāśara Horā Śāstra", role:"classical terminology and Jyotiṣa relationship model", url:"https://sanskritdocuments.org/sanskrit/brihatparashara/" },
+      rashtriyaPanchang:{ title:"Rashtriya Panchang — Positional Astronomy Centre", role:"standardized pañcāṅga terminology and calculated calendric elements", url:"https://www.packolkata.gov.in/rp.php" },
+      designSystem:{ title:"Sahadeva Design System", role:"modern shape, stroke, accessibility, motion and consumer-language rules", path:"/docs/design/SAHADEVA_DESIGN_SYSTEM.md" }
+    },
+    families:{
+      rashi:{ sourceBasis:["bpHs","designSystem"], visualStatus:"modern-interpretation", review:"required" },
+      bhava:{ sourceBasis:["bpHs","designSystem"], visualStatus:"modern-interpretation", review:"required" },
+      nakshatra:{ sourceBasis:["bpHs","designSystem"], visualStatus:"modern-interpretation", review:"required" },
+      tithi:{ sourceBasis:["rashtriyaPanchang","designSystem"], visualStatus:"calculation-derived-lunar-phase", review:"required" },
+      yoga:{ sourceBasis:["rashtriyaPanchang","designSystem"], visualStatus:"modern-relational-abstraction", review:"required" },
+      karana:{ sourceBasis:["rashtriyaPanchang","designSystem"], visualStatus:"modern-temporal-abstraction", review:"required" },
+      timing:{ sourceBasis:["rashtriyaPanchang","designSystem"], visualStatus:"modern-interface-metaphor", review:"required" },
+      lifeArea:{ sourceBasis:["designSystem"], visualStatus:"consumer-interface-metaphor", review:"product-reviewed" },
+      remedy:{ sourceBasis:["designSystem"], visualStatus:"consumer-interface-metaphor-not-prescription", review:"required" }
+    }
+  },
+  families:{ rashi:rashi.map(x=>x.id), bhava:bhava.map(x=>x.id), nakshatra:nakshatra.map(x=>x.id), lifeArea:lifeAreas.map(x=>x.id), remedy:remedy.map(x=>x.id), timing:timings.map(x=>x.id), tithi:Array.from({length:30},(_,i)=>i+1), yoga:yogaNames, karana:karanas }
+};
 await writeFile(new URL("system-registry.json", root), `${JSON.stringify(registry,null,2)}\n`);
 const cards = (family, items, size) => items.map(x => `<figure><img src="./${family}/${x.id}-${size}.svg" alt=""><figcaption><b>${x.name}</b><span>${x.meaning}</span></figcaption></figure>`).join("");
 const illustrations = ["surya","chandra","mangala","budha","guru","shukra","shani","rahu","ketu"].map(id => `<figure class="story"><img src="./illustrations/${id}-v1.webp" alt="${id} narrative illustration candidate"><figcaption><b>${id}</b><span>Pending human cultural review</span></figcaption></figure>`).join("");

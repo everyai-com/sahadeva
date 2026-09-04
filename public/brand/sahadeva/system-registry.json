@@ -1,6 +1,100 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "generatedAt": "source-controlled",
+  "provenance": {
+    "policy": "research-informed-modern-visual-interpretation",
+    "culturalApproval": "pending-qualified-human-review",
+    "sourceLedger": "/docs/design/SAHADEVA_ASSET_PROVENANCE.md",
+    "sources": {
+      "bpHs": {
+        "title": "Bṛhat Parāśara Horā Śāstra",
+        "role": "classical terminology and Jyotiṣa relationship model",
+        "url": "https://sanskritdocuments.org/sanskrit/brihatparashara/"
+      },
+      "rashtriyaPanchang": {
+        "title": "Rashtriya Panchang — Positional Astronomy Centre",
+        "role": "standardized pañcāṅga terminology and calculated calendric elements",
+        "url": "https://www.packolkata.gov.in/rp.php"
+      },
+      "designSystem": {
+        "title": "Sahadeva Design System",
+        "role": "modern shape, stroke, accessibility, motion and consumer-language rules",
+        "path": "/docs/design/SAHADEVA_DESIGN_SYSTEM.md"
+      }
+    },
+    "families": {
+      "rashi": {
+        "sourceBasis": [
+          "bpHs",
+          "designSystem"
+        ],
+        "visualStatus": "modern-interpretation",
+        "review": "required"
+      },
+      "bhava": {
+        "sourceBasis": [
+          "bpHs",
+          "designSystem"
+        ],
+        "visualStatus": "modern-interpretation",
+        "review": "required"
+      },
+      "nakshatra": {
+        "sourceBasis": [
+          "bpHs",
+          "designSystem"
+        ],
+        "visualStatus": "modern-interpretation",
+        "review": "required"
+      },
+      "tithi": {
+        "sourceBasis": [
+          "rashtriyaPanchang",
+          "designSystem"
+        ],
+        "visualStatus": "calculation-derived-lunar-phase",
+        "review": "required"
+      },
+      "yoga": {
+        "sourceBasis": [
+          "rashtriyaPanchang",
+          "designSystem"
+        ],
+        "visualStatus": "modern-relational-abstraction",
+        "review": "required"
+      },
+      "karana": {
+        "sourceBasis": [
+          "rashtriyaPanchang",
+          "designSystem"
+        ],
+        "visualStatus": "modern-temporal-abstraction",
+        "review": "required"
+      },
+      "timing": {
+        "sourceBasis": [
+          "rashtriyaPanchang",
+          "designSystem"
+        ],
+        "visualStatus": "modern-interface-metaphor",
+        "review": "required"
+      },
+      "lifeArea": {
+        "sourceBasis": [
+          "designSystem"
+        ],
+        "visualStatus": "consumer-interface-metaphor",
+        "review": "product-reviewed"
+      },
+      "remedy": {
+        "sourceBasis": [
+          "designSystem"
+        ],
+        "visualStatus": "consumer-interface-metaphor-not-prescription",
+        "review": "required"
+      }
+    }
+  },
   "families": {
     "rashi": [
       "mesha",

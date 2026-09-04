@@ -18,7 +18,10 @@ const workerBytes = (await stat(workerPath)).size;
 // Full VSOP87D adds ~1.5 MB of deterministic coefficient tables. The emitted
 // Worker remains below 1 MB gzip and comfortably inside Cloudflare's limit.
 const budgets = [
-  { path: mainPath, actual: mainBytes, maximum: 350_000 },
+  // The multilingual voice, conversation-alignment, and complete Sahadeva UI
+  // layers bring the measured production entry to ~355 KB. Keep less than 6%
+  // headroom so future growth still fails loudly.
+  { path: mainPath, actual: mainBytes, maximum: 375_000 },
   { path: workerPath, actual: workerBytes, maximum: 4_600_000 /* raised for better-auth + drizzle */ },
 ];
 for (const budget of budgets) {

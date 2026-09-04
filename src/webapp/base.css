@@ -25,7 +25,7 @@
   --font-display:
     "Fraunces", "Iowan Old Style", Georgia, serif;
   --font-body:
-    "Inter", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+    "Figtree", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
   --font-mono:
     "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
   --text-xs:   12px;
@@ -57,6 +57,8 @@
   --elev-flat:   none;
   --elev-ring:   0 0 0 1px var(--border);
   --elev-raised: 0 18px 46px rgba(36, 37, 50, 0.08);
+  --elev-soft: 0 1px 0 rgba(255,255,255,.72) inset, 0 10px 34px rgba(72,56,34,.055);
+  --elev-hover: 0 1px 0 rgba(255,255,255,.82) inset, 0 18px 44px rgba(72,56,34,.09);
   --focus-ring: 0 0 0 4px color-mix(in oklab, var(--accent), transparent 65%);
   --motion-fast:   150ms;
   --motion-base:   220ms;
@@ -106,8 +108,19 @@
   min-height: 100vh;
   min-height: 100dvh;
   background:
-    radial-gradient(circle at 78% -15%, rgba(169, 139, 82, .09), transparent 34rem),
+    radial-gradient(circle at 78% -15%, rgba(169, 139, 82, .13), transparent 34rem),
+    radial-gradient(circle at 3% 96%, rgba(102, 95, 142, .055), transparent 28rem),
     var(--bg);
+  isolation: isolate;
+}
+.sahadev-web::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .28;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.045'/%3E%3C/svg%3E");
 }
 .skip-link { position: fixed; top: 10px; left: 10px; z-index: 40; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--fg); color: var(--bg) !important; transform: translateY(-150%); }
 .skip-link:focus { transform: translateY(0); }
@@ -160,6 +173,7 @@
   overscroll-behavior: contain;
   padding: 2px 20px 28px;
   scrollbar-width: none;
+  animation: screen-enter 420ms var(--ease-standard) both;
 }
 .screen::-webkit-scrollbar { width: 0; display: none; }
 
@@ -189,10 +203,11 @@
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
   text-align: center;
-  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+  transition: transform var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
 .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; }
-.tab:hover { background: var(--border-soft); color: var(--fg); }
+.tab:hover { background: var(--border-soft); color: var(--fg); transform: translateY(-1px); }
+.tab:active { transform: translateY(1px) scale(.985); }
 .tab[aria-current=page] { color: var(--accent); }
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 
@@ -237,7 +252,7 @@
    first WITHOUT a generic before "Anek Telugu", so English stays in the Latin
    font and only Telugu glyphs (absent from those faces) fall through to Anek. */
 .sahadev-web[lang=te] {
-  font-family: "Inter", "Anek Telugu", "Noto Sans Telugu", sans-serif;
+  font-family: "Figtree", "Anek Telugu", "Noto Sans Telugu", sans-serif;
 }
 .sahadev-web[lang=te] h1,
 .sahadev-web[lang=te] h2,
@@ -252,6 +267,36 @@
 
 /* generic loading shimmer, shared by ask + onboarding */
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@keyframes screen-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+
+/* A single interaction grammar for all product surfaces. */
+.sahadev-web button:not(:disabled),
+.sahadev-web a { transition-timing-function: var(--ease-standard); }
+.sahadev-web button:active:not(:disabled) { transform: translateY(1px) scale(.992); }
+.today-screen .card,
+.chart-screen .chartbox,
+.dasha-screen .card,
+.match-screen .card,
+.remedies-screen .why,
+.remedies-screen .devata,
+.remedies-screen .review,
+.more-screen .profilecard {
+  box-shadow: var(--elev-soft);
+  transition: transform var(--motion-base) var(--ease-standard), box-shadow var(--motion-base) var(--ease-standard), border-color var(--motion-base) var(--ease-standard);
+}
+@media (hover:hover) {
+  .today-screen .card:hover,
+  .dasha-screen .card:hover,
+  .match-screen .card:hover,
+  .remedies-screen .why:hover,
+  .remedies-screen .devata:hover,
+  .remedies-screen .review:hover,
+  .more-screen .profilecard:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--elev-hover);
+    border-color: color-mix(in srgb, var(--gold) 38%, var(--border));
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .sahadev-web *,
@@ -259,13 +304,13 @@
   .sahadev-web *::after { animation-duration: 0ms !important; transition-duration: 0ms !important; }
 }
 @media (min-width: 760px) {
-  .phone { display: block; padding-left: 248px; overflow: hidden; background: var(--surface-warm); }
-  .screen, .thread.ask-screen { height: 100%; max-width: 1120px; margin: 0 auto; padding: 48px clamp(32px, 6vw, 84px) 64px; background: var(--bg); }
+  .phone { display: block; padding-left: 248px; overflow: hidden; background: color-mix(in srgb, var(--surface-warm) 90%, transparent); }
+  .screen, .thread.ask-screen { height: 100%; max-width: 1180px; margin: 0 auto; padding: 54px clamp(36px, 6vw, 88px) 72px; background: color-mix(in srgb, var(--bg) 96%, transparent); }
   .askhead.ask-screen, .composer.ask-screen, .topbar, .footer { max-width: 1120px; margin-left: auto; margin-right: auto; padding-left: clamp(32px, 6vw, 84px); padding-right: clamp(32px, 6vw, 84px); background: var(--bg); }
   .askhead.ask-screen { padding-top: 32px; padding-bottom: 18px; }
   .composer.ask-screen { padding-top: 16px; padding-bottom: 24px; }
   .topbar { padding-top: 28px; }
-  .tabbar { position: absolute; inset: 0 auto 0 0; width: 248px; padding: 28px 18px 22px; flex-direction: column; gap: 6px; border: 0; border-right: 1px solid var(--border); background: rgba(241,240,236,.9); }
+  .tabbar { position: absolute; inset: 0 auto 0 0; width: 248px; padding: 28px 18px 22px; flex-direction: column; gap: 6px; border: 0; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--surface-warm) 86%, transparent); box-shadow: 10px 0 36px rgba(48,42,32,.025); }
   .webbrand { display: flex; align-items: center; gap: 11px; padding: 0 8px 30px; }
   .brandmark { width: 42px; height: 42px; display: block; }
   .webbrand > span:last-child, .navidentity div { min-width: 0; }
@@ -273,7 +318,7 @@
   .webbrand b { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: .04em; }
   .webbrand small, .navidentity small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tab { flex: 0 0 auto; min-height: 48px; flex-direction: row; justify-content: flex-start; gap: 13px; padding: 0 13px; font-size: 15px; font-weight: 500; }
-  .tab[aria-current=page] { background: var(--surface); box-shadow: inset 3px 0 0 var(--copper); }
+  .tab[aria-current=page] { background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: inset 3px 0 0 var(--copper), var(--elev-soft); }
   .tab svg { width: 20px; height: 20px; }
   .navidentity { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 15px 8px 0; border-top: 1px solid var(--border); }
   .navidentity > span { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 14px; font-weight: 600; }
