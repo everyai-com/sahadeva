@@ -12,6 +12,7 @@
     { "id": "graha.shukra.illustration.v1", "path": "shukra-v1.webp", "motifs": ["Guru", "clarity", "restoration"], "review": "required" },
     { "id": "graha.shani.illustration.v1", "path": "shani-v1.webp", "motifs": ["anjana blue-black", "weight", "crow"], "review": "required" },
     { "id": "graha.rahu.illustration.v1", "path": "rahu-v1.webp", "motifs": ["eclipse", "partial form", "serpent"], "review": "required" },
-    { "id": "graha.ketu.illustration.v1", "path": "ketu-v1.webp", "motifs": ["severance", "smoke", "dissolution"], "review": "required" }
+    { "id": "graha.ketu.illustration.v1", "path": "ketu-v1.webp", "motifs": ["severance", "smoke", "dissolution"], "review": "required" },
+    { "id": "devata.krishna.illustration.v1", "path": "krishna-v1.webp", "sourcePath": "krishna-v1.png", "motifs": ["flute", "peacock feather", "yellow pitambara", "kadamba tree", "Yamuna", "ordered celestial geometry"], "classification": "contemporary-editorial-interpretation", "review": "required" }
   ]
 }

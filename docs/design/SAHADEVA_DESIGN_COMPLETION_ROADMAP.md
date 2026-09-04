@@ -11,9 +11,11 @@
 - Complete: Navagraha and Bhāva integration in the South Indian chart
 - Complete: 12 consumer life-area and nine remedy families
 - Candidate set complete: nine Navagraha narrative illustrations
+- Complete: 26-file production distribution pack covering Apple, Google Play, PWA, favicon, transparent logo exports, social masters, press cover, and devotional editorial delivery
+- Complete: machine-readable production registry with dimensions, purpose, format, and approval status
 - External sign-off required: qualified human cultural/iconographic review of narrative illustrations
 
-The live visual catalogue is generated at `public/brand/sahadeva/catalog.html`; canonical machine-readable inventory is in `system-registry.json`.
+The live visual catalogue is generated at `public/brand/sahadeva/catalog.html`; canonical machine-readable inventories are in `system-registry.json` and `production/registry.json`.
 
 The foundation and Navagraha family establish the language, but they are not the whole product system. The remaining work should follow this order so later assets inherit proven geometry instead of becoming disconnected illustrations.
 
@@ -21,7 +23,8 @@ The foundation and Navagraha family establish the language, but they are not the
 
 - Clear-space, minimum-size, co-branding, misuse, and background rules
 - Trademark and asset-license decision independent of the repository code license
-- Export package for SVG, PDF, PNG, Android adaptive icon, and Apple icon layers
+- Complete: source-controlled SVG and PNG delivery package, maskable Android/PWA icon, and opaque Apple icon master
+- Remaining only when required by a downstream vendor: PDF and native layered-icon packaging
 - Telugu and Devanagari brand-name typography review
 - Human cultural review of the mark before declaring it final
 
