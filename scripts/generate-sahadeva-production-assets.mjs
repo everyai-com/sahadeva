@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
@@ -23,6 +23,7 @@ const savePng = async (id, relativePath, pipeline, width, height, purpose) => {
 };
 
 const iconSource = new URL("app-icon.svg", brand);
+const smallIconSource = new URL("app-icon-small.svg", brand);
 for (const [id, path, size, purpose] of [
   ["icon.favicon.32", "icons/favicon-32.png", 32, "browser favicon"],
   ["icon.apple-touch.180", "icons/apple-touch-icon-180.png", 180, "Apple touch icon"],
@@ -31,10 +32,15 @@ for (const [id, path, size, purpose] of [
   ["icon.maskable.512", "icons/maskable-512.png", 512, "maskable PWA and Android icon"],
   ["icon.app-store.1024", "icons/app-store-1024.png", 1024, "Apple App Store icon"],
 ]) {
-  let image = sharp(fileURLToPath(iconSource)).resize(size, size, { fit: "cover" });
+  const source = id === "icon.favicon.32" || id === "icon.apple-touch.180" || id === "icon.pwa.192" ? smallIconSource : iconSource;
+  let image = sharp(fileURLToPath(source)).resize(size, size, { fit: "cover" });
   if (id === "icon.app-store.1024" || id === "icon.maskable.512") image = image.flatten({ background: ink });
   await savePng(id, path, image, size, size, purpose);
 }
+
+await sharp(fileURLToPath(smallIconSource)).resize(192, 192).png({ compressionLevel:9, palette:true }).toFile(fileURLToPath(new URL("../../../icon-192.png", output)));
+await sharp(fileURLToPath(iconSource)).resize(512, 512).flatten({ background:ink }).png({ compressionLevel:9, palette:true }).toFile(fileURLToPath(new URL("../../../icon-512.png", output)));
+await writeFile(new URL("../../../icon.svg", output), await readFile(iconSource));
 
 for (const [source, stem] of [["mark.svg", "mark"], ["lockup.svg", "lockup"], ["stacked.svg", "stacked"]]) {
   for (const width of [512, 1024, 2048]) {

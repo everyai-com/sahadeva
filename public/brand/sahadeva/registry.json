@@ -43,7 +43,32 @@
     {
       "id": "brand.app-icon",
       "path": "app-icon.svg",
-      "canonical": true
+      "canonical": true,
+      "role": "full-bleed store master"
+    },
+    {
+      "id": "brand.app-icon.preview",
+      "path": "app-icon-preview.svg",
+      "canonical": true,
+      "role": "rounded presentation preview only"
+    },
+    {
+      "id": "brand.app-icon.monochrome",
+      "path": "app-icon-monochrome.svg",
+      "canonical": true,
+      "role": "single-color and accessibility contexts"
+    },
+    {
+      "id": "brand.app-icon.small",
+      "path": "app-icon-small.svg",
+      "canonical": true,
+      "role": "simplified artwork below 48px"
+    },
+    {
+      "id": "brand.app-icon.construction",
+      "path": "app-icon-construction.svg",
+      "canonical": true,
+      "role": "safe-zone reference; never ship"
     }
   ],
   "assets": [
