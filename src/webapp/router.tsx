@@ -8,7 +8,10 @@ export type Route =
   | "onboarding"
   | "dasha"
   | "match"
-  | "remedies";
+  | "remedies"
+  | "privacy"
+  | "terms"
+  | "not-found";
 
 const ROUTES: Route[] = [
   "today",
@@ -19,12 +22,16 @@ const ROUTES: Route[] = [
   "dasha",
   "match",
   "remedies",
+  "privacy",
+  "terms",
 ];
 
 /** The default landing screen — Ask (అడగండి), framed around the jatakam. */
 export const DEFAULT_ROUTE: Route = "ask";
 
 function parse(): Route {
+  const pathRoute = window.location.pathname.replace(/^\/+|\/+$/g, "");
+  if (pathRoute) return (ROUTES as string[]).includes(pathRoute) ? pathRoute as Route : "not-found";
   const raw = window.location.hash.replace(/^#/, "").split("?")[0].trim();
   return (ROUTES as string[]).includes(raw) ? (raw as Route) : DEFAULT_ROUTE;
 }

@@ -20,6 +20,20 @@ const person = {
 describe("comprehensive remedies", () => {
   const chart = calculateChart(person);
 
+  it("withholds Lal Kitab remedies and requires explicit opt-in for mantra and gemstones", () => {
+    const plan = buildComprehensiveRemedies(chart, {});
+    expect(plan.lalKitabCoverage.reviewedExecutableRules).toBe(0);
+    expect(plan.lalKitabCoverage.automaticRemedyAllowed).toBe(false);
+    expect(
+      plan.planetRemedies.every(
+        (item) =>
+          item.lalKitab.status === "withheld-source-only" &&
+          item.mantra === undefined &&
+          item.gemstone === undefined,
+      ),
+    ).toBe(true);
+  });
+
   it("never recommends a strengthening gemstone for a node or a propitiated graha", () => {
     const plan = buildComprehensiveRemedies(chart, {});
     for (const card of plan.planetRemedies) {

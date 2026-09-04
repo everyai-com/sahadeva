@@ -164,3 +164,35 @@ Do not turn an entire section into one positive/negative score.
 - never blends its output into Parashari synthesis.
 
 This is intentionally a source inspection tool, not yet a prediction tool.
+
+## Remedy candidate engine
+
+The complete parsed corpus now feeds a generated remedy catalog and chart matcher:
+
+- `scripts/build-lal-kitab-remedy-catalog.mjs` scans every source family and every planet-house monograph;
+- `knowledge/lal-kitab-remedies.json` stores source-located OCR candidates, condition context, remedy-family classification and risk flags;
+- `shared/lalKitabRemedies.ts` matches the nine fixed-house placements without exposing unreviewed instruction text;
+- `analyze_lal_kitab_remedies` returns chart-specific candidate provenance;
+- `explore_lal_kitab_remedy_catalog` returns whole-book coverage and publication status.
+
+The generated catalog currently contains 200 explicit remedy blocks: 81 inside planet-house monographs and 119 in general, debt, marriage, residential, health, timing and conjunction material. Sixty of the 108 planet-house sections contain an explicit remedy-labelled block; the remaining sections can still depend on referenced general remedies or conditional cross-planet rules and therefore must not be filled with invented defaults.
+
+This completes the source-discovery and matching layer, not the publication gate. Candidate wording remains OCR-derived and unpublished until its full condition graph is modeled, checked against the scan, tested with counterexamples and approved by two independent reviewers.
+
+## Deterministic inference kernel
+
+`shared/lalKitabInference.ts` is the shared reasoning core used by both MCP and the web remedy experience. It calculates a fact graph directly from the chart and currently resolves:
+
+- Lal Kitab fixed-house placement for all nine planets;
+- fixed Planet Effect versus remediable Sign Effect;
+- same-house friendship, enmity, dormancy and eclipse relationships;
+- non-conjunction house relationships: mutual assistance, general condition, 6/8 confrontation, foundation, deception, friendly joint wall, inverse 8-to-2 influence and sudden-strike candidates;
+- blind, half-blind and empty-side dormancy chart states;
+- current Mahadasha/Antardasha activation priority;
+- whether no remedy is indicated, a fixed effect stops the remedy path, or a fixed-house-lord remedy principle is available;
+- the book's remedy sequencing and fallback order;
+- a source-linked explanation trace showing each inference step.
+
+The kernel explicitly reports `retrievalRequired: false`. Corpus retrieval is used only after inference for provenance or review. The web `/api/remedies` response embeds this same reasoning object, `/api/lal-kitab/reason` exposes it directly, and MCP publishes it as `reason_lal_kitab`.
+
+Still unresolved rather than guessed: quantitative confrontation fractions, artificial-planet transformations, debt graphs, annual-chart state and the conditional prose inside all 108 monographs. These must be added as verified executable rule packs to the same kernel.

@@ -8,6 +8,7 @@ import {
   recordConversationInput,
   recordResponseIntentCoverage,
   transcribeAudio,
+  TranscriptionError,
   type SpeechLanguage,
   streamChat,
   submitClaimFeedback,
@@ -485,6 +486,7 @@ export function AskScreen() {
   }
 
   async function runTranscription(blob: Blob) {
+    const transcriptionStartedAt = performance.now();
     setVoicePhase("transcribing");
     const controller = new AbortController();
     transcriptionAbortRef.current = controller;
@@ -494,6 +496,7 @@ export function AskScreen() {
         result = await transcribeAudio(blob, speechLanguage, controller.signal);
       } catch (firstError) {
         if (controller.signal.aborted) throw firstError;
+        if (!(firstError instanceof TranscriptionError) || !firstError.retryable) throw firstError;
         await new Promise((resolve) => window.setTimeout(resolve, 350));
         result = await transcribeAudio(blob, speechLanguage, controller.signal);
       }
@@ -502,9 +505,22 @@ export function AskScreen() {
       setVoiceError("");
       setVoiceConfirmed(true);
       window.setTimeout(() => setVoiceConfirmed(false), 2400);
+      analyticsCapture("voice_transcription_completed", {
+        requested_language: speechLanguage,
+        detected_language: result.language,
+        provider: result.provider,
+        duration_ms: Math.round(performance.now() - transcriptionStartedAt),
+      });
     } catch (error) {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
         setVoiceError((error as Error).message || t("We couldn't transcribe that recording.", "ఆ రికార్డింగ్‌ను వచనంగా మార్చలేకపోయాం."));
+        analyticsCapture("voice_transcription_failed", {
+          requested_language: speechLanguage,
+          status: error instanceof TranscriptionError ? error.status : 0,
+          retryable: error instanceof TranscriptionError && error.retryable,
+          duration_ms: Math.round(performance.now() - transcriptionStartedAt),
+        });
+      }
     } finally {
       transcriptionAbortRef.current = null;
       setVoicePhase("idle");

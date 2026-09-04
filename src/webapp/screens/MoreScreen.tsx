@@ -5,7 +5,7 @@ import { useData } from "../data";
 import { navigate, type Route } from "../router";
 import { StatusBar, TabBar } from "../shell";
 import { nakName, signName } from "../format";
-import { signOut, type Person } from "../api";
+import { deleteAccount, signOut, type Person } from "../api";
 import { AuthSheet } from "./AuthSheet";
 import { setOnboardingMode } from "../onboardingMode";
 import { getLifeContext, setLifeContext, LIFE_CONTEXT_MAX } from "../lifeContext";
@@ -28,15 +28,48 @@ function personSummary(person: Person, lang: "en" | "te"): string {
 
 export function MoreScreen() {
   const { lang, t } = useLang();
-  const { profile, chart, account, people, activePersonId, refreshMe, activatePerson, deletePerson } = useData();
+  const { profile, chart, account, people, activePersonId, conversation, refreshMe, activatePerson, deletePerson } = useData();
   const [authOpen, setAuthOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [context, setContext] = useState<string>(() => getLifeContext());
   const [contextSaved, setContextSaved] = useState(false);
+  const [accountToolsOpen, setAccountToolsOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [accountMessage, setAccountMessage] = useState("");
+  const [accountBusy, setAccountBusy] = useState(false);
 
   async function handleSignOut() {
     await signOut().catch(() => {});
     await refreshMe();
+  }
+
+  function exportAccountData() {
+    const payload = { exportedAt: new Date().toISOString(), account, people, activePersonId, profile, conversation, aboutYou: context };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `sahadeva-data-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setAccountMessage(t("Your data export was downloaded.", "మీ డేటా ఎగుమతి డౌన్‌లోడ్ అయింది."));
+  }
+
+  async function handleDeleteAccount() {
+    if (!deletePassword) {
+      setAccountMessage(t("Enter your password to confirm deletion.", "తొలగింపును నిర్ధారించడానికి మీ పాస్‌వర్డ్ నమోదు చేయండి."));
+      return;
+    }
+    setAccountBusy(true);
+    setAccountMessage("");
+    try {
+      await deleteAccount(deletePassword);
+      localStorage.removeItem("sahadeva.profile.guest.v2");
+      await refreshMe();
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : t("Account deletion failed.", "ఖాతా తొలగింపు విఫలమైంది."));
+    } finally {
+      setAccountBusy(false);
+    }
   }
 
   function editActive() {
@@ -118,16 +151,32 @@ export function MoreScreen() {
         </header>
 
         {account ? (
-          <div className="acctcard">
-            <span className="acctav">{(account.name || account.email || "?").trim().charAt(0).toUpperCase()}</span>
-            <span className="acctinfo">
-              <b>{account.name || t("Your account", "మీ ఖాతా")}</b>
-              <span>{account.email}</span>
-            </span>
-            <button className="acctout" type="button" onClick={handleSignOut}>
-              {t("Sign out", "సైన్ అవుట్")}
-            </button>
-          </div>
+          <section className="account-area">
+            <div className="acctcard">
+              <span className="acctav">{(account.name || account.email || "?").trim().charAt(0).toUpperCase()}</span>
+              <span className="acctinfo">
+                <b>{account.name || t("Your account", "మీ ఖాతా")}</b>
+                <span>{account.email}</span>
+              </span>
+              <button className="acctout" type="button" aria-expanded={accountToolsOpen} onClick={() => setAccountToolsOpen((open) => !open)}>
+                {t("Manage", "నిర్వహించు")}
+              </button>
+            </div>
+            {accountToolsOpen && (
+              <div className="account-tools">
+                <button className="edit" type="button" onClick={exportAccountData}>{t("Download my data", "నా డేటాను డౌన్‌లోడ్ చేయండి")}</button>
+                <button className="edit" type="button" onClick={handleSignOut}>{t("Sign out", "సైన్ అవుట్")}</button>
+                <details className="delete-account">
+                  <summary>{t("Delete account", "ఖాతా తొలగించండి")}</summary>
+                  <p>{t("This permanently removes your account, saved profiles, and backed-up conversations.", "ఇది మీ ఖాతా, సేవ్ చేసిన ప్రొఫైల్‌లు మరియు బ్యాకప్ సంభాషణలను శాశ్వతంగా తొలగిస్తుంది.")}</p>
+                  <label htmlFor="delete-password">{t("Password", "పాస్‌వర్డ్")}</label>
+                  <input id="delete-password" type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} />
+                  <button className="danger-button" type="button" disabled={accountBusy} onClick={handleDeleteAccount}>{accountBusy ? t("Deleting…", "తొలగిస్తోంది…") : t("Permanently delete", "శాశ్వతంగా తొలగించండి")}</button>
+                </details>
+                {accountMessage && <p className="account-message" role="status">{accountMessage}</p>}
+              </div>
+            )}
+          </section>
         ) : (
           <button className="acctcta" type="button" onClick={() => setAuthOpen(true)}>
             <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, stroke: "currentColor", fill: "none", strokeWidth: 1.7 }}>
@@ -281,6 +330,10 @@ export function MoreScreen() {
             "లాహిరి అయనాంశ · పూర్ణరాశి భావాలు · గణించినది. జ్యోతిషం ఒక వ్యాఖ్యాన సంప్రదాయం, సంఘటనల జోస్యం కాదు.",
           )}
         </p>
+        <nav className="legal-links" aria-label={t("Legal", "చట్టపరమైన సమాచారం")}>
+          <a href="/privacy">{t("Privacy", "గోప్యత")}</a>
+          <a href="/terms">{t("Terms", "నిబంధనలు")}</a>
+        </nav>
       </main>
       <AuthSheet open={authOpen} onClose={() => setAuthOpen(false)} />
       <TabBar current="more" />

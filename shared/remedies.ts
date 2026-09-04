@@ -4,6 +4,7 @@ import type { ChartResult } from "./schema";
 import { calculateDevataProfile } from "./devata";
 import { buildAfflictionRemedyPlan } from "./afflictionRemedies";
 import { buildComprehensiveRemedies } from "./comprehensiveRemedies";
+import { analyzeLalKitabInference } from "./lalKitabInference";
 
 export type RemedyRecord = {
   id: string;
@@ -888,6 +889,7 @@ export function buildChartRemedyProtocol(
       allowMantras: preferences.allowPrayer,
       allowCharity: preferences.allowCharity,
     }),
+    lalKitabInference: analyzeLalKitabInference(chart),
     traditionalChartRemedies: assessedTraditionalChartRemedies,
     traditionalRemedyStatus: "calculated-candidates-with-publication-gates",
     sourceCoverage: {

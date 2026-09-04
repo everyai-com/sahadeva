@@ -22,6 +22,9 @@ export function createAuth(env: AuthEnv, requestOrigin: string) {
       requireEmailVerification: false,
       minPasswordLength: 8,
     },
+    user: {
+      deleteUser: { enabled: true },
+    },
     session: {
       expiresIn: 60 * 60 * 24 * 30,
       updateAge: 60 * 60 * 24,

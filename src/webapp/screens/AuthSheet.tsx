@@ -157,7 +157,10 @@ export function AuthSheet({ open, onClose, onAuthenticated, initialEmail = "" }:
 
         {mode === "signup" && (
           <p className="aterms">
-            {t("Your birth details and readings are stored privately and encrypted at rest.", "మీ జనన వివరాలు, పఠనాలు గోప్యంగా, ఎన్‌క్రిప్ట్ చేసి భద్రపరచబడతాయి.")}
+            {t("By creating an account, you agree to the ", "ఖాతా సృష్టించడం ద్వారా మీరు ")}
+            <a href="/terms">{t("Terms", "నిబంధనలు")}</a>
+            {t(" and acknowledge the ", " మరియు ")}
+            <a href="/privacy">{t("Privacy policy", "గోప్యతా విధానం")}</a>.
           </p>
         )}
       </aside>

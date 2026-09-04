@@ -99,6 +99,7 @@ export function RemediesScreen() {
   const devata = data?.chartDiagnosis?.devataProfile?.ishtaDevata;
   const supporting = data?.diagnosis.supportingEvidence?.length ?? 0;
   const opposing = data?.diagnosis.opposingEvidence?.length ?? 0;
+  const lalKitab = data?.lalKitabInference;
   const mix = supporting && opposing ? t("mixed", "మిశ్రమం") : supporting ? t("supported", "అనుకూలం") : t("guarded", "జాగ్రత్త");
 
   const profileScope = profile
@@ -232,6 +233,44 @@ export function RemediesScreen() {
                 </div>
               )}
             </section>
+
+            {lalKitab && (
+              <section className="lklogic">
+                <p className="sectitle">{t("Lal Kitab reasoning", "లాల్ కితాబ్ తర్కం")}</p>
+                <h3>{t("Calculated first. Explained step by step.", "మొదట గణన. తరువాత దశలవారీ వివరణ.")}</h3>
+                <p className="lklead">
+                  {t(
+                    "This result was derived from the chart's fixed houses and Lal Kitab rule order. The engine did not search for a matching paragraph to produce the decision.",
+                    "ఈ ఫలితం స్థిర భావాలు మరియు లాల్ కితాబ్ నియమ క్రమం నుంచి గణించబడింది. నిర్ణయం కోసం సరిపోయే పేరాను వెతకాలేదు.",
+                  )}
+                </p>
+                <div className="lkfacts">
+                  <span>{lalKitab.computation.retrievalRequired ? t("retrieval used", "శోధన వాడింది") : t("no retrieval", "శోధన లేదు")}</span>
+                  <span>{`${lalKitab.diagnoses.length} ${t("diagnosed interactions", "గుర్తించిన పరస్పర ప్రభావాలు")}`}</span>
+                  <span>{lalKitab.remedyPlan.outcome}</span>
+                </div>
+                {lalKitab.remedyPlan.ordered.slice(0, 4).map((item) => (
+                  <div className="lkdecision" key={`${item.planet}-${item.house}`}>
+                    <b>{`${item.priority}. ${item.planet} · H${item.house}`}</b>
+                    <p>{item.decision.replaceAll("-", " ")}</p>
+                    <small>
+                      {item.targetPlanets.length
+                        ? `${t("Remedy principle", "పరిహార సూత్రం")}: ${item.targetPlanets.join(" + ")} · ${item.houseMethod}`
+                        : t("No automatic remedy target", "స్వయంచాలక పరిహార లక్ష్యం లేదు")}
+                    </small>
+                  </div>
+                ))}
+                <ol className="lktrace">
+                  {lalKitab.explanationTrace.map((step) => (
+                    <li key={step.order}>
+                      <b>{step.rule}</b>
+                      <span>{step.conclusion}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="lksequence">{lalKitab.remedyPlan.sequencingRule}</p>
+              </section>
+            )}
 
             {held.length > 0 && (
               <section className="held">

@@ -36,4 +36,18 @@ describe("tool router", () => {
     });
     expect(r.notes.join(" ")).toMatch(/second person/i);
   });
+
+  it("routes Lal Kitab remedy questions through the dedicated engine", () => {
+    const result = recommendTools("What Lal Kitab remedies apply to my chart?", {
+      hasBirthDetails: true,
+    });
+    expect(result.intent).toBe("lal-kitab-remedies");
+    expect(result.primaryTool).toBe("reason_lal_kitab");
+    expect(result.plan.map((step) => step.tool)).toEqual([
+      "search_locations",
+      "reason_lal_kitab",
+      "analyze_lal_kitab_remedies",
+    ]);
+    expect(result.relevantResources).toContain("sahadeva://lal-kitab-remedies");
+  });
 });

@@ -61,8 +61,8 @@ function planetPotencyWindow(chart: ChartResult, planet: GrahaName) {
 // selects the right remedy set from the classical library.
 
 export interface ComprehensiveRemedyOptions {
-  allowGemstones?: boolean; // default true
-  allowMantras?: boolean; // default true
+  allowGemstones?: boolean; // explicit opt-in; default false
+  allowMantras?: boolean; // explicit opt-in; default false
   allowCharity?: boolean; // default true
 }
 
@@ -115,7 +115,10 @@ export interface PlanetRemedyCard {
   vrata?: { day: string; method: string };
   stotra: string;
   conduct: string;
-  lalKitab: string;
+  lalKitab: {
+    status: "withheld-source-only";
+    reason: string;
+  };
   supportive: { day: string; color: string; direction: string; deity: string };
   timing: {
     beginOn: string;
@@ -132,8 +135,8 @@ export function buildComprehensiveRemedies(
   chart: ChartResult,
   options: ComprehensiveRemedyOptions = {},
 ) {
-  const allowGemstones = options.allowGemstones !== false;
-  const allowMantras = options.allowMantras !== false;
+  const allowGemstones = options.allowGemstones === true;
+  const allowMantras = options.allowMantras === true;
   const allowCharity = options.allowCharity !== false;
 
   const lagna = chart.placements.find((p) => p.name === "Lagna");
@@ -183,7 +186,11 @@ export function buildComprehensiveRemedies(
       significations: lib.bodyAndLife,
       stotra: lib.stotra,
       conduct: lib.conduct,
-      lalKitab: lib.lalKitab,
+      lalKitab: {
+        status: "withheld-source-only",
+        reason:
+          "No planet-only Lal Kitab remedy is publishable: remedies must be extracted from the applicable house and modifying conditions, scan-verified, and independently reviewed.",
+      },
       supportive: {
         day: lib.weekday,
         color: lib.color,
@@ -253,6 +260,13 @@ export function buildComprehensiveRemedies(
     timingPrinciple:
       "A remedy for a graha is traditionally most effective while that graha's Mahadasha or Antardasha is running (see each card's potencyWindow), begun on its weekday in the waxing fortnight. Conduct and charity help any time; a gemstone or mantra anushthana is best begun in a calculated muhurta.",
     sourceCoverage: REMEDY_SOURCES,
+    lalKitabCoverage: {
+      status: "source-located-not-executable",
+      reviewedExecutableRules: 0,
+      automaticRemedyAllowed: false,
+      notice:
+        "The complete parsed Lal Kitab corpus is indexed, but its conditional remedy rules have not yet passed scan verification and two-reviewer publication gates.",
+    },
     howToUse: [
       "Pick ONE or two remedies you can actually sustain — consistency matters more than quantity.",
       "Conduct and charity are the safest and are always appropriate; mantra japa suits most people.",

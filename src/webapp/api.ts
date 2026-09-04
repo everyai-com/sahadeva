@@ -18,15 +18,24 @@ export type Profile = {
   birthTimeAccuracyMinutes?: number;
 };
 
-export async function transcribeAudio(audio: Blob, language: SpeechLanguage, signal?: AbortSignal): Promise<{ text: string; language: string | null }> {
+export class TranscriptionError extends Error {
+  constructor(message: string, readonly status: number, readonly retryable: boolean) { super(message); this.name = "TranscriptionError"; }
+}
+
+export async function transcribeAudio(audio: Blob, language: SpeechLanguage, signal?: AbortSignal): Promise<{ text: string; language: string | null; provider: string | null }> {
   const form = new FormData();
   const extension = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
   form.append("audio", audio, `voice.${extension}`);
   form.append("language", language);
-  const res = await fetch("/api/transcribe", { method: "POST", body: form, signal });
-  const data = (await res.json().catch(() => ({}))) as { text?: string; language?: string | null; error?: string };
-  if (!res.ok || !data.text) throw new Error(data.error || (res.status === 429 ? "rate" : "transcription"));
-  return { text: data.text, language: data.language ?? null };
+  let res: Response;
+  try { res = await fetch("/api/transcribe", { method: "POST", body: form, signal }); }
+  catch (error) {
+    if ((error as DOMException).name === "AbortError") throw error;
+    throw new TranscriptionError("Connection interrupted. Please try again.", 0, true);
+  }
+  const data = (await res.json().catch(() => ({}))) as { text?: string; language?: string | null; provider?: string; error?: string };
+  if (!res.ok || !data.text) throw new TranscriptionError(data.error || (res.status === 429 ? "Too many voice requests. Wait a moment and try again." : "We couldn't transcribe that recording."), res.status, res.status >= 500);
+  return { text: data.text, language: data.language ?? null, provider: data.provider ?? null };
 }
 
 /* ── chart ─────────────────────────────────────────────────────────────── */
@@ -293,6 +302,23 @@ export type RemedyProtocol = {
       anchors?: { karakamshaSignName?: string };
     };
   };
+  lalKitabInference?: {
+    computation: { retrievalRequired: boolean; chartCalculatedOnce: boolean };
+    diagnoses: Array<{
+      planet: string;
+      house: number;
+      effectClass: string;
+      adverseSignals: string[];
+      activation: string;
+      remedyDecision: { decision: string; targetPlanets: string[]; houseMethod: string };
+    }>;
+    remedyPlan: {
+      outcome: string;
+      sequencingRule: string;
+      ordered: Array<{ priority: number; planet: string; house: number; decision: string; targetPlanets: string[]; houseMethod: string }>;
+    };
+    explanationTrace: Array<{ order: number; rule: string; conclusion: string; facts: string[]; sourceLocator: string }>;
+  };
 };
 
 export type RemedyPreferences = {
@@ -410,6 +436,9 @@ export function signIn(email: string, password: string): Promise<void> {
 }
 export function signOut(): Promise<void> {
   return authPost("/api/auth/sign-out", {});
+}
+export function deleteAccount(password: string): Promise<void> {
+  return authPost("/api/auth/delete-user", { password });
 }
 
 /** Save the current local profile to the signed-in account (upserts the active person). */

@@ -143,6 +143,11 @@ import {
   inspectLalKitabStructure,
 } from "../shared/lalKitab";
 import {
+  buildLalKitabRemedyCandidates,
+  getLalKitabRemedyCatalog,
+} from "../shared/lalKitabRemedies";
+import { analyzeLalKitabInference } from "../shared/lalKitabInference";
+import {
   PREDICTION_QUALITY_METHOD,
   auditPredictionClaim,
   compareTraditionLedgers,
@@ -1231,6 +1236,55 @@ const mcpTools = [
     },
   },
   {
+    name: "analyze_lal_kitab_remedies",
+    title: "Match source-located Lal Kitab remedy candidates",
+    description:
+      "Matches the chart's nine fixed-house placements to remedy blocks extracted from the complete 778-page corpus. Returns provenance, classifications and safety flags, but withholds OCR instruction text until each condition graph is scan-verified and independently approved.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" },
+        date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        time: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+        place: { type: "string" },
+        latitude: { type: "number" },
+        longitude: { type: "number" },
+        timezone: { type: "string" },
+        timezoneOffset: { type: "number" },
+        birthTimeAccuracyMinutes: { type: "number", minimum: 0, maximum: 1440, default: 5 },
+      },
+      anyOf: [
+        { required: ["place"] },
+        { required: ["latitude", "longitude", "timezone"] },
+      ],
+    },
+  },
+  {
+    name: "reason_lal_kitab",
+    title: "Run the deterministic Lal Kitab inference kernel",
+    description:
+      "Calculates a Lal Kitab fact graph, resolves fixed versus remediable effect, conjunction friendship/enmity, dormancy, eclipse conditions, active-period priority and remedy principles. It reasons from calculated chart facts without searching the corpus at runtime and returns a complete explanation trace.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "date", "time"],
+      properties: {
+        name: { type: "string" }, date: { type: "string" }, time: { type: "string" },
+        place: { type: "string" }, latitude: { type: "number" }, longitude: { type: "number" },
+        timezone: { type: "string" }, timezoneOffset: { type: "number" },
+        birthTimeAccuracyMinutes: { type: "number", minimum: 0, maximum: 1440, default: 5 },
+      },
+      anyOf: [{ required: ["place"] }, { required: ["latitude", "longitude", "timezone"] }],
+    },
+  },
+  {
+    name: "explore_lal_kitab_remedy_catalog",
+    title: "Inspect Lal Kitab remedy-engine coverage",
+    description:
+      "Returns whole-book extraction counts, source hash, catalog hash and publication policy without returning copyrighted remedy text.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
     name: "suggest_safe_practice",
     title: "Suggest belief-compatible low-burden support",
     description:
@@ -1369,7 +1423,7 @@ const mcpTools = [
     name: "build_remedy_repertoire",
     title: "Full classical remedy repertoire for a chart",
     description:
-      "Astrologer-style remedy engine. Works out each graha's functional nature for the ascendant and its afflictions, then returns the full classical repertoire — beej and Vedic mantras, gemstones (with traditional wearing caveats) for functional benefics only, daana, vrata, deity stotras, Lal Kitab and dosha remedies — each with a Dasha-based potency window telling you when it is most effective. Toggles include or omit gemstones, mantras and charity. Traditional practices offered as options, never guarantees; nodes and afflicted malefics are propitiated, never strengthened. No topic required.",
+      "Research-preview remedy repertoire. Works out each graha's functional nature and afflictions, then returns conduct, optional charity, dosha candidates and Dasha-based timing. Mantras and gemstones require explicit opt-in and remain unreviewed traditional material. Lal Kitab remedies stay withheld until house-specific extraction, scan verification and independent review. No topic required.",
     inputSchema: {
       type: "object",
       required: ["name", "date", "time"],
@@ -1391,8 +1445,8 @@ const mcpTools = [
         options: {
           type: "object",
           properties: {
-            allowGemstones: { type: "boolean", default: true },
-            allowMantras: { type: "boolean", default: true },
+            allowGemstones: { type: "boolean", default: false },
+            allowMantras: { type: "boolean", default: false },
             allowCharity: { type: "boolean", default: true },
           },
         },
@@ -2722,6 +2776,8 @@ const uniformLocationTools = new Set([
   "get_planetary_relationship_graph",
   "get_natal_panchanga",
   "analyze_lal_kitab",
+  "analyze_lal_kitab_remedies",
+  "reason_lal_kitab",
   "audit_chart_calculation",
   "suggest_safe_practice",
   "build_remedy_repertoire",
@@ -2926,6 +2982,21 @@ const mcpOutputSchemas: Record<string, unknown> = {
       blockedOutputs: { type: "array" },
       safety: { type: "object" },
     },
+  },
+  analyze_lal_kitab_remedies: {
+    type: "object",
+    required: ["schemaVersion", "mode", "placements", "matchedCandidateCount", "catalogCoverage", "publication", "nextGate"],
+    additionalProperties: true,
+  },
+  reason_lal_kitab: {
+    type: "object",
+    required: ["schemaVersion", "computation", "factGraph", "diagnoses", "remedyPlan", "explanationTrace", "unresolved", "safety"],
+    additionalProperties: true,
+  },
+  explore_lal_kitab_remedy_catalog: {
+    type: "object",
+    required: ["schemaVersion", "source", "policy", "coverage", "catalogSha256"],
+    additionalProperties: true,
   },
   explore_lal_kitab_sources: {
     type: "object",
@@ -3769,6 +3840,9 @@ const publicMcpToolNames = new Set([
   "get_natal_panchanga",
   "analyze_lal_kitab",
   "explore_lal_kitab_sources",
+  "analyze_lal_kitab_remedies",
+  "reason_lal_kitab",
+  "explore_lal_kitab_remedy_catalog",
   "search_reviewed_rules",
   "search_source_passages",
   "compare_traditions",
@@ -4612,7 +4686,7 @@ async function handleMcp(
         synthesis_validation_audit:
           "Call get_synthesis_validation_status and get_rule_citations for every sourceKey. Treat heuristic scores as within-chart rankings, never probabilities. Report missing citations, insufficient cohort gates, possible outcome leakage, and prohibited event-specific inferences.",
         lal_kitab_consultation:
-          "Resolve the location, then call assess_prediction_readiness, audit_chart_calculation and analyze_lal_kitab. Call explore_lal_kitab_sources only when the user asks about corpus coverage or methodology. Keep Lal Kitab separate from Parashari interpretation and state whether each result is calculated, source-linked, reviewed, or calibrated. Retain sensitive source topics, but disclose them only with caution: never diagnose illness, predict certain death or fertility, issue coercive marriage verdicts, prescribe costly or harmful remedies, or recommend harm to animals. Unreviewed passages are research context, not personalized predictions.",
+          "Read sahadeva://lal-kitab and resolve the location. Call audit_chart_calculation, then reason_lal_kitab as the primary engine: narrate its fact graph, diagnosis, remediability decision, ordered remedy principles and explanation trace. Do not search the corpus to decide the result. Call analyze_lal_kitab_remedies only afterward when source-candidate provenance is useful, and call catalog tools only for coverage questions. Keep Lal Kitab separate from Parashari interpretation. Never reconstruct withheld OCR instructions, diagnose illness, predict certain death or fertility, issue coercive relationship verdicts, prescribe costly or harmful remedies, or recommend harm to animals.",
         evidence_first_prediction:
           "Read sahadeva://prediction-quality first. Resolve and verify the birth location, call assess_prediction_readiness and audit_chart_calculation, then obtain deterministic chart evidence for the question. Search only approved doctrine with search_reviewed_rules. If multiple traditions are requested, build a separate ledger for each and call compare_traditions; never blend their rules. Call audit_prediction_claim for every material conclusion before narration. Preserve opposition, unresolved sources and boundary sensitivity. A caution result means suggestion-only narration. An abstention applies to the unsafe claim, not the whole topic: replace it with a bounded reflection or practical suggestion. Call get_validation_report before using words such as validated, accurate, probability or confidence. Never promise certainty or exceed the published safety contract.",
       };
@@ -4662,6 +4736,11 @@ async function handleMcp(
           mimeType: "application/json",
         },
         {
+          uri: "sahadeva://lal-kitab-remedies",
+          name: "Lal Kitab remedy-engine coverage and execution policy",
+          mimeType: "application/json",
+        },
+        {
           uri: "sahadeva://prediction-quality",
           name: "Complete evidence-first prediction method and tool routing contract",
           mimeType: "application/json",
@@ -4705,7 +4784,10 @@ async function handleMcp(
                 lalKitab: [
                   "assess_prediction_readiness",
                   "audit_chart_calculation",
+                  "reason_lal_kitab",
                   "analyze_lal_kitab",
+                  "analyze_lal_kitab_remedies when remedies are requested",
+                  "explore_lal_kitab_remedy_catalog for remedy coverage questions",
                   "explore_lal_kitab_sources for methodology questions",
                 ],
               }
@@ -4745,6 +4827,8 @@ async function handleMcp(
                     }
                   : uri === "sahadeva://lal-kitab"
                     ? getLalKitabSourceCatalog()
+                    : uri === "sahadeva://lal-kitab-remedies"
+                      ? getLalKitabRemedyCatalog()
                     : uri === "sahadeva://prediction-quality"
                       ? {
                           ...PREDICTION_QUALITY_METHOD,
@@ -6289,6 +6373,8 @@ async function handleMcp(
       name === "get_planetary_relationship_graph" ||
       name === "get_natal_panchanga" ||
       name === "analyze_lal_kitab" ||
+      name === "analyze_lal_kitab_remedies" ||
+      name === "reason_lal_kitab" ||
       name === "audit_chart_calculation"
     ) {
       const args = request.params?.arguments as
@@ -6335,6 +6421,10 @@ async function handleMcp(
                 ).auditChartCalculation(chart)
               : name === "analyze_lal_kitab"
                 ? inspectLalKitabStructure(chart)
+              : name === "analyze_lal_kitab_remedies"
+                  ? buildLalKitabRemedyCandidates(chart)
+                  : name === "reason_lal_kitab"
+                    ? analyzeLalKitabInference(chart)
                 : name === "get_natal_panchanga"
                   ? (() => {
                       const analysis = analyzeNatalPanchanga(chart),
@@ -6920,8 +7010,8 @@ async function handleMcp(
       const chart = await calculateChartCached(env, parsed.data),
         opts = args?.options as Record<string, unknown> | undefined,
         structuredContent = buildComprehensiveRemedies(chart, {
-          allowGemstones: opts?.allowGemstones !== false,
-          allowMantras: opts?.allowMantras !== false,
+          allowGemstones: opts?.allowGemstones === true,
+          allowMantras: opts?.allowMantras === true,
           allowCharity: opts?.allowCharity !== false,
         });
       return rpcResult(request.id, {
@@ -8380,6 +8470,14 @@ async function handleMcp(
     }
     if (name === "explore_lal_kitab_sources") {
       const structuredContent = getLalKitabSourceCatalog();
+      return rpcResult(request.id, {
+        content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+        structuredContent,
+        isError: false,
+      });
+    }
+    if (name === "explore_lal_kitab_remedy_catalog") {
+      const structuredContent = getLalKitabRemedyCatalog();
       return rpcResult(request.id, {
         content: [{ type: "text", text: JSON.stringify(structuredContent) }],
         structuredContent,
@@ -11151,6 +11249,15 @@ app.post("/api/lal-kitab", async (c) => {
   return c.json(inspectLalKitabStructure(calculateChart(parsed.data)));
 });
 
+app.post("/api/lal-kitab/reason", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const parsed = birthInputSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success)
+    return c.json({ error: "Invalid Lal Kitab reasoning details", issues: parsed.error.flatten() }, 400);
+  return c.json(analyzeLalKitabInference(await calculateChartCached(c.env, parsed.data)));
+});
+
 app.post("/api/calculation-audit", async (c) => {
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
   if (limited) return limited;
@@ -12771,36 +12878,26 @@ app.post("/api/transcribe", async (c) => {
   try {
     const useHighAccuracyProvider = requestedLanguage === "te" || requestedLanguage === "auto";
     if (useHighAccuracyProvider) {
-      if (!c.env.OPENAI_API_KEY)
-        return c.json({ error: "High-accuracy Telugu transcription is temporarily unavailable." }, 503);
-      const openAiForm = new FormData();
-      openAiForm.append("file", audio, audio.name || "voice.m4a");
-      openAiForm.append("model", "gpt-4o-transcribe");
-      openAiForm.append("response_format", "json");
-      openAiForm.append("temperature", "0");
-      if (requestedLanguage === "te") openAiForm.append("language", "te");
-      openAiForm.append(
-        "prompt",
-        "Transcribe exactly in the speaker's language and native script without translating. Telugu must use Telugu script. Preserve Indian names, places, dates, and Jyotisha terms: రాహు, కేతు, లగ్నం, రాశి, నక్షత్రం, వింశోత్తరి, మహాదశ, అంతర్దశ, ఉత్తర ఫల్గుణి, వృశ్చికం, కన్య, షడ్బలం, పంచాంగం.",
-      );
-      const upstream = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { authorization: `Bearer ${c.env.OPENAI_API_KEY}` },
-        body: openAiForm,
-      });
-      const result = (await upstream.json().catch(() => ({}))) as { text?: string; language?: string; error?: { message?: string } };
-      const text = String(result.text || "").trim();
-      if (!upstream.ok || !text)
-        return c.json({ error: "High-accuracy transcription is temporarily unavailable. Please try again." }, 503);
-      c.header("Cache-Control", "no-store");
-      return c.json({
-        text,
-        language: result.language || (requestedLanguage === "auto" ? null : requestedLanguage),
-        languageProbability: null,
-        duration: null,
-        provider: "openai-gpt-4o-transcribe",
-        stored: false,
-      });
+      try {
+        if (c.env.OPENAI_API_KEY) {
+          const openAiForm = new FormData();
+          openAiForm.append("file", audio, audio.name || "voice.m4a");
+          openAiForm.append("model", "gpt-4o-transcribe");
+          openAiForm.append("response_format", "json");
+          openAiForm.append("temperature", "0");
+          if (requestedLanguage === "te") openAiForm.append("language", "te");
+          openAiForm.append("prompt", "Transcribe exactly in the speaker's language and native script without translating. Telugu must use Telugu script. Preserve Indian names, places, dates, and Jyotisha terms: రాహు, కేతు, లగ్నం, రాశి, నక్షత్రం, వింశోత్తరి, మహాదశ, అంతర్దశ, ఉత్తర ఫల్గుణి, వృశ్చికం, కన్య, షడ్బలం, పంచాంగం.");
+          const upstream = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { authorization: `Bearer ${c.env.OPENAI_API_KEY}` }, body: openAiForm });
+          const result = (await upstream.json().catch(() => ({}))) as { text?: string; language?: string };
+          const text = String(result.text || "").trim();
+          if (upstream.ok && text) {
+            c.header("Cache-Control", "no-store");
+            return c.json({ text, language: result.language || (requestedLanguage === "auto" ? null : requestedLanguage), languageProbability: null, duration: null, provider: "openai-gpt-4o-transcribe", stored: false });
+          }
+        }
+      } catch {
+        // Continue with the same-origin Cloudflare fallback below.
+      }
     }
 
     const bytes = new Uint8Array(await audio.arrayBuffer());
@@ -12808,7 +12905,7 @@ app.post("/api/transcribe", async (c) => {
       ? "ఇది తెలుగు జ్యోతిష సంప్రదింపు. మాట్లాడిన మాటలను అనువదించకుండా సహజమైన తెలుగు లిపిలోనే ఖచ్చితంగా రాయండి. పదాలు: రాహు, కేతు, లగ్నం, రాశి, నక్షత్రం, వింశోత్తరి, మహాదశ, అంతర్దశ, ఉత్తర ఫల్గుణి, వృశ్చికం, కన్య, షడ్బలం, పంచాంగం."
       : requestedLanguage === "hi"
         ? "यह हिन्दी ज्योतिष परामर्श है। बोले गए शब्दों का अनुवाद किए बिना स्वाभाविक देवनागरी लिपि में ठीक-ठीक लिखें। शब्द: राहु, केतु, लग्न, राशि, नक्षत्र, विंशोत्तरी, महादशा, अंतर्दशा, उत्तर फाल्गुनी, वृश्चिक, कन्या, षड्बल, पंचांग।"
-        : "Sahadeva Jyotisha consultation. Transcribe exactly without translating. Vocabulary: Rahu, Ketu, Lagna, Rashi, Nakshatra, Vimshottari, Mahadasha, Antardasha, Uttara Phalguni, Vrischika, Kanya, Shadbala, Panchanga.";
+        : "Multilingual Sahadeva Jyotisha consultation. Detect the spoken language and transcribe exactly in its native script without translating. Vocabulary: Rahu, Ketu, Lagna, Rashi, Nakshatra, Vimshottari, Mahadasha, Antardasha, Uttara Phalguni, Vrischika, Kanya, Shadbala, Panchanga.";
     const result = await c.env.AI.run("@cf/openai/whisper-large-v3-turbo", {
       audio: audioBase64(bytes),
       task: "transcribe",

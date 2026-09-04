@@ -62,3 +62,14 @@
 .aboutyou .ctxbox:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .aboutyou .ctxrow { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-2); }
 .aboutyou .ctxrow .edit { width: auto; margin-top: 0; }
+
+.account-area { display: grid; gap: var(--space-2); }
+.account-tools { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.account-tools > .edit { width: 100%; margin: 0; text-align: left; }
+.delete-account { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.delete-account summary { min-height: 44px; display: flex; align-items: center; color: var(--danger); cursor: pointer; font-weight: 600; }
+.delete-account p, .account-message { color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
+.delete-account label { display: block; margin-top: var(--space-3); color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.delete-account input { width: 100%; min-height: 46px; margin-top: var(--space-1); padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); color: var(--fg); font: inherit; }
+.danger-button { width: 100%; min-height: 46px; margin-top: var(--space-3); border: 1px solid var(--danger); border-radius: var(--radius-md); background: transparent; color: var(--danger); font-weight: 600; }
+.danger-button:disabled { opacity: .5; }

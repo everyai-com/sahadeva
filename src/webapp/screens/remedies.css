@@ -33,6 +33,19 @@
 .remedies-screen .logmeta { display: flex; justify-content: space-between; margin-top: var(--space-3); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--meta); }
 
 .remedies-screen .held { margin-top: var(--space-6); }
+.remedies-screen .lklogic { margin-top: var(--space-6); padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.remedies-screen .lklogic h3 { margin-top: var(--space-2); }
+.remedies-screen .lklead { margin-top: var(--space-3); color: var(--muted); line-height: 1.65; }
+.remedies-screen .lkfacts { display:flex; flex-wrap:wrap; gap:6px; margin:var(--space-4) 0; }
+.remedies-screen .lkfacts span { padding:4px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); font:var(--text-xs) var(--font-mono); color:var(--muted); }
+.remedies-screen .lkdecision { padding:var(--space-3) 0; border-top:1px solid var(--border-soft); }
+.remedies-screen .lkdecision p { margin-top:3px; text-transform:capitalize; }
+.remedies-screen .lkdecision small { display:block; margin-top:5px; color:var(--muted); line-height:1.5; }
+.remedies-screen .lktrace { margin:var(--space-4) 0 0; padding-left:20px; }
+.remedies-screen .lktrace li { padding:6px 0; }
+.remedies-screen .lktrace b,.remedies-screen .lktrace span { display:block; }
+.remedies-screen .lktrace span { color:var(--muted); line-height:1.5; margin-top:2px; }
+.remedies-screen .lksequence { margin-top:var(--space-4); padding-top:var(--space-3); border-top:1px solid var(--border); color:var(--muted); font-size:var(--text-sm); }
 .remedies-screen .hrow { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); padding: 13px 0; border-top: 1px solid var(--border-soft); }
 .remedies-screen .hrow:first-of-type { border-top: 0; }
 .remedies-screen .hn { font-size: var(--text-base); line-height: 1.4; }
