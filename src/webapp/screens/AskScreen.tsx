@@ -23,7 +23,8 @@ import {
   type TopicJudgmentView,
 } from "../api";
 import { analyticsCapture } from "../../analytics";
-import { grahaName, signName, nakName } from "../format";
+import { dayMonthYear, grahaName, signName, nakName } from "../format";
+import { navigate } from "../router";
 import { Markdown } from "../md";
 import { getLifeContext } from "../lifeContext";
 import { requestsFullProfile } from "../../../shared/chatEvidenceRouting";
@@ -648,6 +649,7 @@ export function AskScreen() {
           <div className="empty">
             <h2>{firstName ? t(`Hello ${firstName}. What would you like to know?`, `నమస్తే ${firstName}. మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు?`) : t("What would you like to know?", "మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు?")}</h2>
             <p className="sub">{t("Choose a topic to start, or type your own question below.", "మొదలుపెట్టడానికి ఒక అంశాన్ని ఎంచుకోండి, లేదా కింద మీ ప్రశ్న టైప్ చేయండి.")}</p>
+            <ContinuityCard />
             <div className="topicgrid">
               {TOPICS.map((tp) => (
                 <button key={tp.id} className="topiccard" type="button" onClick={() => ask(lang === "te" ? tp.qTe : tp.qEn)}>
@@ -1016,6 +1018,77 @@ function TopicLedger({ profile, topic }: { profile: Profile | null; topic: strin
         )}
       </div>
     </details>
+  );
+}
+
+// A real astrologer remembers you. When there is history or a period about
+// to close, say so before the topic grid — using data already loaded.
+function countKeptThreads(): number {
+  try {
+    let total = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(`${THREADS_KEY}:`)) {
+        const list = JSON.parse(localStorage.getItem(key) || "[]");
+        if (Array.isArray(list)) total += list.length;
+      }
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+function ContinuityCard() {
+  const { t } = useLang();
+  const { account, conversation, dasha } = useData();
+  const [kept, setKept] = useState(0);
+  useEffect(() => {
+    setKept(countKeptThreads() + (account ? serverThreads(conversation).length : 0));
+  }, [account, conversation]);
+
+  const now = Date.now();
+  const current = dasha.data?.current;
+  const antarEnd = current?.boundaries?.antardasha?.endIso ? Date.parse(current.boundaries.antardasha.endIso) : NaN;
+  const mahaEnd = current?.boundaries?.mahadasha?.endIso ? Date.parse(current.boundaries.mahadasha.endIso) : NaN;
+  const antarDays = Number.isFinite(antarEnd) ? Math.round((antarEnd - now) / 86400000) : Infinity;
+  const mahaDays = Number.isFinite(mahaEnd) ? Math.round((mahaEnd - now) / 86400000) : Infinity;
+  const closingAntar = current?.antardasha && antarDays >= 0 && antarDays <= 45;
+  const closingMaha = current?.mahadasha && mahaDays >= 0 && mahaDays <= 90 && !closingAntar;
+
+  if (kept === 0 && !closingAntar && !closingMaha) return null;
+  return (
+    <aside className="continuity" aria-label={t("Continuity", "కొనసాగింపు")}>
+      {kept > 0 && (
+        <p>
+          {t(
+            `Welcome back — ${kept} past conversation${kept > 1 ? "s" : ""} kept in history.`,
+            `తిరిగి స్వాగతం — చరిత్రలో ${kept} సంభాషణలు ఉన్నాయి.`,
+          )}
+        </p>
+      )}
+      {closingAntar && (
+        <p>
+          {t(
+            `Your ${grahaName(current!.antardasha!, "en")} sub-period ends ${dayMonthYear(current!.boundaries.antardasha!.endIso, "en")}. When it closes, note what it was really like — that becomes part of your chart's memory.`,
+            `మీ ${grahaName(current!.antardasha!, "te")} అంతర్దశ ${dayMonthYear(current!.boundaries.antardasha!.endIso, "te")}న ముగుస్తుంది. ముగిశాక అది నిజంగా ఎలా గడిచిందో రాయండి.`,
+          )}
+        </p>
+      )}
+      {closingMaha && (
+        <p>
+          {t(
+            `Your ${grahaName(current!.mahadasha!, "en")} major period ends ${dayMonthYear(current!.boundaries.mahadasha!.endIso, "en")} — a natural moment to look back and ahead.`,
+            `మీ ${grahaName(current!.mahadasha!, "te")} మహాదశ ${dayMonthYear(current!.boundaries.mahadasha!.endIso, "te")}న ముగుస్తుంది — వెనక్కి, ముందుకు చూసే సహజ సమయం.`,
+          )}
+        </p>
+      )}
+      {(closingAntar || closingMaha) && (
+        <button type="button" onClick={() => navigate("dasha")}>
+          {t("Open life periods", "జీవిత దశలు తెరవండి")}
+        </button>
+      )}
+    </aside>
   );
 }
 

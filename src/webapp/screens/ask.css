@@ -248,3 +248,7 @@
 .consent-email-row input { min-width: 0; flex: 1; min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); color: var(--fg); font-size: var(--text-sm); }
 .consent-email-row button { flex: 0 0 auto; }
 .consent-email-row button:disabled { opacity: .4; cursor: not-allowed; }
+
+.ask-screen .continuity { margin: 12px 16px 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface, #fff); display: grid; gap: 8px; }
+.ask-screen .continuity p { font-size: var(--text-base); line-height: 1.55; margin: 0; }
+.ask-screen .continuity button { justify-self: start; min-height: 44px; padding: 0 16px; border-radius: var(--radius-md); border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: var(--text-base); }
