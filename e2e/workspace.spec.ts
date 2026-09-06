@@ -56,5 +56,7 @@ test("an existing user can open and explore the South Indian chart", async ({ pa
   await expect(page.getByRole("tab", { name: "Rasi D-1" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Navamsa D-9" }).click();
   await expect(page.getByRole("tab", { name: "Navamsa D-9" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("region", { name: "How to read this chart" })).toBeVisible();
+  // Data-dependent: the dev worker cold-boots under two-project parallel
+  // load, so allow longer than the default 5s for the computed chart.
+  await expect(page.getByRole("region", { name: "How to read this chart" })).toBeVisible({ timeout: 20000 });
 });
