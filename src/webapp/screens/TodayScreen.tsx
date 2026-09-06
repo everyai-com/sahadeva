@@ -19,6 +19,7 @@ import {
   SIGN_LORDS,
 } from "../format";
 import type { JdWindow, Placement } from "../api";
+import { BriefAlert } from "./BriefAlert";
 
 const AXIS_START = 6 * 60; // 6 am
 const AXIS_SPAN = 16 * 60; // to 10 pm
@@ -142,18 +143,21 @@ export function TodayScreen() {
               <DayBar td={td} tz={tz} />
               <div style={{ marginTop: "var(--space-4)" }}>
                 <WindowRow
+                  icon="rahu-kala"
                   name={t("Most-watched window", "అందరూ చూసే సమయం")}
                   sub="Rahu kalam · రాహు కాలం · ராகு காலம்"
                   win={td.inauspicious.rahuKaal}
                   tz={tz}
                 />
                 <WindowRow
+                  icon="gulika"
                   name={t("Midday window", "మధ్యాహ్న సమయం")}
                   sub="Gulika kalam · గుళిక కాలం · குளிகை"
                   win={td.inauspicious.gulikaKaal}
                   tz={tz}
                 />
                 <WindowRow
+                  icon="yamagandam"
                   name={t("Death-lord window", "యమగండం")}
                   sub="Yamagandam · యమగండం · யமகண்டம்"
                   win={td.inauspicious.yamaganda}
@@ -300,13 +304,17 @@ export function TodayScreen() {
                   <TRow label={t("Season · half-year", "ఋతువు · అయనం")} value={`${td.calendar.ritu} · ${td.calendar.ayana}`} />
                   <p className="unavail">
                     {t(
-                      "Not shown: durmuhurtam, varjyam and amrita kalam. Sahadev has the calculation but not a reviewed rule for them yet, so it will not guess.",
-                      "చూపించనివి: దుర్ముహూర్తం, వర్జ్యం, అమృత కాలం. సహదేవ్ దగ్గర లెక్క ఉంది, కానీ వీటికి సమీక్షించిన నియమం ఇంకా లేదు — కాబట్టి ఊహించి చెప్పదు.",
+                      "Not shown: durmuhurtam, varjyam and amrita kalam. Sahadeva has the calculation but not a reviewed rule for them yet, so it will not guess.",
+                      "చూపించనివి: దుర్ముహూర్తం, వర్జ్యం, అమృత కాలం. సహదేవ దగ్గర లెక్క ఉంది, కానీ వీటికి సమీక్షించిన నియమం ఇంకా లేదు — కాబట్టి ఊహించి చెప్పదు.",
                     )}
                   </p>
                 </div>
               </details>
             </section>
+
+            <div style={{ marginTop: "var(--space-6)" }}>
+              <BriefAlert />
+            </div>
 
             <div style={{ marginTop: "var(--space-6)" }}>
               <button
@@ -359,9 +367,10 @@ function DayBar({ td, tz }: { td: NonNullable<ReturnType<typeof useData>["today"
   );
 }
 
-function WindowRow({ name, sub, win, tz }: { name: string; sub: string; win: JdWindow; tz: number }) {
+function WindowRow({ icon, name, sub, win, tz }: { icon: string; name: string; sub: string; win: JdWindow; tz: number }) {
   return (
     <div className="wrow">
+      <img className="timing-icon" src={`/brand/sahadeva/timing/${icon}-24.svg`} alt="" />
       <span className="wname">
         {name}
         <span>{sub}</span>

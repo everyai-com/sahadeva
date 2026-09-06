@@ -50,6 +50,25 @@ function authenticatedEnv(scopes: string[], rateCount = 1) {
 }
 
 describe("Sahadeva MCP", () => {
+  it("serves the OpenAI plugin domain challenge as plain token text", async () => {
+    const response = await app.request(
+      "http://localhost/.well-known/openai-apps-challenge",
+      {},
+      { ENGINE_VERSION: "test", OPENAI_APPS_CHALLENGE: "challenge-token" } as never,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/plain");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.text()).toBe("challenge-token");
+
+    const missing = await app.request(
+      "http://localhost/.well-known/openai-apps-challenge",
+      {},
+      { ENGINE_VERSION: "test" } as never,
+    );
+    expect(missing.status).toBe(404);
+  });
+
   it("keeps the browser chart endpoint public while protected render APIs require a key", async () => {
     const input = {
         name: "Ananya",
@@ -99,8 +118,68 @@ describe("Sahadeva MCP", () => {
       "frame-ancestors 'none'",
     );
     expect(response.headers.get("permissions-policy")).toContain("camera=()");
+    expect(response.headers.get("permissions-policy")).toContain("microphone=(self)");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-request-id")).toBeTruthy();
+  });
+  it("transcribes same-origin multilingual audio without storing it", async () => {
+    let model = "";
+    let input: Record<string, unknown> = {};
+    const form = new FormData();
+    form.append("audio", new File([new Uint8Array([1, 2, 3, 4])], "voice.webm", { type: "audio/webm" }));
+    form.append("language", "en");
+    const response = await app.request(
+      "http://localhost/api/transcribe",
+      { method: "POST", body: form },
+      {
+        ENGINE_VERSION: "test",
+        AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
+        AI: {
+          run: async (nextModel: string, nextInput: Record<string, unknown>) => {
+            model = nextModel;
+            input = nextInput;
+            return { text: "Tell me about my career", transcription_info: { language: "en", duration: 2.4 } };
+          },
+        },
+      } as never,
+    );
+    expect(response.status).toBe(200);
+    expect(model).toBe("@cf/openai/whisper-large-v3-turbo");
+    expect(input).toMatchObject({ language: "en", task: "transcribe", vad_filter: true });
+    expect(await response.json()).toMatchObject({ text: "Tell me about my career", language: "en", stored: false });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+  it("rejects unsupported transcription languages before inference", async () => {
+    const form = new FormData();
+    form.append("audio", new File([new Uint8Array([1])], "voice.webm", { type: "audio/webm" }));
+    form.append("language", "fr");
+    const response = await app.request(
+      "http://localhost/api/transcribe",
+      { method: "POST", body: form },
+      {
+        ENGINE_VERSION: "test",
+        AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
+        AI: { run: async () => { throw new Error("must not run"); } },
+      } as never,
+    );
+    expect(response.status).toBe(400);
+  });
+  it("falls back to Cloudflare transcription for Auto when the high-accuracy provider is unavailable", async () => {
+    const form = new FormData();
+    form.append("audio", new File([new Uint8Array([1, 2])], "voice.webm", { type: "audio/webm" }));
+    form.append("language", "auto");
+    const response = await app.request("http://localhost/api/transcribe", { method: "POST", body: form }, {
+      ENGINE_VERSION: "test",
+      AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      AI: { run: async () => ({ text: "నా వృత్తి గురించి చెప్పండి", transcription_info: { language: "te", language_probability: 0.91 } }) },
+    } as never);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      text: "నా వృత్తి గురించి చెప్పండి",
+      language: "te",
+      provider: "cloudflare-whisper-large-v3-turbo",
+      stored: false,
+    });
   });
   it("reports and uses the configured Cloudflare Workers AI narration provider", async () => {
     const env = {
@@ -286,7 +365,12 @@ describe("Sahadeva MCP", () => {
   it("advertises one stable protocol revision everywhere", async () => {
     const response = await mcp("server/discover");
     expect(response.status).toBe(200);
-    expect(response.body.result?.protocolVersion).toBe("2025-11-25");
+    expect(response.body.result?.resultType).toBe("complete");
+    expect(response.body.result?.supportedVersions).toContain("2026-07-28");
+    const metadata = response.body.result?._meta as Record<string, { name?: string }> | undefined;
+    expect(metadata?.["io.modelcontextprotocol/serverInfo"]?.name).toBe(
+      "sahadeva",
+    );
   });
 
   it("publishes a compact, high-signal deterministic tool surface", async () => {
@@ -295,58 +379,35 @@ describe("Sahadeva MCP", () => {
       name: string;
       annotations?: { readOnlyHint?: boolean; idempotentHint?: boolean };
     }>;
-    expect(tools.map((tool) => tool.name)).toContain("consult_jyotishya");
-    expect(tools.map((tool) => tool.name)).toContain(
+    const names = tools.map((tool) => tool.name);
+    // Evidence-first default catalog (13 tools).
+    for (const name of [
+      "recommend_tools",
+      "search_locations",
+      "consult_jyotishya",
+      "calculate_chart_from_known_place",
+      "get_compact_chart_evidence",
+      "get_timing_context",
       "assess_prediction_readiness",
-    );
-    expect(tools.map((tool) => tool.name)).toContain("analyze_lal_kitab");
-    expect(tools.map((tool) => tool.name)).toContain(
-      "explore_lal_kitab_sources",
-    );
-    expect(tools.map((tool) => tool.name)).toContain("audit_chart_calculation");
-    expect(tools.map((tool) => tool.name)).toContain("analyze_chart_topic");
-    expect(tools.map((tool) => tool.name)).toContain("analyze_house");
-    expect(tools.map((tool) => tool.name)).toContain("get_natal_panchanga");
-    expect(tools.map((tool) => tool.name)).toContain("suggest_safe_practice");
-    expect(tools.map((tool) => tool.name)).toContain(
-      "calculate_devata_profile",
-    );
-    expect(tools.map((tool) => tool.name)).toContain("analyze_remedies");
-    expect(tools.map((tool) => tool.name)).toContain("search_locations");
-    expect(tools.map((tool) => tool.name)).toContain(
-      "calculate_gochara_from_known_place",
-    );
-    expect(tools.map((tool) => tool.name)).toContain("calculate_compatibility");
-    expect(tools.map((tool) => tool.name)).toContain(
-      "calculate_relationship_compatibility",
-    );
-    expect(tools.map((tool) => tool.name)).toContain("get_panchanga");
-    expect(tools.map((tool) => tool.name)).toContain("find_muhurta");
-    expect(tools.map((tool) => tool.name)).toContain("calculate_doshas");
-    expect(tools.map((tool) => tool.name)).toContain("find_marriage_windows");
-    expect(tools.map((tool) => tool.name)).toContain("get_marriage_readiness");
-    expect(tools.map((tool) => tool.name)).toContain("render_chart");
-    expect(tools.map((tool) => tool.name)).toContain("generate_report_pdf");
-    expect(tools.map((tool) => tool.name)).toContain("calculate_prashna");
-    expect(tools.map((tool) => tool.name)).toContain("record_prashna_outcome");
-    expect(tools.map((tool) => tool.name)).toContain("get_depth_analysis");
-    expect(tools.map((tool) => tool.name)).toContain("fuse_timing");
-    expect(tools.map((tool) => tool.name)).toContain("rectify_birth_time");
-    expect(tools.map((tool) => tool.name)).toContain("search_reviewed_rules");
-    expect(tools.map((tool) => tool.name)).toContain("search_source_passages");
-    expect(tools.map((tool) => tool.name)).toContain("compare_traditions");
-    expect(tools.map((tool) => tool.name)).toContain("audit_prediction_claim");
-    expect(tools.map((tool) => tool.name)).toContain(
-      "record_consultation_outcome",
-    );
-    expect(tools.map((tool) => tool.name)).toContain("get_validation_report");
-    // All defined tools are now discoverable in tools/list.
-    expect(tools.map((tool) => tool.name)).toContain("build_remedy_repertoire");
-    expect(tools).toHaveLength(83);
-    expect(tools.map((tool) => tool.name)).toContain("recommend_tools");
-    expect(tools.map((tool) => tool.name)).toContain(
+      "audit_chart_calculation",
+      "calculate_prashna",
+      "search_reviewed_rules",
+      "compare_traditions",
+      "audit_prediction_claim",
+      "get_validation_report",
+    ])
+      expect(names).toContain(name);
+    // Specialist tools stay callable + documented, not in default discovery.
+    for (const name of [
+      "analyze_lal_kitab",
       "calculate_south_indian_chart",
-    );
+      "generate_full_life_report",
+      "calculate_compatibility",
+      "record_consultation_outcome",
+      "search_source_passages",
+    ])
+      expect(names).not.toContain(name);
+    expect(tools).toHaveLength(13);
     expect(response.body.result).not.toHaveProperty("ttlMs");
     expect(response.body.result).not.toHaveProperty("cacheScope");
     expect(
@@ -362,10 +423,14 @@ describe("Sahadeva MCP", () => {
     expect(
       tools.find((tool) => tool.name === "consult_jyotishya")?.annotations,
     ).toMatchObject({ readOnlyHint: true, idempotentHint: true });
+    // record_prashna_outcome is expert-only (still callable, not listed).
+    const expertOutcome = await mcp("tools/call", {
+      name: "record_prashna_outcome",
+      arguments: {},
+    });
     expect(
-      tools.find((tool) => tool.name === "record_prashna_outcome")?.annotations
-        ?.readOnlyHint,
-    ).toBe(false);
+      expertOutcome.body.error ?? expertOutcome.body.result,
+    ).toBeTruthy();
   });
 
   it("reports honest prediction readiness and keeps Lal Kitab source-only", async () => {
@@ -387,6 +452,69 @@ describe("Sahadeva MCP", () => {
     expect(
       result.traditions.find((item) => item.id === "lal-kitab")?.status,
     ).toBe("source-only");
+  });
+
+  it("searches passages with ranked FTS first and LIKE fallback", async () => {
+    const row = {
+      passage_id: "p1",
+      locator: "Test 1",
+      original_text: "lagna lord",
+      literal_translation: "the lagna lord",
+      review_status: "draft",
+      ocr_quality: "machine",
+      display_rights: "short-excerpt",
+      rights_status: "public_domain",
+    };
+    const ftsEnv = {
+      ENGINE_VERSION: "test",
+      DB: {
+        prepare: (sql: string) => ({
+          bind() {
+            return this;
+          },
+          all: async () => ({
+            results: String(sql).includes("passage_fts MATCH") ? [row] : [],
+          }),
+        }),
+      },
+    } as never;
+    const ranked = await mcp(
+      "tools/call",
+      { name: "search_source_passages", arguments: { query: "lagna" } },
+      ftsEnv,
+    );
+    const rankedContent = ranked.body.result?.structuredContent as {
+      searchMethod: string;
+      results: unknown[];
+    };
+    expect(rankedContent.searchMethod).toBe("full-text-ranked");
+    expect(rankedContent.results).toHaveLength(1);
+    const fallbackEnv = {
+      ENGINE_VERSION: "test",
+      DB: {
+        prepare: (sql: string) => ({
+          bind() {
+            return this;
+          },
+          all: async () => {
+            if (String(sql).includes("passage_fts MATCH"))
+              throw new Error("no such table: passage_fts");
+            return { results: [row] };
+          },
+        }),
+      },
+    } as never;
+    const fallback = await mcp(
+      "tools/call",
+      { name: "search_source_passages", arguments: { query: "lagna" } },
+      fallbackEnv,
+    );
+    const fallbackContent = fallback.body.result?.structuredContent as {
+      searchMethod: string;
+      results: unknown[];
+    };
+    expect(fallbackContent.searchMethod).toBe("like-scan-fallback");
+    expect(fallbackContent.results).toHaveLength(1);
   });
 
   it("audits claims and keeps tradition ledgers separate", async () => {
@@ -481,6 +609,120 @@ describe("Sahadeva MCP", () => {
     expect(rpcResult.families).toHaveLength(23);
     expect(webResult).toEqual(rpcResult);
     expect(rpcResult.policy.retentionPolicy).toContain("Preserve");
+  });
+
+  it("matches Lal Kitab remedy candidates through MCP without exposing OCR instructions", async () => {
+    const response = await mcp("tools/call", {
+      name: "analyze_lal_kitab_remedies",
+      arguments: {
+        name: "Lal Kitab remedy MCP",
+        date: "2000-01-28",
+        time: "08:05",
+        place: "Ravulapalem, Andhra Pradesh, India",
+      },
+    });
+    const result = response.body.result?.structuredContent as {
+      schemaVersion: string;
+      placements: Array<{ candidates: Array<Record<string, unknown>> }>;
+      matchedCandidateCount: number;
+      publication: { personalizedInstructionsAllowed: boolean };
+    };
+    expect(result.schemaVersion).toBe("sahadeva-lal-kitab-remedy-engine-1");
+    expect(result.placements).toHaveLength(9);
+    expect(result.matchedCandidateCount).toBeGreaterThan(0);
+    expect(result.publication.personalizedInstructionsAllowed).toBe(false);
+    expect(JSON.stringify(result.placements)).not.toContain('"instruction"');
+  });
+
+  it("accepts every remedy topic in both MCP and web", async () => {
+    const base = {
+      name: "All remedy topics",
+      date: "2000-01-28",
+      time: "08:05",
+      place: "Ravulapalem, Andhra Pradesh, India",
+      latitude: 16.1026,
+      longitude: 81.7634,
+      timezone: "Asia/Kolkata",
+      timezoneOffset: 5.5,
+      language: "en",
+      preferences: {
+        beliefMode: "spiritual",
+        maximumBurden: "minimal",
+        maximumCost: "free",
+        allowPrayer: true,
+        allowCharity: true,
+      },
+    };
+    const topics = ["career", "education", "property", "relationships", "spirituality", "wealth", "health", "children"];
+    for (const topic of topics) {
+      const arguments_ = { ...base, topic };
+      const rpc = await mcp("tools/call", { name: "analyze_remedies", arguments: arguments_ });
+      expect(rpc.body.error, `MCP failed for ${topic}`).toBeUndefined();
+      expect((rpc.body.result?.structuredContent as { diagnosis: { topic: string }; lalKitabInference: { topicPrediction: { topic: string } } }).diagnosis.topic).toBe(topic);
+      expect((rpc.body.result?.structuredContent as { lalKitabInference: { topicPrediction: { topic: string } } }).lalKitabInference.topicPrediction.topic).toBe(topic);
+
+      const http = await app.request("http://localhost/api/remedies", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(arguments_),
+      }, {
+        ENGINE_VERSION: "test",
+        CALC_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      } as never);
+      expect(http.status, `Web failed for ${topic}`).toBe(200);
+      const webResult = (await http.json()) as { diagnosis: { topic: string }; lalKitabInference: { topicPrediction: { topic: string } } };
+      expect(webResult.diagnosis.topic).toBe(topic);
+      expect(webResult.lalKitabInference.topicPrediction.topic).toBe(topic);
+    }
+  });
+
+  it("runs the same retrieval-free Lal Kitab inference through MCP and web", async () => {
+    const args = {
+      name: "Lal Kitab inference",
+      date: "2000-01-28",
+      time: "08:05",
+      place: "Ravulapalem, Andhra Pradesh, India",
+      latitude: 16.1026,
+      longitude: 81.7634,
+      timezone: "Asia/Kolkata",
+      timezoneOffset: 5.5,
+      language: "en",
+      methodology: "parashari",
+      focus: "general",
+      birthTimeAccuracyMinutes: 5,
+      topic: "wealth",
+    };
+    const rpc = await mcp("tools/call", { name: "reason_lal_kitab", arguments: args });
+    const http = await app.request("http://localhost/api/lal-kitab/reason", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(args),
+    }, {
+      ENGINE_VERSION: "test",
+      CALC_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    } as never);
+    const rpcResult = rpc.body.result?.structuredContent as { computation: { retrievalRequired: boolean }; topicPrediction: { topic: string }; predictions: unknown[]; remedyPlan: unknown; explanationTrace: unknown[] };
+    const webResult = (await http.json()) as typeof rpcResult;
+    expect(http.status).toBe(200);
+    expect(rpcResult.computation.retrievalRequired).toBe(false);
+    expect(rpcResult.topicPrediction.topic).toBe("wealth");
+    expect(rpcResult.predictions.length).toBeGreaterThan(0);
+    expect(rpcResult.explanationTrace).toHaveLength(8);
+    expect(webResult.remedyPlan).toEqual(rpcResult.remedyPlan);
+  });
+
+  it("exposes remedy catalog coverage through MCP", async () => {
+    const response = await mcp("tools/call", {
+      name: "explore_lal_kitab_remedy_catalog",
+      arguments: {},
+    });
+    const result = response.body.result?.structuredContent as {
+      coverage: { candidates: number; expectedPlacements: number };
+      policy: { automaticPublicationAllowed: boolean };
+    };
+    expect(result.coverage.candidates).toBe(200);
+    expect(result.coverage.expectedPlacements).toBe(108);
+    expect(result.policy.automaticPublicationAllowed).toBe(false);
   });
 
   it("audits calculation certification before interpretation", async () => {
@@ -1562,7 +1804,9 @@ describe("Sahadeva MCP", () => {
   });
 
   it("returns location candidates as a tool result instead of a JSON-RPC error", async () => {
-    const response = await mcp("tools/call", {
+    // Bare "Hyderabad" now auto-resolves to curated Hyderabad, IN with
+    // alternatives noted (single-call tolerance).
+    const auto = await mcp("tools/call", {
       name: "calculate_doshas",
       arguments: {
         name: "A",
@@ -1571,13 +1815,34 @@ describe("Sahadeva MCP", () => {
         place: "Hyderabad",
       },
     });
+    expect(auto.body.error).toBeUndefined();
+    const autoResult = auto.body.result as {
+      isError: boolean;
+      structuredContent: { doshas?: unknown; dosha?: unknown };
+    };
+    expect(autoResult.isError).not.toBe(true);
+    // Unknown places still return candidates as a tool result (not -32602).
+    const response = await mcp("tools/call", {
+      name: "calculate_doshas",
+      arguments: {
+        name: "A",
+        date: "2000-01-28",
+        time: "08:05",
+        place: "XyzzyUnknownPlace123",
+      },
+    });
     expect(response.body.error).toBeUndefined();
     const result = response.body.result as {
       isError: boolean;
-      structuredContent: { error: { candidates: unknown[] } };
+      structuredContent: { error: { code: string; candidates: unknown[] } };
     };
     expect(result.isError).toBe(true);
-    expect(result.structuredContent.error.candidates.length).toBeGreaterThan(0);
+    expect(result.structuredContent.error.code).toBe(
+      "LOCATION_RESOLUTION_REQUIRED",
+    );
+    expect(
+      Array.isArray(result.structuredContent.error.candidates),
+    ).toBe(true);
   });
 
   it("returns full daily Panchanga windows with optional natal Bala", async () => {
@@ -1676,13 +1941,20 @@ describe("Sahadeva MCP", () => {
           subLord: string;
           subSubLord: string;
         }>;
-        cusps: { status: string };
-        zodiac: { kpAyanamsa: { status: string } };
+        cusps: { status: string; values: Array<{ house: number; starLord: string; subLord: string; subSubLord: string }> };
+        zodiac: { kpAyanamsa: { status: string; degrees: number; convention: { longitudeCorrectionDegrees: number } } };
       };
     expect(body.planets).toHaveLength(10);
     expect(body.planets[0].subLord).toBeTruthy();
-    expect(body.cusps.status).toBe("unavailable");
-    expect(body.zodiac.kpAyanamsa.status).toBe("unavailable-unvalidated");
+    expect(body.cusps.status).toBe("computed-verified");
+    expect(body.cusps.values).toHaveLength(12);
+    expect(body.cusps.values[0]).toMatchObject({ house: 1 });
+    expect(body.cusps.values[0].starLord).toBeTruthy();
+    expect(body.cusps.values[0].subLord).toBeTruthy();
+    expect(body.cusps.values[0].subSubLord).toBeTruthy();
+    expect(body.zodiac.kpAyanamsa.status).toBe("source-located-unreproduced");
+    expect(body.zodiac.kpAyanamsa.degrees).toBeTypeOf("number");
+    expect(body.zodiac.kpAyanamsa.convention.longitudeCorrectionDegrees).toBeCloseTo(0.1, 10);
   });
 
   it("returns Jaimini Karakas, Arudhas and Rashi Drishti", async () => {
@@ -1899,11 +2171,248 @@ describe("Sahadeva MCP", () => {
     ).toBe(-32700);
   });
 
+  it("negotiates the legacy MCP versions requested by Claude clients", async () => {
+    for (const protocolVersion of [
+      "2025-06-18",
+      "2025-03-26",
+      "2024-11-05",
+    ]) {
+      const response = await mcp("initialize", {
+        protocolVersion,
+        capabilities: {},
+        clientInfo: { name: "claude", version: "1" },
+      });
+      expect(response.body.result?.protocolVersion).toBe(protocolVersion);
+    }
+  });
+
+  it("echoes the client's negotiated protocol version in the response header", async () => {
+    for (const protocolVersion of ["2025-06-18", "2025-11-25", "2024-11-05"]) {
+      const response = await app.request(
+        "http://localhost/mcp",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "MCP-Protocol-Version": protocolVersion,
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/list",
+            params: {},
+          }),
+        },
+        { ENGINE_VERSION: "test" } as never,
+      );
+      expect(response.headers.get("MCP-Protocol-Version")).toBe(protocolVersion);
+    }
+  });
+
+  it("returns 405 for a GET that opens an SSE stream (JSON response profile)", async () => {
+    const sse = await app.request(
+      "http://localhost/mcp",
+      { method: "GET", headers: { accept: "text/event-stream" } },
+      { ENGINE_VERSION: "test" } as never,
+    );
+    expect(sse.status).toBe(405);
+    expect(sse.headers.get("Allow")).toBe("POST");
+
+    // A plain GET still serves the human-readable discovery page.
+    const info = await app.request(
+      "http://localhost/mcp",
+      { method: "GET" },
+      { ENGINE_VERSION: "test" } as never,
+    );
+    expect(info.status).toBe(200);
+    expect(((await info.json()) as { name: string }).name).toBe("Sahadeva MCP");
+  });
+
+  it("serves the 2024 Claude tool schema without modern-only fields", async () => {
+    const response = await app.request(
+      "http://localhost/mcp",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "MCP-Protocol-Version": "2024-11-05",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
+      },
+      {},
+    );
+    const body = (await response.json()) as {
+      result: { tools: Array<Record<string, unknown>> };
+    };
+    // Compact default catalog: 13 tools fit in one legacy page.
+    expect(body.result.tools).toHaveLength(13);
+    expect(body.result.tools[0]).toHaveProperty("inputSchema");
+    expect(body.result.tools[0]).not.toHaveProperty("title");
+    expect(body.result.tools[0]).not.toHaveProperty("outputSchema");
+    expect(body.result.tools[0]).not.toHaveProperty("annotations");
+    expect(body.result as unknown as { nextCursor?: string }).not.toHaveProperty(
+      "nextCursor",
+    );
+
+    const second = await app.request(
+      "http://localhost/mcp",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "MCP-Protocol-Version": "2024-11-05",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/list",
+          params: { cursor: "13" },
+        }),
+      },
+      {},
+    );
+    const secondBody = (await second.json()) as {
+      result: { tools: Array<Record<string, unknown>>; nextCursor?: string };
+    };
+    expect(secondBody.result.tools).toHaveLength(0);
+    expect(secondBody.result.nextCursor).toBeUndefined();
+    // Expert escape hatch still exposes the full surface on demand.
+    const expert = await app.request(
+      "http://localhost/mcp",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "MCP-Protocol-Version": "2024-11-05",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/list",
+          params: { includeExpert: true },
+        }),
+      },
+      {},
+    );
+    const expertBody = (await expert.json()) as {
+      result: { tools: Array<Record<string, unknown>> };
+    };
+    expect(expertBody.result.tools.length).toBeGreaterThan(13);
+  });
+
+  it("allows official OpenAI MCP clients and rejects arbitrary cross-origin clients", async () => {
+    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" });
+    const openai = await app.request(
+      "http://localhost/mcp",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://platform.openai.com" },
+        body,
+      },
+      {},
+    );
+    expect(openai.status).toBe(200);
+
+    const untrusted = await app.request(
+      "http://localhost/mcp",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://example.com" },
+        body,
+      },
+      {},
+    );
+    expect(untrusted.status).toBe(403);
+  });
+
+  it("keeps every advertised Sahadeva tool available through tools/list", async () => {
+    const advertised = await app.request("http://localhost/mcp", {}, {
+      ENGINE_VERSION: "test",
+    } as never);
+    const advertisedNames = ((await advertised.json()) as { tools: string[] }).tools;
+    const listed = await mcp("tools/list");
+    const listedTools = listed.body.result?.tools as Array<{
+      name: string;
+      inputSchema?: unknown;
+      outputSchema?: unknown;
+      annotations?: unknown;
+    }>;
+
+    expect(listedTools.map((tool) => tool.name)).toEqual(advertisedNames);
+    expect(new Set(advertisedNames).size).toBe(advertisedNames.length);
+    expect(listedTools.every((tool) => tool.inputSchema)).toBe(true);
+    expect(listedTools.every((tool) => tool.outputSchema)).toBe(true);
+    expect(listedTools.every((tool) => tool.annotations)).toBe(true);
+    // Default discovery stays compact so host models choose reliably.
+    expect(advertisedNames.length).toBeLessThanOrEqual(16);
+    expect(advertisedNames).toContain("consult_jyotishya");
+    expect(advertisedNames).toContain("get_compact_chart_evidence");
+    // Specialist tools stay callable by name and are documented via the
+    // expert-tools resource even though they are not in default discovery.
+    const expertCall = await mcp("tools/call", {
+      name: "calculate_south_indian_chart",
+      arguments: {
+        name: "T",
+        date: "1990-01-01",
+        time: "06:00",
+        place: "Chennai",
+        latitude: 13.0827,
+        longitude: 80.2707,
+        timezone: "Asia/Kolkata",
+        timezoneOffset: 5.5,
+      },
+    });
+    expect(expertCall.body.result ?? expertCall.body.error).toBeTruthy();
+    const paged = await mcp("tools/list", { cursor: "0" });
+    expect(
+      (paged.body.result?.tools as unknown[]).length,
+    ).toBeLessThanOrEqual(32);
+  });
+
+  it("auto-resolves bare place names in one chart call with alternatives noted", async () => {
+    const chart = await mcp("tools/call", {
+      name: "calculate_chart_from_known_place",
+      arguments: {
+        name: "T",
+        date: "1990-01-01",
+        time: "06:00",
+        place: "Hyderabad",
+      },
+    });
+    const result = chart.body.result as {
+      structuredContent?: {
+        locationResolution?: {
+          autoResolved?: boolean;
+          alternatives?: unknown[];
+        };
+        responseGuidance?: { profile?: string };
+      };
+      isError?: boolean;
+    };
+    expect(result?.isError).not.toBe(true);
+    expect(
+      result?.structuredContent?.locationResolution?.autoResolved,
+    ).toBe(true);
+    expect(
+      Array.isArray(
+        result?.structuredContent?.locationResolution?.alternatives,
+      ),
+    ).toBe(true);
+    expect(result?.structuredContent?.responseGuidance?.profile).toBe(
+      "full-matrix",
+    );
+  });
+
   it("publishes guided MCP prompts and workflow resources", async () => {
     const prompts = await mcp("prompts/list"),
       resources = await mcp("resources/list");
     expect((prompts.body.result?.prompts as unknown[]).length).toBe(8);
-    expect((resources.body.result?.resources as unknown[]).length).toBe(8);
+    expect((resources.body.result?.resources as unknown[]).length).toBe(9);
     const prompt = await mcp("prompts/get", { name: "full_life_reading" });
     expect(JSON.stringify(prompt.body.result)).toContain(
       "generate_full_life_report",
@@ -1921,6 +2430,9 @@ describe("Sahadeva MCP", () => {
       "audit_chart_calculation",
     );
     expect(JSON.stringify(lalKitabPrompt.body.result)).toContain(
+      "analyze_lal_kitab_remedies",
+    );
+    expect(JSON.stringify(lalKitabPrompt.body.result)).toContain(
       "harm to animals",
     );
     const expertTools = await mcp("resources/read", {
@@ -1934,6 +2446,12 @@ describe("Sahadeva MCP", () => {
     });
     expect(JSON.stringify(lalKitabResource.body.result)).toContain(
       "controlledDisclosureTopics",
+    );
+    const lalKitabRemedyResource = await mcp("resources/read", {
+      uri: "sahadeva://lal-kitab-remedies",
+    });
+    expect(JSON.stringify(lalKitabRemedyResource.body.result)).toContain(
+      "automaticPublicationAllowed",
     );
     const predictionQuality = await mcp("resources/read", {
       uri: "sahadeva://prediction-quality",

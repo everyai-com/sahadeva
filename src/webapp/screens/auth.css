@@ -1,9 +1,9 @@
 /* Account sheet (sign in / create account), same design language as the app. */
 .authscrim { position: absolute; inset: 0; background: var(--fg); opacity: 0; pointer-events: none; transition: opacity var(--motion-base) var(--ease-standard); z-index: 30; }
 .authscrim.on { opacity: 0.55; pointer-events: auto; }
-.authsheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 31; background: var(--bg); border-top: 1px solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-5) var(--space-6); transform: translateY(101%); transition: transform var(--motion-base) var(--ease-standard); max-height: 92%; overflow-y: auto; scrollbar-width: none; }
+.authsheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 31; background: var(--bg); border-top: 1px solid var(--border); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-3) var(--space-5) var(--space-6); pointer-events: none; transform: translateY(101%); transition: transform var(--motion-base) var(--ease-standard); max-height: 92%; overflow-y: auto; scrollbar-width: none; }
 .authsheet::-webkit-scrollbar { width: 0; display: none; }
-.authsheet.on { transform: translateY(0); }
+.authsheet.on { pointer-events: auto; transform: translateY(0); }
 .authsheet .grabber { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--border); margin: 0 auto var(--space-4); }
 
 .authsheet h3 { font-size: var(--text-xl); }

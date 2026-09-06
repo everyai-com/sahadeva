@@ -13,6 +13,9 @@ type Props = {
 export function PrashnaPanel(props: Props) {
   const [question, setQuestion] = useState(""),
     [category, setCategory] = useState<QuestionCategory>("career"),
+    [tradition, setTradition] = useState("integrated"),
+    [seedNumber, setSeedNumber] = useState(1),
+    [referenceHouse, setReferenceHouse] = useState(1),
     [result, setResult] = useState<ConsultationResult | null>(null),
     [status, setStatus] = useState<"idle" | "loading" | "error">("idle"),
     [outcome, setOutcome] = useState(""),
@@ -25,7 +28,14 @@ export function PrashnaPanel(props: Props) {
     const response = await fetch("/api/prashna", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...props, question, category }),
+      body: JSON.stringify({
+        ...props,
+        question,
+        category,
+        tradition,
+        referenceHouse,
+        ...(tradition === "prashna-nadi" ? { seedNumber } : {}),
+      }),
     });
     if (!response.ok) {
       setStatus("error");
@@ -108,7 +118,48 @@ export function PrashnaPanel(props: Props) {
             <option value="property">Property</option>
             <option value="travel">Travel</option>
             <option value="lost-object">Lost object</option>
+            <option value="health">Health</option>
+            <option value="education">Education</option>
+            <option value="litigation">Litigation</option>
+            <option value="children">Children</option>
+            <option value="missing-person">Missing person</option>
             <option value="general">General</option>
+          </select>
+        </label>
+        <label>
+          Prashna tradition
+          <select value={tradition} onChange={(e) => setTradition(e.target.value)}>
+            <option value="integrated">Compare available traditions</option>
+            <option value="classical">Classical · Chappanna</option>
+            <option value="tajaka">Tajaka · Prasna Tantra</option>
+            <option value="systems-approach">Systems' Approach</option>
+            <option value="prashna-nadi">Prashna Nadi / KP</option>
+          </select>
+        </label>
+        {tradition === "prashna-nadi" && (
+          <label>
+            Horary seed number (1–249)
+            <input
+              type="number"
+              min={1}
+              max={249}
+              required
+              value={seedNumber}
+              onChange={(event) => setSeedNumber(Number(event.target.value))}
+            />
+          </label>
+        )}
+        <label>
+          Question concerns
+          <select value={referenceHouse} onChange={(event) => setReferenceHouse(Number(event.target.value))}>
+            <option value={1}>Myself</option>
+            <option value={3}>Younger sibling / neighbour</option>
+            <option value={4}>Mother</option>
+            <option value={5}>Child</option>
+            <option value={7}>Spouse / other party</option>
+            <option value={9}>Father</option>
+            <option value={10}>Employer</option>
+            <option value={11}>Elder sibling</option>
           </select>
         </label>
         <small>
@@ -129,8 +180,8 @@ export function PrashnaPanel(props: Props) {
         <article className={`prashna-result ${result.judgment.direction}`}>
           <span>
             {result.chartFitness.status === "unfit"
-              ? "Chart not fit—ask again later"
-              : `${result.judgment.direction} · ${result.judgment.confidence} confidence`}
+              ? "Chart judgment unavailable under the selected source rule"
+              : `${result.judgment.direction} · ${result.judgment.confidence} confidence${result.chartFitness.status === "sensitive" ? " · boundary-sensitive" : ""}`}
           </span>
           <h3>
             {result.judgment.score === null
@@ -146,6 +197,9 @@ export function PrashnaPanel(props: Props) {
           {narration && <div className="reading-result">{narration}</div>}
           <details>
             <summary>Evidence and uncertainty</summary>
+            {result.methodSelection.unavailableCapabilities?.map((item) => (
+              <small key={item}>Not yet calculated: {item}</small>
+            ))}
             {result.observations.map((item) => (
               <p key={item.id}>
                 <strong>{item.label}</strong>

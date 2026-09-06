@@ -4,7 +4,10 @@ import { useLang, LangToggle } from "../lang";
 import { useData } from "../data";
 import { StatusBar, TabBar, BackButton } from "../shell";
 import { dayMonthYear, monthYear, grahaName, grahaChar, grahaTr } from "../format";
-import type { DashaTimelineNode } from "../api";
+import type { DashaTimelineNode, Profile } from "../api";
+import { downloadDashaIcs } from "../api";
+import { GrahaIcon } from "../design/GrahaIcon";
+import { getDashaRecalls, saveDashaRecall } from "../dashaRecall";
 
 const YEAR_MS = 365.2425 * 86_400_000;
 
@@ -39,15 +42,30 @@ export function DashaScreen() {
   const { lang, t } = useLang();
   const { profile, dasha } = useData();
   const [open, setOpen] = useState<string | null>(null);
+  const [openAntar, setOpenAntar] = useState<string | null>(null);
   const [recall, setRecall] = useState<string | null>(null);
+  const [icsState, setIcsState] = useState<"idle" | "busy" | "error">("idle");
+
+  const exportCalendar = async () => {
+    if (!profile || icsState === "busy") return;
+    setIcsState("busy");
+    try {
+      await downloadDashaIcs(profile);
+      setIcsState("idle");
+    } catch {
+      setIcsState("error");
+    }
+  };
 
   const data = dasha.data;
   const timeline = data?.timeline ?? [];
   const active = timeline.find((n) => state(n) === "active");
   const activeAntar = active?.antardashas.find((a) => state(a) === "active");
 
-  const main = timeline.slice(0, 6);
-  const later = timeline.slice(6);
+  const birthIso = profile ? `${profile.date}T00:00:00.000Z` : null;
+  const visibleTimeline = birthIso ? timeline.filter((node) => Date.parse(node.endIso) > Date.parse(birthIso)) : timeline;
+  const main = visibleTimeline.slice(0, 6);
+  const later = visibleTimeline.slice(6);
 
   return (
     <>
@@ -68,6 +86,7 @@ export function DashaScreen() {
           <section className="nowcard">
             <p className="lbl">{t("RIGHT NOW", "ప్రస్తుతం")}</p>
             <h3>
+              <GrahaIcon name={active.lord} size={32} decorative />
               {t(
                 `${grahaName(active.lord, "en")} period${activeAntar ? `, ${grahaName(activeAntar.lord, "en")} sub-period` : ""}`,
                 `${grahaName(active.lord, "te")} దశ${activeAntar ? `, ${grahaName(activeAntar.lord, "te")} అంతర్దశ` : ""}`,
@@ -92,10 +111,21 @@ export function DashaScreen() {
 
         <section style={{ marginTop: "var(--space-6)" }}>
           <p className="sectitle">{t("Your periods in order — tap one to open its sub-periods", "మీ దశలు వరుసగా — ఏదైనా ఒకటి నొక్కితే అంతర్దశలు తెరుచుకుంటాయి")}</p>
+          <div style={{ marginBottom: "var(--space-3)" }}>
+            <button className="mini" type="button" onClick={exportCalendar} disabled={icsState === "busy" || !profile}>
+              {icsState === "busy"
+                ? t("Preparing calendar…", "క్యాలెండర్ సిద్ధమవుతోంది…")
+                : icsState === "error"
+                  ? t("Export failed — tap to retry", "ఎగుమతి విఫలం — మళ్లీ నొక్కండి")
+                  : t("Add all sub-periods to my calendar (.ics)", "అంతర్దశలన్నీ క్యాలెండర్‌కు (.ics)")}
+            </button>
+          </div>
           <div className="tl">
             {main.map((node) => {
               const st = state(node);
-              const yrs = years(node.startIso, node.endIso);
+              const visibleStart = birthIso && Date.parse(node.startIso) < Date.parse(birthIso) ? birthIso : node.startIso;
+              const beganBeforeBirth = visibleStart !== node.startIso;
+              const yrs = years(visibleStart, node.endIso);
               const isOpen = open === node.lord + node.startIso;
               return (
                 <div key={node.lord + node.startIso}>
@@ -108,10 +138,11 @@ export function DashaScreen() {
                     >
                       <span className="prow1">
                         <span className="pname">
+                          <GrahaIcon name={node.lord} size={24} decorative />
                           {grahaName(node.lord, lang)}
                           <span>{grahaTr(node.lord)}</span>
                         </span>
-                        <span className="pdates">{monthYear(node.startIso, lang)} – {monthYear(node.endIso, lang)}</span>
+                        <span className="pdates">{beganBeforeBirth ? t("At birth", "జననం నుండి") : monthYear(visibleStart, lang)} – {monthYear(node.endIso, lang)}</span>
                       </span>
                       <span className="pbar">
                         <i style={{ width: `${(yrs / 20) * 100}%` }} />
@@ -122,20 +153,46 @@ export function DashaScreen() {
                       </span>
                     </button>
                     <div className={`subs${isOpen ? " on" : ""}`}>
-                      {node.antardashas.map((a) => {
+                      {node.antardashas.filter((a) => !birthIso || Date.parse(a.endIso) > Date.parse(birthIso)).map((a) => {
                         const ast = state(a);
+                        const antarStart = birthIso && Date.parse(a.startIso) < Date.parse(birthIso) ? birthIso : a.startIso;
+                        const antarKey = `${node.lord}${node.startIso}/${a.lord}${a.startIso}`;
+                        const antarOpen = openAntar === antarKey;
                         return (
-                          <div className={`srow ${ast === "past" ? "done" : ast === "active" ? "now" : ""}`} key={a.lord + a.startIso}>
-                            <span className="sn">
-                              {grahaName(a.lord, lang)}
-                              {ast === "active" ? t(" — running now", " — ఇప్పుడు నడుస్తోంది") : ""}
-                            </span>
-                            <span className="sd">{dayMonthYear(a.startIso, lang)} – {dayMonthYear(a.endIso, lang)}</span>
+                          <div key={a.lord + a.startIso}>
+                            <button
+                              className={`srow srowbtn ${ast === "past" ? "done" : ast === "active" ? "now" : ""}`}
+                              type="button"
+                              aria-expanded={antarOpen}
+                              onClick={() => setOpenAntar(antarOpen ? null : antarKey)}
+                            >
+                              <span className="sn">
+                                <GrahaIcon name={a.lord} size={20} decorative />
+                                {grahaName(a.lord, lang)}
+                                {ast === "active" ? t(" — running now", " — ఇప్పుడు నడుస్తోంది") : ""}
+                              </span>
+                              <span className="sd">{antarStart !== a.startIso ? t("At birth", "జననం నుండి") : dayMonthYear(antarStart, lang)} – {dayMonthYear(a.endIso, lang)}</span>
+                            </button>
+                            <div className={`subs subs2${antarOpen ? " on" : ""}`}>
+                              {a.pratyantardashas.filter((pd) => !birthIso || Date.parse(pd.endIso) > Date.parse(birthIso)).map((pd) => {
+                                const pst = state(pd);
+                                return (
+                                  <div className={`srow prow3 ${pst === "past" ? "done" : pst === "active" ? "now" : ""}`} key={pd.lord + pd.startIso}>
+                                    <span className="sn">
+                                      <GrahaIcon name={pd.lord} size={20} decorative />
+                                      {grahaName(pd.lord, lang)}
+                                      {pst === "active" ? t(" — running now", " — ఇప్పుడు నడుస్తోంది") : ""}
+                                    </span>
+                                    <span className="sd">{dayMonthYear(pd.startIso, lang)} – {dayMonthYear(pd.endIso, lang)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         );
                       })}
                     </div>
-                    {st === "past" && <RecallBox lord={node.lord} open={recall} setOpen={setRecall} />}
+                    {st === "past" && profile && <RecallBox profile={profile} node={{ ...node, startIso: visibleStart }} open={recall} setOpen={setRecall} />}
                   </div>
                   {st === "active" && (
                     <div className="nowline">
@@ -186,40 +243,32 @@ function elapsedPct(node: { startIso: string; endIso: string }): number {
   return Math.max(0, Math.min(100, Math.round(p * 10) / 10));
 }
 
-function RecallBox({ lord, open, setOpen }: { lord: string; open: string | null; setOpen: (v: string | null) => void }) {
+function RecallBox({ profile, node, open, setOpen }: { profile: Profile; node: Pick<DashaTimelineNode, "lord" | "startIso" | "endIso">; open: string | null; setOpen: (v: string | null) => void }) {
   const { t } = useLang();
-  const key = `sahadev.recall.${lord}`;
+  const key = `${node.lord}:${node.startIso}`;
   const [value, setValue] = useState<string>(() => {
-    try {
-      return localStorage.getItem(key) || "";
-    } catch {
-      return "";
-    }
+    return getDashaRecalls(profile).find((item) => `${item.lord}:${item.startIso}` === key)?.text || "";
   });
   const [saved, setSaved] = useState(false);
-  const isOpen = open === lord;
+  const isOpen = open === key;
   return (
     <div className="recall">
-      <button className="recallbtn" type="button" onClick={() => setOpen(isOpen ? null : lord)}>
+      <button className="recallbtn" type="button" onClick={() => setOpen(isOpen ? null : key)}>
         {t("What actually happened?", "నిజంగా ఏమి జరిగింది?")}
       </button>
       <div className={`recallbox${isOpen ? " on" : ""}`}>
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={t("Write what this stretch was really like. Sahadev keeps it beside the dates.", "ఈ కాలం నిజంగా ఎలా గడిచిందో రాయండి. సహదేవ్ దాన్ని తేదీల పక్కనే ఉంచుతుంది.")}
-          aria-label={lord}
+          placeholder={t("Write what this stretch was really like. Sahadeva keeps it beside the dates.", "ఈ కాలం నిజంగా ఎలా గడిచిందో రాయండి. సహదేవ దాన్ని తేదీల పక్కనే ఉంచుతుంది.")}
+          aria-label={node.lord}
         />
         <div className="ra">
           <button
             className="mini"
             type="button"
             onClick={() => {
-              try {
-                localStorage.setItem(key, value);
-              } catch {
-                /* ignore */
-              }
+              saveDashaRecall(profile, { lord: node.lord, startIso: node.startIso, endIso: node.endIso, text: value });
               setSaved(true);
               window.setTimeout(() => setSaved(false), 1600);
             }}
@@ -228,6 +277,7 @@ function RecallBox({ lord, open, setOpen }: { lord: string; open: string | null;
           </button>
           {saved && <span className="saved">{t("Saved", "భద్రమైంది")}</span>}
         </div>
+        <p className="recallnote">{t("Sahadeva uses this as user-reported history in future answers on this device.", "ఈ పరికరంలో భవిష్యత్ సమాధానాల్లో సహదేవ్ దీన్ని మీరు చెప్పిన జీవిత చరిత్రగా ఉపయోగిస్తుంది.")}</p>
       </div>
     </div>
   );

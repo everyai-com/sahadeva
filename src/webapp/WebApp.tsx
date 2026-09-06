@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import "./base.css";
 import { LangProvider, useLang } from "./lang";
 import { DataProvider, useData } from "./data";
@@ -10,9 +10,15 @@ import { AskScreen } from "./screens/AskScreen";
 import { ChartScreen } from "./screens/ChartScreen";
 import { MoreScreen } from "./screens/MoreScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
-import { DashaScreen } from "./screens/DashaScreen";
-import { MatchScreen } from "./screens/MatchScreen";
-import { RemediesScreen } from "./screens/RemediesScreen";
+const DashaScreen = lazy(() => import("./screens/DashaScreen").then((module) => ({ default: module.DashaScreen })));
+const MatchScreen = lazy(() => import("./screens/MatchScreen").then((module) => ({ default: module.MatchScreen })));
+const RemediesScreen = lazy(() => import("./screens/RemediesScreen").then((module) => ({ default: module.RemediesScreen })));
+const PrashnaScreen = lazy(() => import("./screens/PrashnaScreen").then((module) => ({ default: module.PrashnaScreen })));
+const LegalScreens = lazy(() => import("./screens/LegalScreen"));
+
+function Deferred({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<main className="screen route-loading" aria-label="Loading"><span /></main>}>{children}</Suspense>;
+}
 
 function Screens() {
   const route = useRoute();
@@ -22,18 +28,24 @@ function Screens() {
   // No profile yet → force onboarding once we know the account state.
   const needsOnboarding = meLoaded && !profile;
   useEffect(() => {
-    if (chosen && needsOnboarding && route !== "onboarding") {
+    if (chosen && needsOnboarding && !["onboarding", "privacy", "terms", "support", "not-found"].includes(route)) {
       setOnboardingMode("new");
       navigate("onboarding");
     }
   }, [chosen, needsOnboarding, route]);
+
+  // Legal and not-found pages must be reachable before onboarding or language selection.
+  if (route === "privacy") return <Deferred><LegalScreens kind="privacy" /></Deferred>;
+  if (route === "terms") return <Deferred><LegalScreens kind="terms" /></Deferred>;
+  if (route === "support") return <Deferred><LegalScreens support /></Deferred>;
+  if (route === "not-found") return <Deferred><LegalScreens notFound /></Deferred>;
 
   // First run: pick a language before anything else.
   if (!chosen) return <WelcomeScreen onChosen={() => navigate(profile ? "ask" : "onboarding")} />;
 
   if (!meLoaded) return null;
 
-  const effective: Route = needsOnboarding ? "onboarding" : route;
+  const effective: Route = needsOnboarding && !["privacy", "terms", "support", "not-found"].includes(route) ? "onboarding" : route;
 
   switch (effective) {
     case "onboarding":
@@ -45,11 +57,13 @@ function Screens() {
     case "more":
       return <MoreScreen />;
     case "dasha":
-      return <DashaScreen />;
+      return <Deferred><DashaScreen /></Deferred>;
     case "match":
-      return <MatchScreen />;
+      return <Deferred><MatchScreen /></Deferred>;
     case "remedies":
-      return <RemediesScreen />;
+      return <Deferred><RemediesScreen /></Deferred>;
+    case "prashna":
+      return <Deferred><PrashnaScreen /></Deferred>;
     case "today":
     default:
       return <TodayScreen />;

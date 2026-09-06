@@ -5,7 +5,13 @@ import { useData } from "../data";
 import { StatusBar, TabBar } from "../shell";
 import {
   fetchConversationAlignment,
+  fetchTopicJudgment,
   recordConversationInput,
+  recordResponseIntentCoverage,
+  transcribeAudio,
+  TranscriptionError,
+  type Profile,
+  type SpeechLanguage,
   streamChat,
   submitClaimFeedback,
   saveConversationToAccount,
@@ -13,15 +19,21 @@ import {
   type ChatSummary,
   type ChatTurn,
   type StoredConversation,
+  type ResponseIntentPoint,
+  type TopicJudgmentView,
 } from "../api";
 import { analyticsCapture } from "../../analytics";
-import { grahaName, signName, nakName } from "../format";
+import { dayMonthYear, grahaName, signName, nakName } from "../format";
+import { navigate } from "../router";
 import { Markdown } from "../md";
 import { getLifeContext } from "../lifeContext";
 import { requestsFullProfile } from "../../../shared/chatEvidenceRouting";
+import { AuthSheet } from "./AuthSheet";
+import { dashaRecallContext } from "../dashaRecall";
 import type { ReactNode } from "react";
+import { chartAskContextText, takeChartAskContext, type ChartAskContext } from "../chartAskContext";
 
-type Turn = ChatTurn & { id?: string; summary?: ChatSummary | null; streaming?: boolean; error?: string };
+type Turn = ChatTurn & { id?: string; summary?: ChatSummary | null; intentPoints?: ResponseIntentPoint[]; streaming?: boolean; error?: string };
 
 // The top life areas people ask about first, shown as selectable cards.
 type Topic = { id: string; en: string; te: string; icon: ReactNode; qEn: string; qTe: string };
@@ -78,16 +90,18 @@ const TOPICS: Topic[] = [
 
 // The reply format (short answer + collapsible reasoning) is requested server-side
 // via responseStyle: "layered"; the heading below is where the two parts split.
-const WHY_RE = /^##\s+(?:Why Sahadeva says this|సహదేవ్ ఇలా ఎందుకు చెబుతున్నాడు)\s*$/im;
+const WHY_RE = /^##\s+(?:Why (?:Sahadeva|Sahadeva) says this|(?:సహదేవ|సహదేవ్) ఇలా ఎందుకు చెబుతున్నాడు)\s*$/im;
 
 // Short greetings / small talk that should NOT trigger a full chart reading.
 const GREETING_RE =
   /^(hi+|hey+|hello+|hii+|hiya|yo|hai|namaste|namaskar(am)?|vandanam|good\s?(morning|afternoon|evening|night)|thanks?|thank you|ok(ay)?|nice|cool|హాయ్|హలో|నమస్తే|నమస్కారం|వందనం|ధన్యవాదాలు|థాంక్స్|సరే|బాగుంది)[\s!.…]*$/i;
 
 /* ── chat history (threads persisted locally, ChatGPT-style) ────────────── */
-type StoredTurn = { id?: string; role: "user" | "assistant"; content: string; summary?: ChatSummary | null };
+type StoredTurn = { id?: string; role: "user" | "assistant"; content: string; summary?: ChatSummary | null; intentPoints?: ResponseIntentPoint[] };
 type Thread = { id: string; title: string; updatedAt: number; turns: StoredTurn[] };
 const THREADS_KEY = "sahadev.webchat.threads.v2";
+const GUEST_EMAIL_KEY = "sahadeva.guest-consent-email.v1";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function loadThreads(scope: string): Thread[] {
   try {
@@ -109,14 +123,24 @@ function serverThreads(value: StoredConversation | null): Thread[] {
   if (!value) return [];
   if (Array.isArray(value)) {
     return value.length
-      ? [{ id: newThreadId(), title: titleFrom(value), updatedAt: Date.now(), turns: value }]
+      ? normalizeThreads([{ id: "legacy-conversation", title: titleFrom(value), updatedAt: Date.now(), turns: value }])
       : [];
   }
-  return (value.threads || []).map((thread) => ({
+  return normalizeThreads((value.threads || []).map((thread) => ({
     id: thread.id,
     title: thread.title || titleFrom(thread.messages),
     updatedAt: typeof thread.updatedAt === "number" ? thread.updatedAt : Date.parse(thread.updatedAt) || Date.now(),
     turns: thread.messages || [],
+  })));
+}
+
+function normalizeThreads(threads: Thread[]): Thread[] {
+  return threads.map((thread) => ({
+    ...thread,
+    turns: thread.turns.map((turn, index) => ({
+      ...turn,
+      id: turn.id || `r-legacy-${(thread.id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 48) || "conversation")}-${index}`,
+    })),
   }));
 }
 function titleFrom(turns: StoredTurn[]): string {
@@ -159,15 +183,37 @@ export function AskScreen() {
   const { profile, account, activePersonId, conversation } = useData();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
-  const [listening, setListening] = useState(false);
+  const [voicePhase, setVoicePhase] = useState<"idle" | "requesting" | "recording" | "transcribing">("idle");
+  const [voiceSeconds, setVoiceSeconds] = useState(0);
+  const [voiceError, setVoiceError] = useState("");
+  const [speechLanguage, setSpeechLanguage] = useState<SpeechLanguage>(() => {
+    try {
+      const saved = localStorage.getItem("sahadeva:speech-language");
+      return saved === "en" || saved === "hi" || saved === "te" || saved === "auto" ? saved : "auto";
+    } catch { return "auto"; }
+  });
+  const [voiceConfirmed, setVoiceConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [answerStarted, setAnswerStarted] = useState(false);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [guestEmail, setGuestEmail] = useState(() => {
+    try { return localStorage.getItem(GUEST_EMAIL_KEY) || ""; } catch { return ""; }
+  });
+  const [emailDraft, setEmailDraft] = useState(guestEmail);
   const [alignmentScore, setAlignmentScore] = useState(50);
   const [alignmentHistory, setAlignmentHistory] = useState<AlignmentSnapshot[]>([]);
+  const [chartContext, setChartContext] = useState<ChartAskContext | null>(() => takeChartAskContext());
   const threadRef = useRef<HTMLElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recorderStreamRef = useRef<MediaStream | null>(null);
+  const recorderChunksRef = useRef<Blob[]>([]);
+  const submitRecordingRef = useRef(false);
+  const transcriptionAbortRef = useRef<AbortController | null>(null);
+  const answerAbortRef = useRef<AbortController | null>(null);
+  const voiceInputRef = useRef(false);
   const activeIdRef = useRef<string | null>(null);
   const threadsRef = useRef<Thread[]>(threads);
   const storageScope = account?.id && activePersonId
@@ -183,7 +229,7 @@ export function AskScreen() {
   useEffect(() => {
     storageScopeRef.current = storageScope;
     const restored = account ? serverThreads(conversation) : loadThreads(storageScope);
-    const localFallback = restored.length ? restored : loadThreads(storageScope);
+    const localFallback = normalizeThreads(restored.length ? restored : loadThreads(storageScope));
     threadsRef.current = localFallback;
     setThreads(localFallback);
     setTurns([]);
@@ -213,7 +259,7 @@ export function AskScreen() {
   function persistThread(turnsArr: Turn[]) {
     const stored: StoredTurn[] = turnsArr
       .filter((x) => !x.streaming && (x.content || x.summary))
-      .map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null }));
+      .map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null, intentPoints: x.intentPoints }));
     if (!stored.some((x) => x.role === "user")) return;
     const now = Date.now();
     const prev = threadsRef.current;
@@ -238,7 +284,7 @@ export function AskScreen() {
   function openThread(th: Thread) {
     activeIdRef.current = th.id;
     setActiveId(th.id);
-    setTurns(th.turns.map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null })));
+    setTurns(th.turns.map((x) => ({ id: x.id, role: x.role, content: x.content, summary: x.summary ?? null, intentPoints: x.intentPoints })));
     setHistoryOpen(false);
     scrollToBottom();
   }
@@ -250,6 +296,7 @@ export function AskScreen() {
     setAlignmentScore(50);
     setAlignmentHistory([]);
     setHistoryOpen(false);
+    setChartContext(null);
   }
 
   function deleteThread(id: string) {
@@ -270,15 +317,31 @@ export function AskScreen() {
       activeIdRef.current = sessionId;
       setActiveId(sessionId);
     }
-    analyticsCapture("prompt_submitted", {
-      conversation_session_id: sessionId,
-      input_length_band: question.length < 80 ? "short" : question.length < 300 ? "medium" : "long",
-      input_method: listening ? "voice" : "text",
-      response_depth: deep ? "deep" : "standard",
-    });
     const base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
     const userTurnId = newTurnId();
     const withUser: Turn[] = [...base, { id: userTurnId, role: "user", content: question }];
+
+    // Paint the person's message before analytics, persistence, profile
+    // serialization, or the reading request can occupy the main thread.
+    // This is especially noticeable in mobile Safari on slower devices.
+    const isGreeting = GREETING_RE.test(question);
+    const responseTurnId = newTurnId();
+    if (!isGreeting) {
+      setInput("");
+      setBusy(true);
+      setAnswerStarted(false);
+      setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: true }]);
+      pinQuestionTop();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+
+    analyticsCapture("prompt_submitted", {
+      conversation_session_id: sessionId,
+      input_length_band: question.length < 80 ? "short" : question.length < 300 ? "medium" : "long",
+      input_method: voiceInputRef.current ? "voice" : "text",
+      response_depth: deep ? "deep" : "standard",
+    });
+    voiceInputRef.current = false;
     // Save scoring in the background so a new chat appears immediately.
     void (async () => {
       try {
@@ -300,7 +363,7 @@ export function AskScreen() {
     })();
 
     // Greetings / small talk: reply conversationally, don't run a reading.
-    if (GREETING_RE.test(question)) {
+    if (isGreeting) {
       const greetText = t(
         `Namaste${firstName ? " " + firstName : ""}! I can read your chart with you. What would you like to know — your career, marriage, health, money, or the timing right now?`,
         `నమస్తే${firstName ? " " + firstName : ""}! మీ జాతకాన్ని మీతో కలిసి చదవగలను. మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు — వృత్తి, వివాహం, ఆరోగ్యం, డబ్బు, లేదా ప్రస్తుత సమయం?`,
@@ -315,33 +378,36 @@ export function AskScreen() {
       return;
     }
 
+    const modelQuestion = chartContext
+      ? `${chartAskContextText(chartContext)}\n\nUser's question: ${question}`
+      : question;
     const history: ChatTurn[] = [
       ...base.map((x) => ({ role: x.role, content: x.content })),
-      { role: "user", content: question },
+      { role: "user", content: modelQuestion },
     ];
-    const responseTurnId = newTurnId();
-    setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: true }]);
-    setInput("");
-    setBusy(true);
-    pinQuestionTop(); // bring the new question to the top; don't chase the bottom
-
+    let streamedText = "";
+    const answerController = new AbortController();
+    answerAbortRef.current = answerController;
     try {
       const { text: reply, summary } = await streamChat(
         { ...profile, language: lang },
         history,
         (cumulative) => {
+          streamedText = cumulative;
+          if (cumulative.trim()) setAnswerStarted(true);
           setTurns([...withUser, { id: responseTurnId, role: "assistant", content: cumulative, streaming: true }]);
         },
-        undefined,
+        answerController.signal,
         {
-          lifeContext: rememberedUserContext(threadsRef.current, getLifeContext()),
+          lifeContext: rememberedUserContext(threadsRef.current, [getLifeContext(), dashaRecallContext(profile)].filter(Boolean).join("\n")),
           deep,
           conversationSessionId: sessionId,
           conversationTurnId: userTurnId,
-          fullProfile: requestsFullProfile(question),
+          fullProfile: requestsFullProfile(modelQuestion),
         },
       );
-      const finalTurns: Turn[] = [...withUser, { id: responseTurnId, role: "assistant", content: reply, summary, streaming: false }];
+      const intentPoints = await recordResponseIntentCoverage(sessionId, responseTurnId, userTurnId, reply).catch(() => []);
+      const finalTurns: Turn[] = [...withUser, { id: responseTurnId, role: "assistant", content: reply, summary, intentPoints, streaming: false }];
       setTurns(finalTurns);
       persistThread(finalTurns);
       analyticsCapture("response_completed", {
@@ -363,12 +429,22 @@ export function AskScreen() {
         // A completed answer must not remain loading if scoring is unavailable.
       });
     } catch (e) {
+      if ((e as DOMException).name === "AbortError") {
+        const stoppedTurns: Turn[] = streamedText.trim()
+          ? [...withUser, { id: responseTurnId, role: "assistant", content: streamedText.trim(), streaming: false }]
+          : withUser;
+        setTurns(stoppedTurns);
+        persistThread(stoppedTurns);
+        return;
+      }
       const msg = String((e as Error).message) === "rate"
         ? t("Too many questions just now — try again in a moment.", "ఇప్పుడే చాలా ప్రశ్నలు — కొద్ది సేపటిలో మళ్లీ ప్రయత్నించండి.")
         : t("The assistant is unavailable right now. Your calculated chart is unaffected.", "సహాయకుడు ప్రస్తుతం అందుబాటులో లేడు. మీ జాతకం ప్రభావితం కాలేదు.");
       setTurns([...withUser, { id: responseTurnId, role: "assistant", content: "", streaming: false, error: msg }]);
     } finally {
+      answerAbortRef.current = null;
       setBusy(false);
+      setAnswerStarted(false);
     }
   }
 
@@ -408,32 +484,128 @@ export function AskScreen() {
       });
   }
 
-  function toggleMic() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      setListening((v) => !v);
-      return;
-    }
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const rec = new SR();
-    rec.lang = lang === "te" ? "te-IN" : "en-IN";
-    rec.interimResults = true;
-    rec.onresult = (ev: any) => {
-      let text = "";
-      for (let i = 0; i < ev.results.length; i++) text += ev.results[i][0].transcript;
-      setInput(text);
-    };
-    rec.onend = () => setListening(false);
-    recognitionRef.current = rec;
-    rec.start();
-    setListening(true);
+  function closeRecorderStream() {
+    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recorderStreamRef.current = null;
   }
 
-  useEffect(() => () => recognitionRef.current?.stop?.(), []);
+  async function runTranscription(blob: Blob) {
+    const transcriptionStartedAt = performance.now();
+    setVoicePhase("transcribing");
+    const controller = new AbortController();
+    transcriptionAbortRef.current = controller;
+    try {
+      let result: Awaited<ReturnType<typeof transcribeAudio>>;
+      try {
+        result = await transcribeAudio(blob, speechLanguage, controller.signal);
+      } catch (firstError) {
+        if (controller.signal.aborted) throw firstError;
+        if (!(firstError instanceof TranscriptionError) || !firstError.retryable) throw firstError;
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        result = await transcribeAudio(blob, speechLanguage, controller.signal);
+      }
+      setInput((current) => current.trim() ? `${current.trim()} ${result.text}` : result.text);
+      voiceInputRef.current = true;
+      setVoiceError("");
+      setVoiceConfirmed(true);
+      window.setTimeout(() => setVoiceConfirmed(false), 2400);
+      analyticsCapture("voice_transcription_completed", {
+        requested_language: speechLanguage,
+        detected_language: result.language,
+        provider: result.provider,
+        duration_ms: Math.round(performance.now() - transcriptionStartedAt),
+      });
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setVoiceError((error as Error).message || t("We couldn't transcribe that recording.", "ఆ రికార్డింగ్‌ను వచనంగా మార్చలేకపోయాం."));
+        analyticsCapture("voice_transcription_failed", {
+          requested_language: speechLanguage,
+          status: error instanceof TranscriptionError ? error.status : 0,
+          retryable: error instanceof TranscriptionError && error.retryable,
+          duration_ms: Math.round(performance.now() - transcriptionStartedAt),
+        });
+      }
+    } finally {
+      transcriptionAbortRef.current = null;
+      setVoicePhase("idle");
+      setVoiceSeconds(0);
+    }
+  }
+
+  async function startRecording() {
+    if (busy || voicePhase !== "idle") return;
+    setVoiceError("");
+    setVoiceConfirmed(false);
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setVoiceError(t("Voice input is not supported by this browser. You can still type your question.", "ఈ బ్రౌజర్‌లో వాయిస్ ఇన్‌పుట్ అందుబాటులో లేదు. మీ ప్రశ్నను టైప్ చేయవచ్చు."));
+      return;
+    }
+    setVoicePhase("requesting");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+      recorderStreamRef.current = stream;
+      const preferred = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred, audioBitsPerSecond: 64_000 } : undefined);
+      recorderRef.current = recorder;
+      recorderChunksRef.current = [];
+      submitRecordingRef.current = false;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) recorderChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const submit = submitRecordingRef.current;
+        const chunks = recorderChunksRef.current;
+        recorderRef.current = null;
+        recorderChunksRef.current = [];
+        closeRecorderStream();
+        if (submit && chunks.length) void runTranscription(new Blob(chunks, { type: recorder.mimeType || chunks[0].type }));
+        else {
+          setVoicePhase("idle");
+          setVoiceSeconds(0);
+        }
+      };
+      recorder.start(250);
+      setVoiceSeconds(0);
+      setVoicePhase("recording");
+    } catch (error) {
+      closeRecorderStream();
+      setVoicePhase("idle");
+      const denied = (error as DOMException).name === "NotAllowedError";
+      setVoiceError(denied
+        ? t("Microphone access is blocked. Allow it in your browser settings and try again.", "మైక్రోఫోన్ అనుమతి నిరోధించబడింది. బ్రౌజర్ సెట్టింగ్‌లలో అనుమతించి మళ్లీ ప్రయత్నించండి.")
+        : t("We couldn't start the microphone. Please try again.", "మైక్రోఫోన్‌ను ప్రారంభించలేకపోయాం. మళ్లీ ప్రయత్నించండి."));
+    }
+  }
+
+  function stopRecording(submit: boolean) {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+    submitRecordingRef.current = submit;
+    recorder.stop();
+  }
+
+  useEffect(() => {
+    if (voicePhase !== "recording") return;
+    const timer = window.setInterval(() => setVoiceSeconds((seconds) => {
+      if (seconds >= 44) {
+        window.clearInterval(timer);
+        stopRecording(true);
+        return 45;
+      }
+      return seconds + 1;
+    }), 1000);
+    return () => window.clearInterval(timer);
+  }, [voicePhase]);
+
+  useEffect(() => () => {
+    transcriptionAbortRef.current?.abort();
+    answerAbortRef.current?.abort();
+    if (recorderRef.current?.state !== "inactive") {
+      submitRecordingRef.current = false;
+      recorderRef.current?.stop();
+    }
+    closeRecorderStream();
+  }, []);
 
   const firstName = profile?.name ? profile.name.split(" ")[0] : "";
 
@@ -463,10 +635,21 @@ export function AskScreen() {
       </div>
 
       <main className="thread ask-screen" ref={threadRef}>
+        {chartContext && (
+          <aside className="chart-context" aria-label={t("Selected chart context", "ఎంచుకున్న జాతక సందర్భం")}>
+            <div>
+              <b>{chartContext.division === "d9" ? t("Navamsa D-9", "నవాంశ D-9") : t("Rasi D-1", "రాశి D-1")}</b>
+              <span>{t(`House ${chartContext.house}`, `${chartContext.house}వ భావం`)} · {chartContext.sign}</span>
+              <small>{chartContext.planets.length ? chartContext.planets.map((name) => grahaName(name, lang)).join(", ") : t("No occupying planets", "గ్రహాలు లేవు")}</small>
+            </div>
+            <button type="button" aria-label={t("Clear chart context", "జాతక సందర్భాన్ని తీసివేయండి")} onClick={() => setChartContext(null)}>×</button>
+          </aside>
+        )}
         {turns.length === 0 ? (
           <div className="empty">
             <h2>{firstName ? t(`Hello ${firstName}. What would you like to know?`, `నమస్తే ${firstName}. మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు?`) : t("What would you like to know?", "మీరు ఏమి తెలుసుకోవాలనుకుంటున్నారు?")}</h2>
             <p className="sub">{t("Choose a topic to start, or type your own question below.", "మొదలుపెట్టడానికి ఒక అంశాన్ని ఎంచుకోండి, లేదా కింద మీ ప్రశ్న టైప్ చేయండి.")}</p>
+            <ContinuityCard />
             <div className="topicgrid">
               {TOPICS.map((tp) => (
                 <button key={tp.id} className="topiccard" type="button" onClick={() => ask(lang === "te" ? tp.qTe : tp.qEn)}>
@@ -485,24 +668,81 @@ export function AskScreen() {
                 {turn.content}
               </div>
             ) : (
-              <Answer
-                key={turn.id || i}
-                turn={turn}
-                onFollowUp={ask}
-                onReact={reactToClaim}
-              />
+              <div className="assistant-turn" key={turn.id || i}>
+                <Answer turn={turn} profile={profile} onFollowUp={ask} onReact={reactToClaim} />
+                {!account && !turn.streaming && !turn.error && turns.slice(0, i + 1).filter((item) => item.role === "user").length === 4 && !guestEmail && (
+                  <aside className="save-chat-card" aria-label={t("Save this conversation", "ఈ సంభాషణను భద్రపరచండి")}>
+                    <span className="save-chat-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 0-4 4v2M7 9h10a2 2 0 0 1 2 2v8H5v-8a2 2 0 0 1 2-2Z" /></svg>
+                    </span>
+                    <div>
+                      <h3>{t("Keep your progress", "మీ పురోగతిని ఉంచుకోండి")}</h3>
+                      <p>{t("With your consent, we’ll remember this email on this device and use it to prefill account creation later. No account is created yet.", "మీ సమ్మతితో, ఈ పరికరంలో మీ ఇమెయిల్‌ను గుర్తుంచుకుని, తర్వాత ఖాతా సృష్టించేటప్పుడు ముందే నింపుతాం. ఇప్పుడు ఖాతా సృష్టించబడదు.")}</p>
+                      <div className="consent-email-row">
+                        <input type="email" value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} placeholder="you@example.com" aria-label={t("Email", "ఇమెయిల్")} />
+                        <button type="button" disabled={!EMAIL_RE.test(emailDraft.trim())} onClick={() => {
+                          const email = emailDraft.trim();
+                          try { localStorage.setItem(GUEST_EMAIL_KEY, email); } catch { /* ignore */ }
+                          setGuestEmail(email);
+                        }}>{t("I agree", "నేను అంగీకరిస్తున్నాను")}</button>
+                      </div>
+                    </div>
+                  </aside>
+                )}
+                {!account && !turn.streaming && !turn.error && turns.slice(0, i + 1).filter((item) => item.role === "user").length === 8 && (
+                  <aside className="save-chat-card account-invite" aria-label={t("Create your account", "మీ ఖాతా సృష్టించండి")}>
+                    <span className="save-chat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a4 4 0 0 0-4 4v2M7 9h10a2 2 0 0 1 2 2v8H5v-8a2 2 0 0 1 2-2Z" /></svg></span>
+                    <div>
+                      <h3>{t("Take your chart and chats with you", "మీ జాతకం, చాట్‌లను మీతో ఉంచుకోండి")}</h3>
+                      <p>{guestEmail ? t(`Create an account with ${guestEmail}. Your chart and this conversation will be saved privately.`, `${guestEmail}తో ఖాతా సృష్టించండి. మీ జాతకం, ఈ సంభాషణ గోప్యంగా భద్రపరచబడతాయి.`) : t("Add your email to create an account and save your chart and conversation privately.", "ఖాతా సృష్టించి మీ జాతకం, సంభాషణను గోప్యంగా భద్రపరచడానికి ఇమెయిల్ జోడించండి.")}</p>
+                      <button type="button" onClick={() => setAuthOpen(true)}>{t("Create account", "ఖాతా సృష్టించండి")}</button>
+                    </div>
+                  </aside>
+                )}
+              </div>
             ),
           )
         )}
       </main>
 
       <div className="composer ask-screen">
-        <div className={`listen${listening ? " on" : ""}`}>
-          <span className="wave" aria-hidden="true">
-            <i /><i /><i /><i /><i /><i />
-          </span>
-          <span className="small muted">{t("Listening… tap the microphone again to stop.", "వింటోంది… ఆపడానికి మైక్ మళ్లీ నొక్కండి.")}</span>
-        </div>
+        {voicePhase !== "idle" && (
+          <section className={`voicepanel ${voicePhase}`} aria-live="polite">
+            <div className="voicemain">
+              <div className="voicehead">
+                <span className="voicepulse" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+                <span>
+                  <b>{voicePhase === "requesting" ? t("Opening microphone…", "మైక్రోఫోన్ తెరుస్తోంది…") : voicePhase === "recording" ? t("Listening", "వింటోంది") : t("Writing your words…", "మీ మాటలను వ్రాస్తోంది…")}</b>
+                  <small>{voicePhase === "recording" ? `${t("Tap Done when finished", "పూర్తయిన తర్వాత ముగించు నొక్కండి")} · 0:${String(voiceSeconds).padStart(2, "0")} / 0:45` : t("Audio is processed securely and is not stored.", "ఆడియో సురక్షితంగా ప్రాసెస్ చేయబడుతుంది, భద్రపరచబడదు.")}</small>
+                </span>
+              </div>
+              <div className="voicelanguages" role="group" aria-label={t("Spoken language", "మాట్లాడే భాష")}>
+                {(["auto", "en", "te", "hi"] as const).map((option) => (
+                  <button type="button" key={option} className={speechLanguage === option ? "active" : ""} aria-pressed={speechLanguage === option} disabled={voicePhase === "transcribing"} onClick={() => {
+                    setSpeechLanguage(option);
+                    try { localStorage.setItem("sahadeva:speech-language", option); } catch { /* ignore */ }
+                  }}>
+                    {option === "auto" ? t("Auto", "ఆటో") : option === "en" ? "English" : option === "te" ? "తెలుగు" : "हिन्दी"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="voiceactions">
+              {voicePhase === "recording" && <>
+                <button type="button" className="voicecancel" onClick={() => stopRecording(false)}>{t("Cancel", "రద్దు")}</button>
+                <button type="button" className="voicedone" onClick={() => stopRecording(true)}>{t("Done", "ముగించు")}</button>
+              </>}
+              {voicePhase === "transcribing" && <button type="button" className="voicecancel" onClick={() => transcriptionAbortRef.current?.abort()}>{t("Cancel", "రద్దు")}</button>}
+            </div>
+          </section>
+        )}
+        {voiceConfirmed && voicePhase === "idle" && (
+          <p className="voiceconfirmed" role="status">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-9" /></svg>
+            {t("Transcript ready — review or send it", "వచనం సిద్ధంగా ఉంది — చూసి పంపండి")}
+          </p>
+        )}
+        {voiceError && <p className="voiceerror" role="alert">{voiceError}</p>}
         <div className="crow">
           <label className="cfield">
             <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
@@ -510,27 +750,43 @@ export function AskScreen() {
             </span>
             <input
               type="text"
-              placeholder={t("Ask anything…", "ఏదైనా అడగండి…")}
+              placeholder={chartContext ? t(`Ask about House ${chartContext.house}…`, `${chartContext.house}వ భావం గురించి అడగండి…`) : t("Ask anything…", "ఏదైనా అడగండి…")}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => { setInput(e.target.value); voiceInputRef.current = false; }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") ask(input);
               }}
               autoComplete="off"
             />
           </label>
-          <button className="iconbtn" type="button" aria-pressed={listening} aria-label={t("Speak your question", "మీ ప్రశ్న చెప్పండి")} onClick={toggleMic}>
+          <button className="iconbtn micbtn" type="button" aria-pressed={voicePhase === "recording"} disabled={busy || voicePhase !== "idle"} aria-label={t("Speak your question", "మీ ప్రశ్న చెప్పండి")} onClick={startRecording}>
             <svg viewBox="0 0 24 24">
               <rect x="9" y="3" width="6" height="11" rx="3" />
               <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
             </svg>
           </button>
-          <button className="iconbtn sendbtn" type="button" aria-label={t("Send", "పంపు")} onClick={() => ask(input)}>
-            <svg viewBox="0 0 24 24">
-              <path d="M5 12h13M12 5l7 7-7 7" />
-            </svg>
+          <button
+            className={`iconbtn sendbtn${busy ? " sending" : ""}`}
+            type="button"
+            aria-label={busy ? t("Stop response", "సమాధానాన్ని ఆపండి") : t("Send", "పంపు")}
+            aria-busy={busy && !answerStarted}
+            disabled={!busy && !input.trim()}
+            onClick={() => busy ? answerAbortRef.current?.abort() : ask(input)}
+          >
+            {busy && !answerStarted ? (
+              <span className="sendspinner" aria-hidden="true" />
+            ) : busy ? (
+              <span className="stopsquare" aria-hidden="true" />
+            ) : (
+              <svg viewBox="0 0 24 24">
+                <path d="M5 12h13M12 5l7 7-7 7" />
+              </svg>
+            )}
           </button>
         </div>
+        <p className={`sendstatus${busy && !answerStarted ? " on" : ""}`} role="status" aria-live="polite">
+          {busy && !answerStarted ? t("Reading your chart and preparing an answer…", "మీ జాతకాన్ని చదివి సమాధానం సిద్ధం చేస్తోంది…") : ""}
+        </p>
       </div>
 
       {/* chat history drawer (ChatGPT / Claude style) */}
@@ -566,6 +822,12 @@ export function AskScreen() {
       </aside>
 
       <TabBar current="ask" />
+      <AuthSheet
+        open={authOpen}
+        initialEmail={guestEmail}
+        onClose={() => setAuthOpen(false)}
+        onAuthenticated={() => saveConversationToAccount(threadsRef.current, activeIdRef.current)}
+      />
     </>
   );
 }
@@ -629,13 +891,13 @@ function materialClaims(text: string, prefix: string): Array<{ id: string; kind:
   return claims;
 }
 
-function AnswerFeedback({
+function InsightCard({
   turnId,
-  response,
+  claim,
   onReact,
 }: {
   turnId: string;
-  response: string;
+  claim: { id: string; kind: string; text: string };
   onReact: (input: ClaimFeedbackInput) => Promise<void>;
 }) {
   const { t } = useLang();
@@ -650,37 +912,189 @@ function AnswerFeedback({
     ["too_generic", t("Too generic", "చాలా సాధారణం")],
     ["other", t("Other", "ఇతర")],
   ];
-  async function submit(next: "up" | "down", reason?: string) {
+  async function submit(next: "up" | "down", reason?: string, keepReasonPicker = false) {
     setBusy(true);
     try {
-      await onReact({ turnId, claimId: "complete_answer", claimKind: "complete_answer", rating: next, reason, response });
+      await onReact({ turnId, claimId: claim.id, claimKind: claim.kind, rating: next, reason, response: claim.text });
       setRating(next);
-      setChooseReason(false);
+      if (!keepReasonPicker) setChooseReason(false);
     } catch {
       // Keep the controls available so the person can retry after a transient failure.
     } finally {
       setBusy(false);
     }
   }
+  const plain = claim.text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/\*\*|__|`/g, "")
+    .trim();
   return (
-    <div className="answer-feedback">
-      <span>{rating ? t("Thanks for the feedback", "మీ స్పందనకు ధన్యవాదాలు") : t("Was this answer helpful?", "ఈ సమాధానం ఉపయోగపడిందా?")}</span>
-      <button type="button" disabled={busy} className={rating === "up" ? "selected" : ""} aria-label={t("Useful", "ఉపయోగకరం")} onClick={() => void submit("up")}>↑</button>
-      <button type="button" disabled={busy} className={rating === "down" ? "selected" : ""} aria-label={t("Not useful", "ఉపయోగకరం కాదు")} onClick={() => setChooseReason(true)}>↓</button>
-      {chooseReason && (
-        <div className="claim-reasons" role="group" aria-label={t("What went wrong?", "ఏం తప్పు జరిగింది?")}>
-          {reasons.map(([value, label]) => (
-            <button key={value} type="button" disabled={busy} onClick={() => void submit("down", value)}>{label}</button>
-          ))}
+    <details className={`insight-card${rating ? ` reacted ${rating}` : ""}`}>
+      <summary><span>{plain}</span></summary>
+      <div className="insight-body">
+        <p className="insight-question">{rating ? t("Response saved. Sahadeva will consider it in your next question.", "మీ స్పందన భద్రపరచబడింది. మీ తదుపరి ప్రశ్నలో సహదేవ దాన్ని పరిగణిస్తుంది.") : t("Does this match your experience or belief?", "ఇది మీ అనుభవం లేదా నమ్మకానికి సరిపోతుందా?")}</p>
+        <div className="insight-actions">
+          <button type="button" disabled={busy} className={rating === "up" ? "selected" : ""} aria-pressed={rating === "up"} onClick={() => void submit("up")}>↑ <span>{t("Matches", "సరిపోతుంది")}</span></button>
+          <button type="button" disabled={busy} className={rating === "down" ? "selected" : ""} aria-pressed={rating === "down"} onClick={() => { setChooseReason(true); void submit("down", "other", true); }}>↓ <span>{t("Conflicts", "విరుద్ధంగా ఉంది")}</span></button>
         </div>
-      )}
-    </div>
+        {chooseReason && (
+          <div className="claim-reasons" role="group" aria-label={t("What did not match?", "ఏది సరిపోలలేదు?")}>
+            {reasons.slice(0, -1).map(([value, label]) => (
+              <button key={value} type="button" disabled={busy} onClick={() => void submit("down", value)}>{label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 
 // Memoised: streaming updates only re-render the turn that is changing.
-const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
+// Timing topics (career/marriage/wealth/…) map onto judgment topics.
+const OUTLOOK_TO_JUDGMENT: Record<string, string> = {
+  career: "career",
+  marriage: "relationships",
+  wealth: "wealth",
+  education: "education",
+  children: "children",
+  property: "property",
+  spirituality: "spirituality",
+};
+
+/** Lazy-loaded supporting/opposing ledger for the answer's topic. */
+function TopicLedger({ profile, topic }: { profile: Profile | null; topic: string }) {
+  const { t } = useLang();
+  const [data, setData] = useState<TopicJudgmentView | null>(null);
+  const [failed, setFailed] = useState(false);
+  if (!profile) return null;
+  return (
+    <details
+      className="jy"
+      onToggle={(e) => {
+        if (!(e.target as HTMLDetailsElement).open || data || failed) return;
+        fetchTopicJudgment(profile, topic)
+          .then(setData)
+          .catch(() => setFailed(true));
+      }}
+    >
+      <summary>{t("Topic evidence ledger", "అంశ ఆధారాల పట్టిక")}</summary>
+      <div className="jybody">
+        {failed && <p className="muted small">{t("The ledger could not be loaded.", "పట్టిక లోడ్ కాలేదు.")}</p>}
+        {!failed && !data && <p className="muted small">{t("Loading the calculated evidence…", "గణించిన ఆధారాలు వస్తోంది…")}</p>}
+        {data && (
+          <>
+            <div className="jrow">
+              <b>{data.conclusion}</b>
+              <span className="tr">{data.title} · {data.status}</span>
+            </div>
+            {data.supportingEvidence.slice(0, 5).map((item) => (
+              <div className="jrow" key={item.id}>
+                <b>{item.label} — {item.detail}</b>
+                <span className="tr">{t("Supporting", "అనుకూలం")}</span>
+              </div>
+            ))}
+            {data.opposingEvidence.slice(0, 5).map((item) => (
+              <div className="jrow" key={item.id}>
+                <b>{item.label} — {item.detail}</b>
+                <span className="tr">{t("Opposing", "ప్రతికూలం")}</span>
+              </div>
+            ))}
+            <div className="jrow">
+              <b>{t(`Varga ${data.vargaConfirmation.varga}: ${data.vargaConfirmation.status}`, `వర్గ ${data.vargaConfirmation.varga}: ${data.vargaConfirmation.status}`)}</b>
+              <span className="tr">{t("Divisional confirmation", "వర్గ నిర్ధారణ")}</span>
+            </div>
+            <div className="jrow">
+              <b>{t(`Timing ${data.timingActivation.status}: ${(data.timingActivation.currentLords || []).join(", ")}`, `సమయం ${data.timingActivation.status}`)}</b>
+              <span className="tr">{t("Dasha activation", "దశ క్రియాశీలత")}</span>
+            </div>
+            {(data.unresolvedSourceKeys?.length ?? 0) > 0 && (
+              <div className="jrow">
+                <b>{t(`${data.unresolvedSourceKeys!.length} source keys await review`, `${data.unresolvedSourceKeys!.length} మూలాలు సమీక్షలో ఉన్నాయి`)}</b>
+                <span className="tr">{t("Review gap", "సమీక్ష అంతరం")}</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
+// A real astrologer remembers you. When there is history or a period about
+// to close, say so before the topic grid — using data already loaded.
+function countKeptThreads(): number {
+  try {
+    let total = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(`${THREADS_KEY}:`)) {
+        const list = JSON.parse(localStorage.getItem(key) || "[]");
+        if (Array.isArray(list)) total += list.length;
+      }
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+function ContinuityCard() {
+  const { t } = useLang();
+  const { account, conversation, dasha } = useData();
+  const [kept, setKept] = useState(0);
+  useEffect(() => {
+    setKept(countKeptThreads() + (account ? serverThreads(conversation).length : 0));
+  }, [account, conversation]);
+
+  const now = Date.now();
+  const current = dasha.data?.current;
+  const antarEnd = current?.boundaries?.antardasha?.endIso ? Date.parse(current.boundaries.antardasha.endIso) : NaN;
+  const mahaEnd = current?.boundaries?.mahadasha?.endIso ? Date.parse(current.boundaries.mahadasha.endIso) : NaN;
+  const antarDays = Number.isFinite(antarEnd) ? Math.round((antarEnd - now) / 86400000) : Infinity;
+  const mahaDays = Number.isFinite(mahaEnd) ? Math.round((mahaEnd - now) / 86400000) : Infinity;
+  const closingAntar = current?.antardasha && antarDays >= 0 && antarDays <= 45;
+  const closingMaha = current?.mahadasha && mahaDays >= 0 && mahaDays <= 90 && !closingAntar;
+
+  if (kept === 0 && !closingAntar && !closingMaha) return null;
+  return (
+    <aside className="continuity" aria-label={t("Continuity", "కొనసాగింపు")}>
+      {kept > 0 && (
+        <p>
+          {t(
+            `Welcome back — ${kept} past conversation${kept > 1 ? "s" : ""} kept in history.`,
+            `తిరిగి స్వాగతం — చరిత్రలో ${kept} సంభాషణలు ఉన్నాయి.`,
+          )}
+        </p>
+      )}
+      {closingAntar && (
+        <p>
+          {t(
+            `Your ${grahaName(current!.antardasha!, "en")} sub-period ends ${dayMonthYear(current!.boundaries.antardasha!.endIso, "en")}. When it closes, note what it was really like — that becomes part of your chart's memory.`,
+            `మీ ${grahaName(current!.antardasha!, "te")} అంతర్దశ ${dayMonthYear(current!.boundaries.antardasha!.endIso, "te")}న ముగుస్తుంది. ముగిశాక అది నిజంగా ఎలా గడిచిందో రాయండి.`,
+          )}
+        </p>
+      )}
+      {closingMaha && (
+        <p>
+          {t(
+            `Your ${grahaName(current!.mahadasha!, "en")} major period ends ${dayMonthYear(current!.boundaries.mahadasha!.endIso, "en")} — a natural moment to look back and ahead.`,
+            `మీ ${grahaName(current!.mahadasha!, "te")} మహాదశ ${dayMonthYear(current!.boundaries.mahadasha!.endIso, "te")}న ముగుస్తుంది — వెనక్కి, ముందుకు చూసే సహజ సమయం.`,
+          )}
+        </p>
+      )}
+      {(closingAntar || closingMaha) && (
+        <button type="button" onClick={() => navigate("dasha")}>
+          {t("Open life periods", "జీవిత దశలు తెరవండి")}
+        </button>
+      )}
+    </aside>
+  );
+}
+
+const Answer = memo(function Answer({ turn, profile, onFollowUp, onReact }: {
   turn: Turn;
+  profile: Profile | null;
   onFollowUp: (q: string) => void;
   onReact: (input: ClaimFeedbackInput) => Promise<void>;
 }) {
@@ -715,8 +1129,13 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
   const whyMatch = WHY_RE.exec(turn.content);
   const shortPart = whyMatch ? turn.content.slice(0, whyMatch.index) : turn.content;
   const whyPart = whyMatch ? turn.content.slice(whyMatch.index + whyMatch[0].length) : "";
-  const shortClaims = materialClaims(shortPart, "answer");
-  const detailClaims = materialClaims(whyPart, "reasoning");
+  const backendPoints = turn.intentPoints ?? [];
+  const shortClaims = backendPoints.length
+    ? backendPoints.filter((point) => shortPart.includes(point.text)).map((point) => ({ id: point.id, kind: point.intent, text: point.text }))
+    : materialClaims(shortPart, "answer");
+  const detailClaims = backendPoints.length
+    ? backendPoints.filter((point) => whyPart.includes(point.text)).map((point) => ({ id: point.id, kind: point.intent, text: point.text }))
+    : materialClaims(whyPart, "reasoning");
   const outlook = s?.timingOutlook;
   const pastTiming = s?.retrospectiveTiming;
 
@@ -726,24 +1145,33 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
   if (s?.currentTiming?.mahadasha) jrows.push([`${grahaName(s.currentTiming.mahadasha, lang)} mahadasha${s.currentTiming.antardasha ? `, ${grahaName(s.currentTiming.antardasha, lang)} antardasha` : ""}`, "Vimshottari · వింశోత్తరి"]);
   if (s?.panchanga?.nakshatra) jrows.push([`${s.panchanga.tithi || ""} · ${s.panchanga.nakshatra}`, "Panchanga · పంచాంగం"]);
 
+  const strengthRows = (s?.measuredStrengths ?? [])
+    .filter((m) => m.ratio != null)
+    .slice(0, 3)
+    .map((m) => {
+      const band = (m.ratio as number) >= 1 ? t("strong", "బలమైన") : (m.ratio as number) >= 0.7 ? t("steady", "స్థిరమైన") : t("weak", "బలహీనమైన");
+      return `${grahaName(m.planet, lang)} · ${band} (${(m.ratio as number).toFixed(2)}×)`;
+    });
+  const yogaRows = (s?.detectedYogas ?? []).map((y) => String(y.yoga));
+  const aspectRows = (s?.aspectMatrix?.houses ?? [])
+    .filter((r) => r.classicalDrishti)
+    .map((r) => `${grahaName(r.planet, lang)} → ${r.aspectedHouses.map((h) => `${h}`).join("·")}`);
+  const hasEvidenceLedger = strengthRows.length > 0 || yogaRows.length > 0 || aspectRows.length > 0;
+
   return (
     <article className="answer">
-      <div className="md">
+      <div className="insight-list">
         {shortClaims.map((claim) => (
-          <section className="response-claim" key={claim.id}>
-            <Markdown text={claim.text} />
-          </section>
+          turn.id ? <InsightCard key={claim.id} turnId={turn.id} claim={claim} onReact={onReact} /> : <div className="md" key={claim.id}><Markdown text={claim.text} /></div>
         ))}
       </div>
 
       {(whyPart.trim() || (turn.streaming && whyMatch)) && (
         <details className="jy why">
-          <summary>{t("Why Sahadeva says this", "సహదేవ్ ఇలా ఎందుకు చెబుతున్నాడు")}</summary>
-          <div className="jybody md">
+          <summary>{t("Why Sahadeva says this", "సహదేవ ఇలా ఎందుకు చెబుతోంది")}</summary>
+          <div className="jybody insight-list detail-insights">
             {detailClaims.map((claim) => (
-              <section className="response-claim" key={claim.id}>
-                <Markdown text={claim.text} />
-              </section>
+              turn.id ? <InsightCard key={claim.id} turnId={turn.id} claim={claim} onReact={onReact} /> : <div className="md" key={claim.id}><Markdown text={claim.text} /></div>
             ))}
           </div>
         </details>
@@ -809,11 +1237,46 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
         </details>
       )}
 
+      {hasEvidenceLedger && !turn.streaming && (
+        <details className="jy">
+          <summary>{t("Strengths, yogas & aspects", "బలాలు, యోగాలు & దృష్టులు")}</summary>
+          <div className="jybody">
+            {strengthRows.length > 0 && (
+              <div className="jrow">
+                <b>{strengthRows.join(" · ")}</b>
+                <span className="tr">{t("Measured strength vs classical requirement", "శాస్త్ర ప్రమాణంతో పోలిస్తే కొలిచిన బలం")}</span>
+              </div>
+            )}
+            {yogaRows.length > 0 ? (
+              <div className="jrow">
+                <b>{yogaRows.join(" · ")}</b>
+                <span className="tr">{t("Structural yogas found in this chart", "ఈ జాతకంలో కనిపించిన యోగాలు")}</span>
+              </div>
+            ) : (
+              <div className="jrow">
+                <b>{t("No classical yoga pattern matched", "ఏ యోగమూ సరిపోలలేదు")}</b>
+                <span className="tr">{t("Yogas", "యోగాలు")}</span>
+              </div>
+            )}
+            {aspectRows.map((row, i) => (
+              <div className="jrow" key={i}>
+                <b>{row}</b>
+                <span className="tr">{t("Houses aspected from Lagna", "లగ్నం నుండి దృష్టి ఉన్న భావాలు")}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       {s && (
         <div className="ev">
           {s.anchors?.moon?.signName && <span className="evchip">Moon · {signName2(s.anchors.moon.signName, lang)}</span>}
           {s.currentTiming?.mahadasha && <span className="evchip">{grahaName(s.currentTiming.mahadasha, lang)} dasha</span>}
         </div>
+      )}
+
+      {s?.timingOutlook && OUTLOOK_TO_JUDGMENT[s.timingOutlook.topic] && !turn.streaming && (
+        <TopicLedger profile={profile} topic={OUTLOOK_TO_JUDGMENT[s.timingOutlook.topic]} />
       )}
 
       {followUps.length > 0 && (
@@ -828,13 +1291,10 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
 
       <p className="limitnote">
         {t(
-          "Sahadev does not predict outcomes. It reports what the classical rules say and where they disagree.",
-          "సహదేవ్ ఫలితాలను జోస్యం చెప్పదు. శాస్త్ర నియమాలు ఏమి చెబుతున్నాయో, అవి ఎక్కడ విభేదిస్తున్నాయో మాత్రమే చెబుతుంది.",
+          "Sahadeva does not predict outcomes. It reports what the classical rules say and where they disagree.",
+          "సహదేవ ఫలితాలను జోస్యం చెప్పదు. శాస్త్ర నియమాలు ఏమి చెబుతున్నాయో, అవి ఎక్కడ విభేదిస్తున్నాయో మాత్రమే చెబుతుంది.",
         )}
       </p>
-      {!turn.streaming && turn.id && (
-        <AnswerFeedback turnId={turn.id} response={turn.content} onReact={onReact} />
-      )}
     </article>
   );
 });

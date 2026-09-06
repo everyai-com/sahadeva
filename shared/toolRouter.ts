@@ -33,6 +33,24 @@ interface IntentRule {
 
 const RULES: IntentRule[] = [
   {
+    intent: "lal-kitab-remedies",
+    test: T(
+      "lal ?kitab.*(remed|upay|upaya|parihar)|(?:remed|upay|upaya|parihar).*lal ?kitab|red book.*remed",
+    ),
+    primary: "reason_lal_kitab",
+    why: "Runs the deterministic Lal Kitab fact graph and remedy-decision logic directly from calculated placements; source retrieval is only optional provenance support.",
+    requiredArgs: ["birthDetails"],
+    follow: [
+      {
+        tool: "analyze_lal_kitab_remedies",
+        why: "Attach source-located remedy candidates only after the reasoning decision, when provenance detail is useful.",
+        requiredArgs: ["birthDetails"],
+      },
+    ],
+    alternatives: ["explore_lal_kitab_remedy_catalog", "analyze_remedies"],
+    resources: ["sahadeva://lal-kitab-remedies", "sahadeva://lal-kitab"],
+  },
+  {
     intent: "relationship-nonmarital",
     test: T(
       "business partner|co-?founder|partnership|colleague|team ?mate|friend|friendship|sibling|brother|sister|room ?mate|house ?mate|mentor|student|guru|boss|manager|work with|get along|with my (father|mother|dad|mom|son|daughter|parent|child)|parent(-| and )child",

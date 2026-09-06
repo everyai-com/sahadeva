@@ -2,6 +2,7 @@
 // Only the fields the UI actually renders are typed; the backend returns more.
 
 export type Lang = "en" | "te";
+export type SpeechLanguage = "auto" | "en" | "hi" | "te";
 
 export type Profile = {
   name: string;
@@ -16,6 +17,26 @@ export type Profile = {
   birthTimeConfidence?: "exact" | "rough" | "part" | "none";
   birthTimeAccuracyMinutes?: number;
 };
+
+export class TranscriptionError extends Error {
+  constructor(message: string, readonly status: number, readonly retryable: boolean) { super(message); this.name = "TranscriptionError"; }
+}
+
+export async function transcribeAudio(audio: Blob, language: SpeechLanguage, signal?: AbortSignal): Promise<{ text: string; language: string | null; provider: string | null }> {
+  const form = new FormData();
+  const extension = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
+  form.append("audio", audio, `voice.${extension}`);
+  form.append("language", language);
+  let res: Response;
+  try { res = await fetch("/api/transcribe", { method: "POST", body: form, signal }); }
+  catch (error) {
+    if ((error as DOMException).name === "AbortError") throw error;
+    throw new TranscriptionError("Connection interrupted. Please try again.", 0, true);
+  }
+  const data = (await res.json().catch(() => ({}))) as { text?: string; language?: string | null; provider?: string; error?: string };
+  if (!res.ok || !data.text) throw new TranscriptionError(data.error || (res.status === 429 ? "Too many voice requests. Wait a moment and try again." : "We couldn't transcribe that recording."), res.status, res.status >= 500);
+  return { text: data.text, language: data.language ?? null, provider: data.provider ?? null };
+}
 
 /* ── chart ─────────────────────────────────────────────────────────────── */
 
@@ -139,6 +160,13 @@ export type ChatSummary = {
   anchors?: { lagna?: { signName?: string; degree?: number }; moon?: { signName?: string; degree?: number; nakshatra?: string; pada?: number } };
   panchanga?: { vara?: string; tithi?: string; paksha?: string; nakshatra?: string; yoga?: string; karana?: string };
   currentTiming?: { mahadasha?: string | null; antardasha?: string | null; nextMahadasha?: { lord: string; startIso: string; endIso: string } | null };
+  measuredStrengths?: Array<{ planet: string; ratio: number | null; avastha: string | null }>;
+  detectedYogas?: Array<{ yoga: string; evidence: unknown }>;
+  aspectMatrix?: {
+    system: string;
+    method: string;
+    houses: Array<{ planet: string; occupiedHouse: number; aspectedHouses: number[]; classicalDrishti: boolean }>;
+  };
   everyday?: { dailyLife?: { questions?: string[] } };
   fullProfile?: { nextQuestions?: string[] } | null;
   followUps?: string[];
@@ -281,6 +309,34 @@ export type RemedyProtocol = {
       anchors?: { karakamshaSignName?: string };
     };
   };
+  lalKitabInference?: {
+    computation: { retrievalRequired: boolean; chartCalculatedOnce: boolean };
+    topicPrediction: {
+      topic: string; overall: string; primaryPredictionId: string | null; primaryStatement: string;
+      counts: { supportive: number; challenging: number; mixed: number; unclear: number };
+      calculationBasis: string;
+    };
+    predictions: Array<{
+      id: string; topic: string; planet: string; house: number; theme: string;
+      direction: string; activation: string; horizon: string; statement: string;
+      logic: string[]; supportingEvidence: string[]; opposingEvidence: string[]; confidence: string;
+      remedyLink: { decision: string; targetPlanets: string[] };
+    }>;
+    diagnoses: Array<{
+      planet: string;
+      house: number;
+      effectClass: string;
+      adverseSignals: string[];
+      activation: string;
+      remedyDecision: { decision: string; targetPlanets: string[]; houseMethod: string };
+    }>;
+    remedyPlan: {
+      outcome: string;
+      sequencingRule: string;
+      ordered: Array<{ priority: number; planet: string; house: number; predictionIds?: string[]; decision: string; targetPlanets: string[]; houseMethod: string }>;
+    };
+    explanationTrace: Array<{ order: number; rule: string; conclusion: string; facts: string[]; sourceLocator: string }>;
+  };
 };
 
 export type RemedyPreferences = {
@@ -297,6 +353,243 @@ export function fetchRemedies(
   preferences: RemedyPreferences,
 ): Promise<RemedyProtocol> {
   return postJson<RemedyProtocol>("/api/remedies", { ...profile, topic, preferences });
+}
+
+/* ── prashna (horary) ──────────────────────────────────────────────────── */
+
+export type PrashnaCategory =
+  | "career" | "relationship" | "money" | "property" | "travel"
+  | "lost-object" | "health" | "education" | "litigation"
+  | "children" | "missing-person" | "general";
+export type PrashnaTradition =
+  | "integrated" | "classical" | "tajaka" | "systems-approach" | "prashna-nadi";
+
+export type PrashnaObservation = {
+  id: string;
+  label: string;
+  polarity: string;
+  facts: string[];
+  provenance: { ruleId: string; tier: string; sourceIds?: string[] };
+};
+export type PrashnaResult = {
+  consultationId: string;
+  judgment: { direction: string; score: number | null; tier: string; confidence: string; rationale: string[] };
+  chartFitness: { status: string };
+  observations: PrashnaObservation[];
+  uncertainty: string[];
+  remedies: Array<{ id: string; label: string; instructions: string; timing: string; reviewStatus: string }>;
+  methodSelection: { unavailableCapabilities?: string[] };
+  feedback: { confirmationToken: string; status: string; suggestedFollowUpAt: string | null };
+  safety: { notice: string };
+};
+
+export function fetchPrashna(
+  profile: Profile,
+  args: {
+    question: string;
+    category: PrashnaCategory;
+    tradition: PrashnaTradition;
+    referenceHouse: number;
+    seedNumber?: number;
+  },
+): Promise<PrashnaResult> {
+  return postJson<PrashnaResult>("/api/prashna", {
+    place: profile.place,
+    latitude: profile.latitude,
+    longitude: profile.longitude,
+    timezone: profile.timezone || "UTC",
+    language: profile.language,
+    question: args.question,
+    category: args.category,
+    tradition: args.tradition,
+    referenceHouse: args.referenceHouse,
+    ...(args.seedNumber === undefined ? {} : { seedNumber: args.seedNumber }),
+  });
+}
+
+export function recordPrashnaOutcome(
+  confirmationToken: string,
+  outcome: "confirmed" | "partly-confirmed" | "not-confirmed" | "unresolved",
+): Promise<{ status: string }> {
+  return postJson<{ status: string }>("/api/prashna/outcome", {
+    confirmationToken,
+    outcome,
+    resolvedAt: new Date().toISOString(),
+  });
+}
+
+export function interpretConsultation(
+  consultation: PrashnaResult,
+  question: string,
+  language: Lang,
+): Promise<string> {
+  return postJson<{ response?: string }>("/api/interpret", {
+    consultation,
+    question,
+    language: language === "te" ? "Telugu" : "English",
+  }).then((data) => data.response || "");
+}
+
+/* ── judgment ledgers (supporting/opposing evidence) ─────────────────── */
+
+export type JudgmentEvidenceView = { id: string; label: string; detail: string };
+export type TopicJudgmentView = {
+  topic: string;
+  title: string;
+  conclusion: string;
+  status: string;
+  score: number;
+  supportingEvidence: JudgmentEvidenceView[];
+  opposingEvidence: JudgmentEvidenceView[];
+  vargaConfirmation: { varga: string; status: string; evidence: JudgmentEvidenceView[] };
+  timingActivation: { status: string; currentLords: string[]; evidence: JudgmentEvidenceView[]; notice: string };
+  unresolvedSourceKeys?: string[];
+};
+export type HouseLedgerView = {
+  house: number;
+  lord?: string;
+  topic?: string;
+  status?: string;
+  supportingEvidence: string[];
+  opposingEvidence: string[];
+  notice?: string;
+};
+export type HouseExplorerView = {
+  schemaVersion: string;
+  houses: HouseLedgerView[];
+  notice: string;
+};
+
+export function fetchTopicJudgment(profile: Profile, topic: string): Promise<TopicJudgmentView> {
+  return postJson<TopicJudgmentView>("/api/judgments/topic", { ...profile, topic });
+}
+
+export function fetchHouseExplorer(profile: Profile): Promise<HouseExplorerView> {
+  return postJson<HouseExplorerView>("/api/judgments/houses", { ...profile });
+}
+
+/* ── export artifacts ────────────────────────────────────────────────── */
+
+export async function downloadDashaIcs(profile: Profile): Promise<void> {
+  const res = await fetch("/api/dasha.ics", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(profile),
+  });
+  if (!res.ok) throw new Error(`Calendar export failed (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${(profile.name || "sahadeva").replace(/[^a-zA-Z0-9_-]+/g, "-")}-vimshottari.ics`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadChartJson(profile: Profile, chart: ChartResult): void {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+   notice: "Deterministic calculation artifact. Interpretive use only; not scientific fact.",
+    input: chart.input,
+    engine: chart.engine,
+    placements: chart.placements,
+    navamsa: chart.navamsa,
+    panchanga: chart.panchanga,
+    vimshottari: chart.vimshottari,
+    advanced: chart.advanced,
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${(profile.name || "sahadeva").replace(/[^a-zA-Z0-9_-]+/g, "-")}-chart.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── daily-brief push alerts ─────────────────────────────────────────── */
+
+export type BriefPushError =
+  | "unsupported"
+  | "denied"
+  | "no-key"
+  | "save-failed"
+  | "needs-signin";
+
+function vapidKeyToBytes(publicKey: string): Uint8Array<ArrayBuffer> {
+  const padded = publicKey.replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+  return Uint8Array.from(raw, (ch) => ch.charCodeAt(0)) as Uint8Array<ArrayBuffer>;
+}
+
+export function briefPushSupported(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window
+  );
+}
+
+export async function currentBriefSubscription(): Promise<PushSubscription | null> {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    return (await registration?.pushManager.getSubscription()) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function enableDailyBrief(hour: number, tzOffset: number): Promise<void> {
+  if (!briefPushSupported()) throw new Error("unsupported");
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") throw new Error("denied");
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  const { publicKey } = (await (await fetch("/api/push/key")).json()) as {
+    publicKey?: string;
+  };
+  if (!publicKey) throw new Error("no-key");
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: vapidKeyToBytes(publicKey),
+  });
+  const response = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ subscription, hour, tzOffset }),
+  });
+  if (response.status === 401) throw new Error("needs-signin");
+  if (!response.ok) throw new Error("save-failed");
+}
+
+export async function updateDailyBriefHour(
+  hour: number,
+  tzOffset: number,
+): Promise<void> {
+  const subscription = await currentBriefSubscription();
+  if (!subscription) throw new Error("save-failed");
+  const response = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ subscription: subscription.toJSON(), hour, tzOffset }),
+  });
+  if (response.status === 401) throw new Error("needs-signin");
+  if (!response.ok) throw new Error("save-failed");
+}
+
+export async function disableDailyBrief(): Promise<void> {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    const subscription = await registration?.pushManager.getSubscription();
+    await fetch("/api/push/subscribe", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription?.endpoint }),
+    });
+    await subscription?.unsubscribe();
+  } catch {
+    /* best effort */
+  }
 }
 
 /* ── /api/me ───────────────────────────────────────────────────────────── */
@@ -399,6 +692,9 @@ export function signIn(email: string, password: string): Promise<void> {
 export function signOut(): Promise<void> {
   return authPost("/api/auth/sign-out", {});
 }
+export function deleteAccount(password: string): Promise<void> {
+  return authPost("/api/auth/delete-user", { password });
+}
 
 /** Save the current local profile to the signed-in account (upserts the active person). */
 export async function saveProfileToAccount(profile: Profile): Promise<boolean> {
@@ -429,7 +725,7 @@ export async function saveConversationToAccount(
           id: thread.id,
           title: thread.title,
           updatedAt: new Date(thread.updatedAt).toISOString(),
-          messages: thread.turns.map(({ role, content }) => ({ role, content })),
+          messages: thread.turns.map(({ id, role, content, intentPoints }) => ({ id, role, content, intentPoints })),
         })),
         activeThreadId: activeThreadId ?? "",
       }),
@@ -442,7 +738,8 @@ export async function saveConversationToAccount(
 
 /* ── chat streaming ────────────────────────────────────────────────────── */
 
-export type ChatTurn = { role: "user" | "assistant"; content: string };
+export type ResponseIntentPoint = { id: string; intent: string; text: string };
+export type ChatTurn = { id?: string; role: "user" | "assistant"; content: string; intentPoints?: ResponseIntentPoint[] };
 
 export type AlignmentSnapshot = { score: number; cause: string; created_at: string };
 export type AlignmentState = { score: number; concernOpen?: boolean; history: AlignmentSnapshot[] };
@@ -466,6 +763,23 @@ export async function recordConversationInput(
   });
   if (!res.ok) throw new Error("alignment-input");
   return (await res.json()) as { score: number; concernOpen: boolean };
+}
+
+export async function recordResponseIntentCoverage(
+  sessionId: string,
+  turnId: string,
+  inputTurnId: string,
+  response: string,
+): Promise<ResponseIntentPoint[]> {
+  const res = await fetch(`/api/conversations/${encodeURIComponent(sessionId)}/response-coverage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ turnId, inputTurnId, response }),
+  });
+  if (!res.ok) throw new Error("intent-coverage");
+  const data = (await res.json()) as { points?: ResponseIntentPoint[] };
+  return data.points ?? [];
 }
 
 export async function submitClaimFeedback(

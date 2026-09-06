@@ -5,6 +5,7 @@ dist
 test-results
 playwright-report
 .wrangler
+.expo
 .dev.vars
 worker-configuration.d.ts
 *.tsbuildinfo

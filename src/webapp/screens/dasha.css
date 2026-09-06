@@ -1,7 +1,7 @@
 /* Dasha (Life periods) — ported from Web-Prototype/dasha-timeline.html, scoped. */
 .dasha-screen .nowcard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
 .dasha-screen .nowcard .lbl { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.07em; color: var(--muted); }
-.dasha-screen .nowcard h3 { margin-top: 6px; font-size: 21px; }
+.dasha-screen .nowcard h3 { margin-top: 8px; font-size: 21px; display:flex; align-items:center; gap:10px; }
 .dasha-screen .nowcard .trm { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); margin-top: 5px; }
 .dasha-screen .nowcard .rem { font-size: 17px; margin-top: var(--space-4); }
 .dasha-screen .prog { height: 10px; background: var(--border-soft); border-radius: var(--radius-sm); margin-top: var(--space-4); overflow: hidden; display: flex; }
@@ -14,8 +14,8 @@
 .dasha-screen .phead { display: block; width: 100%; background: transparent; border: 0; padding: 14px 0; min-height: 52px; transition: opacity var(--motion-fast) var(--ease-standard); }
 .dasha-screen .phead:hover .pname { color: var(--fg); }
 .dasha-screen .prow1 { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
-.dasha-screen .pname { font-size: var(--text-lg); font-weight: 600; transition: color var(--motion-fast) var(--ease-standard); }
-.dasha-screen .pname span { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); font-weight: 400; margin-top: 2px; }
+.dasha-screen .pname { font-size: var(--text-lg); font-weight: 600; transition: color var(--motion-fast) var(--ease-standard); display:grid; grid-template-columns:24px auto; column-gap:9px; align-items:center; }
+.dasha-screen .pname span { grid-column:2; display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); font-weight: 400; margin-top: 2px; }
 .dasha-screen .pdates { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
 .dasha-screen .pbar { height: 8px; background: var(--border-soft); border-radius: var(--radius-sm); margin-top: 11px; overflow: hidden; }
 .dasha-screen .pbar i { display: block; height: 100%; background: var(--muted); border-radius: var(--radius-sm); }
@@ -32,9 +32,13 @@
 .dasha-screen .subs.on { display: block; }
 .dasha-screen .srow { display: flex; justify-content: space-between; gap: var(--space-3); padding: 9px 12px; font-size: var(--text-base); border-left: 1px solid var(--border); margin-left: 2px; }
 .dasha-screen .srow.now { border-left-color: var(--accent); background: var(--border-soft); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
-.dasha-screen .srow .sn { color: var(--fg); }
+.dasha-screen .srow .sn { color: var(--fg); display:flex; align-items:center; gap:8px; }
 .dasha-screen .srow.done .sn { color: var(--muted); }
 .dasha-screen .srow .sd { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
+.dasha-screen .srowbtn { width: 100%; background: transparent; border: 0; border-left: 1px solid var(--border); margin-left: 2px; cursor: pointer; text-align: left; }
+.dasha-screen .subs2 { display: none; }
+.dasha-screen .subs2.on { display: block; }
+.dasha-screen .prow3 { margin-left: 14px; padding: 7px 12px; font-size: var(--text-sm); }
 
 .dasha-screen .recall { margin-top: var(--space-2); }
 .dasha-screen .recallbtn { min-height: 44px; padding: 0 12px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--muted); font-size: var(--text-sm); transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
@@ -47,6 +51,7 @@
 .dasha-screen .mini { min-height: 44px; padding: 0 16px; border-radius: var(--radius-md); border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: var(--text-base); transition: background var(--motion-fast) var(--ease-standard); }
 .dasha-screen .mini:hover { background: var(--border-soft); }
 .dasha-screen .saved { font-size: var(--text-sm); color: var(--fg); align-self: center; }
+.dasha-screen .recallnote { color: var(--meta); font-size: var(--text-xs); line-height: 1.5; margin-top: var(--space-2); }
 
 .dasha-screen .later { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border); }
 .dasha-screen .later .lrow { display: flex; justify-content: space-between; padding: 8px 0; font-size: var(--text-base); color: var(--muted); }

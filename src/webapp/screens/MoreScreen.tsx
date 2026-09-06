@@ -5,7 +5,7 @@ import { useData } from "../data";
 import { navigate, type Route } from "../router";
 import { StatusBar, TabBar } from "../shell";
 import { nakName, signName } from "../format";
-import { signOut, type Person } from "../api";
+import { deleteAccount, signOut, type Person } from "../api";
 import { AuthSheet } from "./AuthSheet";
 import { setOnboardingMode } from "../onboardingMode";
 import { getLifeContext, setLifeContext, LIFE_CONTEXT_MAX } from "../lifeContext";
@@ -17,6 +17,8 @@ const CHEV = (
   </svg>
 );
 
+const SIGN_GLOSS_EN = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+
 function personSummary(person: Person, lang: "en" | "te"): string {
   const p = person.profile;
   if (!p) return "—";
@@ -26,15 +28,48 @@ function personSummary(person: Person, lang: "en" | "te"): string {
 
 export function MoreScreen() {
   const { lang, t } = useLang();
-  const { profile, chart, account, people, activePersonId, refreshMe, activatePerson, deletePerson } = useData();
+  const { profile, chart, account, people, activePersonId, conversation, refreshMe, activatePerson, deletePerson } = useData();
   const [authOpen, setAuthOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [context, setContext] = useState<string>(() => getLifeContext());
   const [contextSaved, setContextSaved] = useState(false);
+  const [accountToolsOpen, setAccountToolsOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [accountMessage, setAccountMessage] = useState("");
+  const [accountBusy, setAccountBusy] = useState(false);
 
   async function handleSignOut() {
     await signOut().catch(() => {});
     await refreshMe();
+  }
+
+  function exportAccountData() {
+    const payload = { exportedAt: new Date().toISOString(), account, people, activePersonId, profile, conversation, aboutYou: context };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `sahadeva-data-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setAccountMessage(t("Your data export was downloaded.", "మీ డేటా ఎగుమతి డౌన్‌లోడ్ అయింది."));
+  }
+
+  async function handleDeleteAccount() {
+    if (!deletePassword) {
+      setAccountMessage(t("Enter your password to confirm deletion.", "తొలగింపును నిర్ధారించడానికి మీ పాస్‌వర్డ్ నమోదు చేయండి."));
+      return;
+    }
+    setAccountBusy(true);
+    setAccountMessage("");
+    try {
+      await deleteAccount(deletePassword);
+      localStorage.removeItem("sahadeva.profile.guest.v2");
+      await refreshMe();
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : t("Account deletion failed.", "ఖాతా తొలగింపు విఫలమైంది."));
+    } finally {
+      setAccountBusy(false);
+    }
   }
 
   function editActive() {
@@ -59,6 +94,7 @@ export function MoreScreen() {
 
   const moon = chart.data?.placements.find((p) => p.name === "Moon");
   const lagna = chart.data?.placements.find((p) => p.name === "Lagna");
+  const natalPanchanga = chart.data?.panchanga;
 
   const rows: Array<{ to: Route | "#pro"; icon: ReactNode; title: string; sub: string }> = [
     {
@@ -92,6 +128,17 @@ export function MoreScreen() {
       sub: t("Safe, low-burden practices — nothing sold", "సురక్షితమైన, తక్కువ భారం ఉన్న ఆచరణలు"),
     },
     {
+      to: "prashna",
+      icon: (
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 7v5l3 3" />
+        </svg>
+      ),
+      title: t("Prashna", "ప్రశ్న"),
+      sub: t("Ask this moment — horary consultation", "ఈ క్షణాన్ని అడగండి — తత్కాల ప్రశ్న"),
+    },
+    {
       to: "#pro",
       icon: (
         <svg viewBox="0 0 24 24">
@@ -109,23 +156,39 @@ export function MoreScreen() {
       <main className="screen more-screen" id="content">
         <header className="shead headrow">
           <span>
-            <p className="eyebrow">{t("Sahadev", "సహదేవ్")}</p>
+            <p className="eyebrow">{t("Sahadeva", "సహదేవ")}</p>
             <h2>{t("More", "మరిన్ని")}</h2>
           </span>
           <LangToggle />
         </header>
 
         {account ? (
-          <div className="acctcard">
-            <span className="acctav">{(account.name || account.email || "?").trim().charAt(0).toUpperCase()}</span>
-            <span className="acctinfo">
-              <b>{account.name || t("Your account", "మీ ఖాతా")}</b>
-              <span>{account.email}</span>
-            </span>
-            <button className="acctout" type="button" onClick={handleSignOut}>
-              {t("Sign out", "సైన్ అవుట్")}
-            </button>
-          </div>
+          <section className="account-area">
+            <div className="acctcard">
+              <span className="acctav">{(account.name || account.email || "?").trim().charAt(0).toUpperCase()}</span>
+              <span className="acctinfo">
+                <b>{account.name || t("Your account", "మీ ఖాతా")}</b>
+                <span>{account.email}</span>
+              </span>
+              <button className="acctout" type="button" aria-expanded={accountToolsOpen} onClick={() => setAccountToolsOpen((open) => !open)}>
+                {t("Manage", "నిర్వహించు")}
+              </button>
+            </div>
+            {accountToolsOpen && (
+              <div className="account-tools">
+                <button className="edit" type="button" onClick={exportAccountData}>{t("Download my data", "నా డేటాను డౌన్‌లోడ్ చేయండి")}</button>
+                <button className="edit" type="button" onClick={handleSignOut}>{t("Sign out", "సైన్ అవుట్")}</button>
+                <details className="delete-account">
+                  <summary>{t("Delete account", "ఖాతా తొలగించండి")}</summary>
+                  <p>{t("This permanently removes your account, saved profiles, and backed-up conversations.", "ఇది మీ ఖాతా, సేవ్ చేసిన ప్రొఫైల్‌లు మరియు బ్యాకప్ సంభాషణలను శాశ్వతంగా తొలగిస్తుంది.")}</p>
+                  <label htmlFor="delete-password">{t("Password", "పాస్‌వర్డ్")}</label>
+                  <input id="delete-password" type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} />
+                  <button className="danger-button" type="button" disabled={accountBusy} onClick={handleDeleteAccount}>{accountBusy ? t("Deleting…", "తొలగిస్తోంది…") : t("Permanently delete", "శాశ్వతంగా తొలగించండి")}</button>
+                </details>
+                {accountMessage && <p className="account-message" role="status">{accountMessage}</p>}
+              </div>
+            )}
+          </section>
         ) : (
           <button className="acctcta" type="button" onClick={() => setAuthOpen(true)}>
             <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, stroke: "currentColor", fill: "none", strokeWidth: 1.7 }}>
@@ -178,15 +241,29 @@ export function MoreScreen() {
           ) : profile ? (
             <div className="pcard">
               <p className="pn">{profile.name}</p>
-              <p className="pb">
-                {profile.date} · {profile.birthTimeConfidence === "none" ? t("time not known", "సమయం తెలియదు") : profile.time} · {profile.place}
-                {moon && lagna ? (
-                  <>
-                    <br />
-                    {signName(lagna.sign, lang)} lagna · {nakName(moon.nakshatra, lang)} · {signName(moon.sign, lang)}
-                  </>
-                ) : null}
-              </p>
+              <dl className="profilefacts">
+                <div><dt>{t("Date of birth", "పుట్టిన తేదీ")}</dt><dd className="mono">{profile.date}</dd></div>
+                <div><dt>{t("Birth time", "పుట్టిన సమయం")}</dt><dd className="mono">{profile.birthTimeConfidence === "none" ? t("Not known", "తెలియదు") : profile.time}</dd></div>
+                <div className="wide"><dt>{t("Place of birth", "పుట్టిన ప్రదేశం")}</dt><dd>{profile.place}</dd></div>
+                {lagna && <div><dt>{t("Ascendant (Lagna)", "లగ్న రాశి")}</dt><dd>{signName(lagna.sign, lang)}{lang === "en" ? ` · ${SIGN_GLOSS_EN[lagna.sign]} rising` : ""}</dd></div>}
+                {moon && <div><dt>{t("Birth star (Nakshatra)", "జన్మ నక్షత్రం")}</dt><dd>{nakName(moon.nakshatra, lang)}</dd></div>}
+                {moon && <div><dt>{t("Moon sign (Rashi)", "చంద్ర రాశి")}</dt><dd>{signName(moon.sign, lang)}{lang === "en" ? ` · ${SIGN_GLOSS_EN[moon.sign]}` : ""}</dd></div>}
+              </dl>
+              {natalPanchanga && (
+                <dl className="profilefacts">
+                  <div className="wide"><dt>{t("Birth panchanga", "జన్మ పంచాంగం")}</dt><dd className="mono">{[natalPanchanga.vara, natalPanchanga.tithi, natalPanchanga.nakshatra, natalPanchanga.yoga, natalPanchanga.karana].filter(Boolean).join(" · ")}</dd></div>
+                  <div><dt>{t("Paksha", "పక్షం")}</dt><dd>{natalPanchanga.paksha}</dd></div>
+                  <div><dt>{t("Moon star, quarter", "నక్షత్ర పాదం")}</dt><dd>{moon ? `${nakName(moon.nakshatra, lang)} · ${t(`pada ${moon.pada}`, `పాదం ${moon.pada}`)}` : "—"}</dd></div>
+                </dl>
+              )}
+              {moon && lagna && (
+                <p className="profilehelp">
+                  {t(
+                    "Lagna is the sign rising at your birth. Nakshatra is the Moon’s birth star; Rashi is the Moon’s zodiac sign.",
+                    "లగ్నం మీ పుట్టిన సమయంలో ఉదయించిన రాశి. నక్షత్రం చంద్రుని జన్మ నక్షత్రం; రాశి చంద్రుడు ఉన్న రాశి.",
+                  )}
+                </p>
+              )}
               <button className="edit" type="button" onClick={editActive}>
                 {t("Edit birth details", "జనన వివరాలు మార్చు")}
               </button>
@@ -225,7 +302,7 @@ export function MoreScreen() {
           <p className="small muted" style={{ marginBottom: "var(--space-2)" }}>
             {t(
               "A line or two about your work, family and what is on your mind. Sahadeva uses it to make answers concrete instead of asking again.",
-              "మీ పని, కుటుంబం, మనసులో ఉన్న విషయం గురించి ఒకటి రెండు వాక్యాలు. మళ్లీ అడగకుండా సమాధానాలను నిర్దిష్టంగా ఇవ్వడానికి సహదేవ్ దీన్ని వాడతాడు.",
+              "మీ పని, కుటుంబం, మనసులో ఉన్న విషయం గురించి ఒకటి రెండు వాక్యాలు. మళ్లీ అడగకుండా సమాధానాలను నిర్దిష్టంగా ఇవ్వడానికి సహదేవ దీన్ని వాడుతుంది.",
             )}
           </p>
           <textarea
@@ -272,6 +349,11 @@ export function MoreScreen() {
             "లాహిరి అయనాంశ · పూర్ణరాశి భావాలు · గణించినది. జ్యోతిషం ఒక వ్యాఖ్యాన సంప్రదాయం, సంఘటనల జోస్యం కాదు.",
           )}
         </p>
+        <nav className="legal-links" aria-label={t("Legal", "చట్టపరమైన సమాచారం")}>
+          <a href="/privacy">{t("Privacy", "గోప్యత")}</a>
+          <a href="/terms">{t("Terms", "నిబంధనలు")}</a>
+          <a href="/support">{t("Support", "సహాయం")}</a>
+        </nav>
       </main>
       <AuthSheet open={authOpen} onClose={() => setAuthOpen(false)} />
       <TabBar current="more" />

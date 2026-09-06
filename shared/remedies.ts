@@ -4,6 +4,7 @@ import type { ChartResult } from "./schema";
 import { calculateDevataProfile } from "./devata";
 import { buildAfflictionRemedyPlan } from "./afflictionRemedies";
 import { buildComprehensiveRemedies } from "./comprehensiveRemedies";
+import { analyzeLalKitabInference } from "./lalKitabInference";
 
 export type RemedyRecord = {
   id: string;
@@ -882,12 +883,14 @@ export function buildChartRemedyProtocol(
       allowCharity: preferences.allowCharity,
     }),
     comprehensiveRepertoire: buildComprehensiveRemedies(chart, {
-      // A gemstone is a real cost, so only include stone recommendations when
-      // the user's cost ceiling allows it; mantras follow the prayer preference.
-      allowGemstones: preferences.maximumCost === "low",
-      allowMantras: preferences.allowPrayer,
+      // General prayer/cost preferences are not consent for a specific mantra,
+      // gemstone or fast. Those remain off until a dedicated gated choice exists.
+      allowGemstones: false,
+      allowMantras: false,
+      allowFasting: false,
       allowCharity: preferences.allowCharity,
     }),
+    lalKitabInference: analyzeLalKitabInference(chart, judgment.topic),
     traditionalChartRemedies: assessedTraditionalChartRemedies,
     traditionalRemedyStatus: "calculated-candidates-with-publication-gates",
     sourceCoverage: {

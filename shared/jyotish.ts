@@ -195,6 +195,20 @@ function tropicalLongitudeAt(name: Exclude<GrahaName, "Lagna">, jd: number) {
   return vsop87ApparentPosition(name, jd).longitude;
 }
 
+/** Deterministic Lahiri longitude at an arbitrary Julian day, shared by
+ * bounded transit searches so they use the same astronomy as chart creation. */
+export function lahiriLongitudeAt(
+  name: GrahaName,
+  jd: number,
+  latitude = 0,
+  longitude = 0,
+) {
+  const tropical = name === "Lagna"
+    ? tropicalAscendant(jd, latitude, longitude)
+    : tropicalLongitudeAt(name, jd);
+  return norm(tropical - lahiriAyanamsa(jd));
+}
+
 function coreLongitudes(jd: number) {
   const sun = vsop87ApparentPosition("Sun", jd).longitude,
     moon = ACTIVE_LUNAR_MODEL.position(jd).longitude,
@@ -624,6 +638,8 @@ export function calculateChart(input: BirthInput): ChartResult {
       vara: VARAS[new Date(utcMillis).getUTCDay()],
       tithi: tithiIndex === 29 ? "Amavasya" : TITHIS[tithiIndex % 15],
       paksha: tithiIndex < 15 ? "Shukla" : "Krishna",
+      tithiNumberInPaksha: (tithiIndex % 15) + 1,
+      lunarDayIndex: tithiIndex,
       nakshatra: moon.nakshatra,
       yoga: YOGAS[yogaIndex],
       karana,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./auth.css";
 import { useLang } from "../lang";
 import { useData } from "../data";
@@ -11,7 +11,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * On success it adopts the account's saved chart, or seeds a new account with
  * the local chart, then closes.
  */
-export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AuthSheet({ open, onClose, onAuthenticated, initialEmail = "" }: { open: boolean; onClose: () => void; onAuthenticated?: () => unknown | Promise<unknown>; initialEmail?: string }) {
   const { t } = useLang();
   const { profile, refreshMe } = useData();
   const [mode, setMode] = useState<"signin" | "signup">("signup");
@@ -21,6 +21,10 @@ export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => voi
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open && initialEmail) setEmail(initialEmail);
+  }, [open, initialEmail]);
 
   const emailOk = EMAIL_RE.test(email.trim());
   const pwOk = password.length >= 8;
@@ -43,6 +47,7 @@ export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => voi
       // Refresh atomically from the account; this also clears any guest chart
       // when the signed-in account has no person of its own.
       await refreshMe();
+      await onAuthenticated?.();
       reset();
       onClose();
     } catch (e) {
@@ -152,7 +157,10 @@ export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => voi
 
         {mode === "signup" && (
           <p className="aterms">
-            {t("Your birth details and readings are stored privately and encrypted at rest.", "మీ జనన వివరాలు, పఠనాలు గోప్యంగా, ఎన్‌క్రిప్ట్ చేసి భద్రపరచబడతాయి.")}
+            {t("By creating an account, you agree to the ", "ఖాతా సృష్టించడం ద్వారా మీరు ")}
+            <a href="/terms">{t("Terms", "నిబంధనలు")}</a>
+            {t(" and acknowledge the ", " మరియు ")}
+            <a href="/privacy">{t("Privacy policy", "గోప్యతా విధానం")}</a>.
           </p>
         )}
       </aside>

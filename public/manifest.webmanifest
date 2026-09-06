@@ -1,11 +1,11 @@
 {
-  "name": "Sahadeva — Jyotish Companion",
+  "name": "Sahadeva — Your Cosmic Companion",
   "short_name": "Sahadeva",
-  "description": "Your bilingual Jyotish companion: chat, charts, dasha, panchanga.",
+  "description": "Ancient Jyotisha knowledge translated into calm, clear guidance for life and family.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f6f2e9",
-  "theme_color": "#f6f2e9",
+  "background_color": "#F7F6F2",
+  "theme_color": "#F7F6F2",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+    <defs><radialGradient id="a" cx="82%" cy="4%" r="72%"><stop stop-color="#B88A45" stop-opacity=".24"/><stop offset="1" stop-color="#F7F6F2" stop-opacity="0"/></radialGradient><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#B88A45" stroke-opacity=".08"/></pattern></defs>
+    <rect width="100%" height="100%" fill="#F7F6F2"/><rect width="100%" height="100%" fill="url(#a)"/><rect width="100%" height="100%" fill="url(#g)"/>
+    <circle cx="1248" cy="198" r="234" fill="none" stroke="#B88A45" stroke-opacity=".23" stroke-width="2"/><circle cx="1248" cy="198" r="162" fill="none" stroke="#B88A45" stroke-opacity=".13"/>
+    <text x="128" y="126" class="eyebrow">SAHADEVA</text>
+    <text x="128" y="423" class="title">The Sahadeva visual</text><text x="128" y="527.04" class="title">system.</text><text x="128" y="687.08" class="sub">A source-controlled language for Jyotish, time, family and explanation.</text>
+    <path d="M128 810H1472" stroke="#B88A45" stroke-opacity=".55"/><text x="128" y="846" class="foot">TRADITIONAL IN MEANING · MODERN IN EXPRESSION · HUMAN IN EXPLANATION</text>
+    <style>.title{font:600 102px Georgia,serif;fill:#242532;letter-spacing:-2px}.eyebrow,.foot{font:600 24px Arial,sans-serif;letter-spacing:4px;fill:#B88A45}.sub{font:400 42px Arial,sans-serif;fill:#77746D}</style>
+  </svg>

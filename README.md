@@ -31,6 +31,8 @@ Clients can call `assess_prediction_readiness` before interpretation to distingu
 
 The source-only `analyze_lal_kitab` workflow now converts natal placements to Lal Kitab fixed houses and returns locators for all relevant planet-house sections without publishing their unreviewed claims. The complete integration inventory is in [Lal Kitab integration map](./LAL_KITAB_INTEGRATION.md).
 
+For remedy questions, MCP clients use `analyze_lal_kitab_remedies` after the fixed-house calculation. The generated full-corpus catalog is inspectable through `explore_lal_kitab_remedy_catalog` and `sahadeva://lal-kitab-remedies`; unverified OCR instructions remain withheld.
+
 The web chart surfaces the same fixed-house map, source locators, retained-sensitive-material caution, and an independent calculation-quality audit. MCP clients can use the `lal_kitab_consultation` prompt or compose the equivalent tools from the published workflow resource.
 
 For evidence-first use across AI clients, the MCP now publishes `sahadeva://prediction-quality` and the `evidence_first_prediction` prompt. Reviewed-rule search, rights-aware passage discovery, separate-tradition comparison, per-claim auditing, versioned outcome capture and conservative validation reporting are available as typed tools. These improve traceability and abstention; they do not guarantee prediction accuracy or convert unreviewed traditions into validated knowledge.

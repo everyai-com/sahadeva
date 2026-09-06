@@ -1,0 +1,33 @@
+{
+  "name": "sahadeva",
+  "version": "0.1.0",
+  "description": "Evidence-aware Jyotishya calculations, consultations, timing, compatibility, remedies, and research tools.",
+  "author": {
+    "name": "EveryAI",
+    "url": "https://sahadeva.everyai-com.workers.dev"
+  },
+  "homepage": "https://sahadeva.everyai-com.workers.dev",
+  "repository": "https://github.com/everyai-com/sahadeva",
+  "keywords": ["jyotishya", "vedic-astrology", "panchanga", "muhurta", "compatibility"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Sahadeva",
+    "shortDescription": "Evidence-aware Jyotishya calculations and guidance.",
+    "longDescription": "Calculate and interpret Jyotishya charts, Panchanga, Muhurta, compatibility, Prashna, timing, remedies, source evidence, validation, and advanced research workflows.",
+    "developerName": "EveryAI",
+    "category": "Lifestyle",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://sahadeva.everyai-com.workers.dev",
+    "privacyPolicyURL": "https://sahadeva.everyai-com.workers.dev/privacy",
+    "termsOfServiceURL": "https://sahadeva.everyai-com.workers.dev/terms",
+    "defaultPrompt": [
+      "Read my Vedic chart and explain the evidence.",
+      "Find a suitable Muhurta for an important event.",
+      "Compare two charts and explain compatibility."
+    ],
+    "brandColor": "#8B5E34",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png"
+  },
+  "mcpServers": "./.mcp.json"
+}

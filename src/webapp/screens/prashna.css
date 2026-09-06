@@ -1,0 +1,32 @@
+/* Prashna (horary) — mobile-first, scoped. */
+.prashna-screen .pqform { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+.prashna-screen .pqform label { display: grid; gap: 6px; font-size: var(--text-sm); color: var(--muted); }
+.prashna-screen .pqform textarea,
+.prashna-screen .pqform select,
+.prashna-screen .pqform input {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); color: var(--fg); padding: 11px 13px;
+  font-size: var(--text-base); outline: none;
+}
+.prashna-screen .pqform textarea:focus,
+.prashna-screen .pqform select:focus,
+.prashna-screen .pqform input:focus { border-color: var(--accent); }
+.prashna-screen .pqform textarea { resize: vertical; min-height: 72px; }
+.prashna-screen .prow2col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.prashna-screen .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 52px; padding: 0 var(--space-5); border-radius: var(--radius-md); border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: var(--text-base); font-weight: 500; transition: background var(--motion-fast) var(--ease-standard); }
+.prashna-screen .btn:hover { background: var(--border-soft); }
+.prashna-screen .btn:disabled { opacity: 0.55; }
+.prashna-screen .btn.primary { justify-self: start; }
+.prashna-screen .error { color: var(--danger, #c0392b); font-size: var(--text-sm); }
+.prashna-screen .pqresult { margin-top: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4); }
+.prashna-screen .pqresult h3 { margin: 6px 0 var(--space-2); font-size: var(--text-lg); }
+.prashna-screen .pqresult p { margin: 6px 0; }
+.prashna-screen .pqnarration { margin-top: var(--space-3); }
+.prashna-screen .md { font-size: 17px; line-height: 1.6; }
+.prashna-screen .md .mdp { margin: 0 0 var(--space-3); }
+.prashna-screen .md .mdp:last-child { margin-bottom: 0; }
+.prashna-screen .pqrem { margin-top: var(--space-4); }
+.prashna-screen .pqfb { margin-top: var(--space-4); }
+.prashna-screen .pqfbrow { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
+.prashna-screen .jy { margin-top: var(--space-3); }
+.prashna-screen .limitnote { margin-top: var(--space-3); }

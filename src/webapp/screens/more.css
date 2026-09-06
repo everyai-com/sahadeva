@@ -1,7 +1,14 @@
 /* More (hub) — in the same design language as the prototypes. */
-.more-screen .pcard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
+.more-screen { padding-bottom: var(--space-8); }
+.more-screen .pcard { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-lg); padding: var(--space-5); }
 .more-screen .pcard .pn { font-size: var(--text-lg); font-weight: 600; }
-.more-screen .pcard .pb { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); margin-top: 6px; line-height: 1.6; }
+.more-screen .profilefacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 20px; margin: var(--space-5) 0 0; }
+.more-screen .profilefacts div { min-width: 0; }
+.more-screen .profilefacts .wide { grid-column: 1 / -1; }
+.more-screen .profilefacts dt { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .015em; line-height: 1.35; margin-bottom: 5px; }
+.more-screen .profilefacts dd { color: var(--fg); font-size: 15px; font-weight: 500; line-height: 1.4; margin: 0; overflow-wrap: anywhere; }
+.more-screen .profilefacts dd.mono { font-size: 14px; font-variant-numeric: tabular-nums; }
+.more-screen .profilehelp { border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; line-height: 1.55; margin-top: var(--space-5); padding-top: var(--space-4); }
 .more-screen .pcard .edit { margin-top: var(--space-4); min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--fg); font-size: var(--text-base); transition: background var(--motion-fast) var(--ease-standard); }
 .more-screen .pcard .edit:hover { background: var(--border-soft); }
 
@@ -28,16 +35,22 @@
 .more-screen .edit { min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: transparent; color: var(--fg); font-size: var(--text-base); transition: background var(--motion-fast) var(--ease-standard); }
 .more-screen .edit:hover { background: var(--border-soft); }
 
-.more-screen .navlist { margin-top: var(--space-6); border-top: 1px solid var(--border-soft); }
-.more-screen .navrow2 { display: flex; align-items: center; gap: var(--space-4); width: 100%; padding: 16px 4px; border-bottom: 1px solid var(--border-soft); background: transparent; transition: background var(--motion-fast) var(--ease-standard); border-radius: var(--radius-sm); }
+.more-screen .navlist { display: grid; gap: var(--space-3); margin-top: var(--space-8); }
+.more-screen .navrow2 { display: flex; align-items: center; gap: var(--space-4); width: 100%; min-height: 88px; padding: 16px; border: 1px solid var(--border-soft); background: var(--surface-warm); transition: background var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard); border-radius: var(--radius-lg); text-align: left; }
 .more-screen .navrow2:hover { background: var(--border-soft); }
-.more-screen .navrow2 .ic { flex: 0 0 auto; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
-.more-screen .navrow2 .ic svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+.more-screen .navrow2:active { transform: scale(.99); }
+.more-screen .navrow2 .ic { flex: 0 0 auto; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 13px; background: var(--bg); }
+.more-screen .navrow2 .ic svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .more-screen .navrow2 .lbl { flex: 1; min-width: 0; }
 .more-screen .navrow2 .lbl b { display: block; font-size: 17px; font-weight: 600; }
 .more-screen .navrow2 .lbl span { display: block; font-size: var(--text-sm); color: var(--muted); margin-top: 2px; line-height: 1.4; }
 .more-screen .navrow2 .chev { flex: 0 0 auto; color: var(--meta); }
 .more-screen .navrow2 .chev svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+@media (max-width: 370px) {
+  .more-screen .profilefacts { grid-template-columns: 1fr; }
+  .more-screen .profilefacts .wide { grid-column: auto; }
+}
 
 .more-screen .settings { margin-top: var(--space-6); }
 .more-screen .setrow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 14px 4px; }
@@ -49,3 +62,14 @@
 .aboutyou .ctxbox:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .aboutyou .ctxrow { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-2); }
 .aboutyou .ctxrow .edit { width: auto; margin-top: 0; }
+
+.account-area { display: grid; gap: var(--space-2); }
+.account-tools { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.account-tools > .edit { width: 100%; margin: 0; text-align: left; }
+.delete-account { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.delete-account summary { min-height: 44px; display: flex; align-items: center; color: var(--danger); cursor: pointer; font-weight: 600; }
+.delete-account p, .account-message { color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
+.delete-account label { display: block; margin-top: var(--space-3); color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+.delete-account input { width: 100%; min-height: 46px; margin-top: var(--space-1); padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); color: var(--fg); font: inherit; }
+.danger-button { width: 100%; min-height: 46px; margin-top: var(--space-3); border: 1px solid var(--danger); border-radius: var(--radius-md); background: transparent; color: var(--danger); font-weight: 600; }
+.danger-button:disabled { opacity: .5; }

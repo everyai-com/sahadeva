@@ -61,3 +61,26 @@ export function analyticsReset() {
   pendingUserId = null;
   void loadClient().then((posthog) => posthog?.reset());
 }
+
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (event) => {
+    analyticsCapture("client_exception", {
+      source: "window_error",
+      error_name: event.error instanceof Error ? event.error.name : "Error",
+    });
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    analyticsCapture("client_exception", {
+      source: "unhandled_rejection",
+      error_name: event.reason instanceof Error ? event.reason.name : "Unknown",
+    });
+  });
+  window.addEventListener("load", () => window.setTimeout(() => {
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const paint = performance.getEntriesByName("first-contentful-paint")[0];
+    analyticsCapture("client_performance", {
+      page_load_ms: navigation ? Math.round(navigation.loadEventEnd - navigation.startTime) : null,
+      first_contentful_paint_ms: paint ? Math.round(paint.startTime) : null,
+    });
+  }, 0), { once: true });
+}

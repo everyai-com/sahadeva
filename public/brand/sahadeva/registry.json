@@ -1,0 +1,319 @@
+{
+  "schemaVersion": "1.0.0",
+  "license": "Repository license",
+  "philosophy": "Traditional in meaning. Modern in expression. Human in explanation.",
+  "sourceLayers": [
+    "sanskrit",
+    "literal",
+    "classical",
+    "consumer",
+    "visual-dna"
+  ],
+  "brandAssets": [
+    {
+      "id": "brand.mark",
+      "path": "mark.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.mark.monochrome",
+      "path": "mark-monochrome.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.lockup",
+      "path": "lockup.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.lockup.reverse",
+      "path": "lockup-reverse.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.wordmark",
+      "path": "wordmark.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.stacked",
+      "path": "stacked.svg",
+      "canonical": true
+    },
+    {
+      "id": "brand.app-icon",
+      "path": "app-icon.svg",
+      "canonical": true,
+      "role": "full-bleed store master"
+    },
+    {
+      "id": "brand.app-icon.preview",
+      "path": "app-icon-preview.svg",
+      "canonical": true,
+      "role": "rounded presentation preview only"
+    },
+    {
+      "id": "brand.app-icon.monochrome",
+      "path": "app-icon-monochrome.svg",
+      "canonical": true,
+      "role": "single-color and accessibility contexts"
+    },
+    {
+      "id": "brand.app-icon.small",
+      "path": "app-icon-small.svg",
+      "canonical": true,
+      "role": "simplified artwork below 48px"
+    },
+    {
+      "id": "brand.app-icon.construction",
+      "path": "app-icon-construction.svg",
+      "canonical": true,
+      "role": "safe-zone reference; never ship"
+    }
+  ],
+  "assets": [
+    {
+      "id": "graha.surya.24",
+      "family": "navagraha",
+      "name": "Sūrya",
+      "size": 24,
+      "path": "graha/surya-24.svg",
+      "color": "#D4A017",
+      "canonical": true
+    },
+    {
+      "id": "graha.surya.48",
+      "family": "navagraha",
+      "name": "Sūrya",
+      "size": 48,
+      "path": "graha/surya-48.svg",
+      "color": "#D4A017",
+      "canonical": true
+    },
+    {
+      "id": "graha.surya.128",
+      "family": "navagraha",
+      "name": "Sūrya",
+      "size": 128,
+      "path": "graha/surya-128.svg",
+      "color": "#D4A017",
+      "canonical": true
+    },
+    {
+      "id": "graha.chandra.24",
+      "family": "navagraha",
+      "name": "Chandra",
+      "size": 24,
+      "path": "graha/chandra-24.svg",
+      "color": "#9AAAC1",
+      "canonical": true
+    },
+    {
+      "id": "graha.chandra.48",
+      "family": "navagraha",
+      "name": "Chandra",
+      "size": 48,
+      "path": "graha/chandra-48.svg",
+      "color": "#9AAAC1",
+      "canonical": true
+    },
+    {
+      "id": "graha.chandra.128",
+      "family": "navagraha",
+      "name": "Chandra",
+      "size": 128,
+      "path": "graha/chandra-128.svg",
+      "color": "#9AAAC1",
+      "canonical": true
+    },
+    {
+      "id": "graha.mangala.24",
+      "family": "navagraha",
+      "name": "Maṅgala",
+      "size": 24,
+      "path": "graha/mangala-24.svg",
+      "color": "#B84A32",
+      "canonical": true
+    },
+    {
+      "id": "graha.mangala.48",
+      "family": "navagraha",
+      "name": "Maṅgala",
+      "size": 48,
+      "path": "graha/mangala-48.svg",
+      "color": "#B84A32",
+      "canonical": true
+    },
+    {
+      "id": "graha.mangala.128",
+      "family": "navagraha",
+      "name": "Maṅgala",
+      "size": 128,
+      "path": "graha/mangala-128.svg",
+      "color": "#B84A32",
+      "canonical": true
+    },
+    {
+      "id": "graha.budha.24",
+      "family": "navagraha",
+      "name": "Budha",
+      "size": 24,
+      "path": "graha/budha-24.svg",
+      "color": "#C9A33A",
+      "canonical": true
+    },
+    {
+      "id": "graha.budha.48",
+      "family": "navagraha",
+      "name": "Budha",
+      "size": 48,
+      "path": "graha/budha-48.svg",
+      "color": "#C9A33A",
+      "canonical": true
+    },
+    {
+      "id": "graha.budha.128",
+      "family": "navagraha",
+      "name": "Budha",
+      "size": 128,
+      "path": "graha/budha-128.svg",
+      "color": "#C9A33A",
+      "canonical": true
+    },
+    {
+      "id": "graha.guru.24",
+      "family": "navagraha",
+      "name": "Guru",
+      "size": 24,
+      "path": "graha/guru-24.svg",
+      "color": "#B58B2A",
+      "canonical": true
+    },
+    {
+      "id": "graha.guru.48",
+      "family": "navagraha",
+      "name": "Guru",
+      "size": 48,
+      "path": "graha/guru-48.svg",
+      "color": "#B58B2A",
+      "canonical": true
+    },
+    {
+      "id": "graha.guru.128",
+      "family": "navagraha",
+      "name": "Guru",
+      "size": 128,
+      "path": "graha/guru-128.svg",
+      "color": "#B58B2A",
+      "canonical": true
+    },
+    {
+      "id": "graha.shukra.24",
+      "family": "navagraha",
+      "name": "Śukra",
+      "size": 24,
+      "path": "graha/shukra-24.svg",
+      "color": "#A8A6B0",
+      "canonical": true
+    },
+    {
+      "id": "graha.shukra.48",
+      "family": "navagraha",
+      "name": "Śukra",
+      "size": 48,
+      "path": "graha/shukra-48.svg",
+      "color": "#A8A6B0",
+      "canonical": true
+    },
+    {
+      "id": "graha.shukra.128",
+      "family": "navagraha",
+      "name": "Śukra",
+      "size": 128,
+      "path": "graha/shukra-128.svg",
+      "color": "#A8A6B0",
+      "canonical": true
+    },
+    {
+      "id": "graha.shani.24",
+      "family": "navagraha",
+      "name": "Śani",
+      "size": 24,
+      "path": "graha/shani-24.svg",
+      "color": "#1D274D",
+      "canonical": true
+    },
+    {
+      "id": "graha.shani.48",
+      "family": "navagraha",
+      "name": "Śani",
+      "size": 48,
+      "path": "graha/shani-48.svg",
+      "color": "#1D274D",
+      "canonical": true
+    },
+    {
+      "id": "graha.shani.128",
+      "family": "navagraha",
+      "name": "Śani",
+      "size": 128,
+      "path": "graha/shani-128.svg",
+      "color": "#1D274D",
+      "canonical": true
+    },
+    {
+      "id": "graha.rahu.24",
+      "family": "navagraha",
+      "name": "Rāhu",
+      "size": 24,
+      "path": "graha/rahu-24.svg",
+      "color": "#2B2B3C",
+      "canonical": true
+    },
+    {
+      "id": "graha.rahu.48",
+      "family": "navagraha",
+      "name": "Rāhu",
+      "size": 48,
+      "path": "graha/rahu-48.svg",
+      "color": "#2B2B3C",
+      "canonical": true
+    },
+    {
+      "id": "graha.rahu.128",
+      "family": "navagraha",
+      "name": "Rāhu",
+      "size": 128,
+      "path": "graha/rahu-128.svg",
+      "color": "#2B2B3C",
+      "canonical": true
+    },
+    {
+      "id": "graha.ketu.24",
+      "family": "navagraha",
+      "name": "Ketu",
+      "size": 24,
+      "path": "graha/ketu-24.svg",
+      "color": "#777780",
+      "canonical": true
+    },
+    {
+      "id": "graha.ketu.48",
+      "family": "navagraha",
+      "name": "Ketu",
+      "size": 48,
+      "path": "graha/ketu-48.svg",
+      "color": "#777780",
+      "canonical": true
+    },
+    {
+      "id": "graha.ketu.128",
+      "family": "navagraha",
+      "name": "Ketu",
+      "size": 128,
+      "path": "graha/ketu-128.svg",
+      "color": "#777780",
+      "canonical": true
+    }
+  ]
+}

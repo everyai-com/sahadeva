@@ -26,7 +26,7 @@ export type ChartResult = {
   placements: Placement[];
   navamsa: Array<{ name: GrahaName; sign: number; signName?:string }>;
   panchanga: {
-    vara: string; tithi: string; paksha: string; nakshatra: string; yoga: string; karana: string;
+    vara: string; tithi: string; paksha: string; tithiNumberInPaksha: number; lunarDayIndex: number; nakshatra: string; yoga: string; karana: string;
     events: {
       sunriseJulianDay: number | null;
       sunsetJulianDay: number | null;

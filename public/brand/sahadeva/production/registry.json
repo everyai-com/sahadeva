@@ -1,0 +1,246 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "source-controlled",
+  "palette": {
+    "ink": "#242532",
+    "paper": "#F7F6F2",
+    "gold": "#B88A45",
+    "muted": "#77746D"
+  },
+  "assets": [
+    {
+      "id": "icon.favicon.32",
+      "path": "production/icons/favicon-32.png",
+      "width": 32,
+      "height": 32,
+      "purpose": "browser favicon",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "icon.apple-touch.180",
+      "path": "production/icons/apple-touch-icon-180.png",
+      "width": 180,
+      "height": 180,
+      "purpose": "Apple touch icon",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "icon.pwa.192",
+      "path": "production/icons/pwa-192.png",
+      "width": 192,
+      "height": 192,
+      "purpose": "PWA icon",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "icon.play.512",
+      "path": "production/icons/play-store-512.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "Google Play icon",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "icon.maskable.512",
+      "path": "production/icons/maskable-512.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "maskable PWA and Android icon",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "icon.app-store.1024",
+      "path": "production/icons/app-store-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "Apple App Store icon",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.mark.512",
+      "path": "production/logos/mark-512.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "mark transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.mark.1024",
+      "path": "production/logos/mark-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "mark transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.mark.2048",
+      "path": "production/logos/mark-2048.png",
+      "width": 2048,
+      "height": 2048,
+      "purpose": "mark transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.lockup.512",
+      "path": "production/logos/lockup-512.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "lockup transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.lockup.1024",
+      "path": "production/logos/lockup-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "lockup transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.lockup.2048",
+      "path": "production/logos/lockup-2048.png",
+      "width": 2048,
+      "height": 2048,
+      "purpose": "lockup transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.stacked.512",
+      "path": "production/logos/stacked-512.png",
+      "width": 512,
+      "height": 512,
+      "purpose": "stacked transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.stacked.1024",
+      "path": "production/logos/stacked-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "purpose": "stacked transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "brand.stacked.2048",
+      "path": "production/logos/stacked-2048.png",
+      "width": 2048,
+      "height": 2048,
+      "purpose": "stacked transparent export",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "social.og.master",
+      "path": "production/social/open-graph-1200x630.svg",
+      "width": 1200,
+      "height": 630,
+      "purpose": "website and link preview",
+      "format": "svg",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "social.og",
+      "path": "production/social/open-graph-1200x630.png",
+      "width": 1200,
+      "height": 630,
+      "purpose": "website and link preview",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "social.square.master",
+      "path": "production/social/editorial-square-1080.svg",
+      "width": 1080,
+      "height": 1080,
+      "purpose": "social square master",
+      "format": "svg",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "social.square",
+      "path": "production/social/editorial-square-1080.png",
+      "width": 1080,
+      "height": 1080,
+      "purpose": "social square master",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "social.story.master",
+      "path": "production/social/editorial-story-1080x1920.svg",
+      "width": 1080,
+      "height": 1920,
+      "purpose": "story and vertical campaign master",
+      "format": "svg",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "social.story",
+      "path": "production/social/editorial-story-1080x1920.png",
+      "width": 1080,
+      "height": 1920,
+      "purpose": "story and vertical campaign master",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "store.play.feature.master",
+      "path": "production/store/play-feature-1024x500.svg",
+      "width": 1024,
+      "height": 500,
+      "purpose": "Google Play feature graphic",
+      "format": "svg",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "store.play.feature",
+      "path": "production/store/play-feature-1024x500.png",
+      "width": 1024,
+      "height": 500,
+      "purpose": "Google Play feature graphic",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "press.cover.master",
+      "path": "production/press/brand-cover-1600x900.svg",
+      "width": 1600,
+      "height": 900,
+      "purpose": "press kit and presentation cover",
+      "format": "svg",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "press.cover",
+      "path": "production/press/brand-cover-1600x900.png",
+      "width": 1600,
+      "height": 900,
+      "purpose": "press kit and presentation cover",
+      "format": "png",
+      "status": "approved-brand-system"
+    },
+    {
+      "id": "devotional.krishna.editorial",
+      "path": "production/devotional/krishna-editorial-1080x1350.png",
+      "width": 1080,
+      "height": 1350,
+      "purpose": "editorial devotional artwork; not a brand mark",
+      "format": "png",
+      "status": "pending-qualified-cultural-review"
+    }
+  ]
+}
