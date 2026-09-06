@@ -350,13 +350,13 @@ export function ChartScreen() {
                   })
                 )}
               </div>
-              {openLedger && (openLedger.support.length > 0 || openLedger.opposition.length > 0) && (
+              {openLedger && ((openLedger.supportingEvidence?.length ?? 0) > 0 || (openLedger.opposingEvidence?.length ?? 0) > 0) && (
                 <div className="hledger">
                   <p className="sectitle">{t("Calculated evidence for this house", "ఈ భావానికి గణించిన ఆధారాలు")}</p>
-                  {openLedger.support.slice(0, 4).map((item) => (
+                  {(openLedger.supportingEvidence ?? []).slice(0, 4).map((item) => (
                     <p className="hsup" key={item}>{item}</p>
                   ))}
-                  {openLedger.opposition.slice(0, 4).map((item) => (
+                  {(openLedger.opposingEvidence ?? []).slice(0, 4).map((item) => (
                     <p className="hopp" key={item}>{item}</p>
                   ))}
                 </div>

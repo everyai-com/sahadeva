@@ -448,8 +448,10 @@ export type TopicJudgmentView = {
 export type HouseLedgerView = {
   house: number;
   lord?: string;
-  support: string[];
-  opposition: string[];
+  topic?: string;
+  status?: string;
+  supportingEvidence: string[];
+  opposingEvidence: string[];
   notice?: string;
 };
 export type HouseExplorerView = {
