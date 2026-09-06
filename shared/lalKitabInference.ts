@@ -317,6 +317,13 @@ export function analyzeLalKitabInference(chart: ChartResult, topic: LalKitabPred
   return {
     schemaVersion: "sahadeva-lal-kitab-inference-2",
     tradition: "lal-kitab-gosvami-1952",
+    certification: {
+      status: "structural-preview",
+      convention: "gosvami-1952-fixed-houses",
+      predictions: "withheld-pending-extraction-and-review",
+      reviewStatus: "draft-unreviewed",
+      notice: "Source-linked structural inspection only; unreviewed personalized claims remain withheld and must never be presented as certain.",
+    },
     computation: { retrievalRequired: false, sourceLookupUsedForReasoning: false, chartCalculatedOnce: true },
     factGraph: {
       placements: states,

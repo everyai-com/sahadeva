@@ -45,3 +45,19 @@ describe("Lal Kitab inference kernel", () => {
     expect(result.factGraph.artificialPlanets.every((state) => state.effectClass === "sign-effect-remediable")).toBe(true);
   });
 });
+
+describe("Lal Kitab certification quarantine", () => {
+  it("labels inference structural with predictions withheld pending review", () => {
+    const result = analyzeLalKitabInference(chart);
+    expect(result.certification).toMatchObject({
+      status: "structural-preview",
+      predictions: "withheld-pending-extraction-and-review",
+      reviewStatus: "draft-unreviewed",
+    });
+  });
+  it("never emits certainty language in the serialized inference", () => {
+    const text = JSON.stringify(analyzeLalKitabInference(chart)).toLowerCase();
+    for (const banned of ["guaranteed", "certain outcome", "will happen", "definitely", "100%"])
+      expect(text).not.toContain(banned);
+  });
+});

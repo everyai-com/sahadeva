@@ -5145,7 +5145,23 @@ async function handleMcp(
         reviewStatus = String(args.reviewStatus ?? "").trim(),
         limit = Math.min(50, Math.max(1, Number(args.limit) || 20)),
         like = `%${query}%`;
-      const rows = await env.DB.prepare(
+      // Ranked full-text search first (migration 0044 passage_fts, kept in
+      // sync by triggers). Any FTS failure — missing table on an old
+      // database, query-syntax error — falls back to the LIKE scan so
+      // discovery never breaks; the fallback is reported honestly.
+      let ftsRows: Record<string, unknown>[] | null = null;
+      try {
+        const phrase = `"${query.replace(/"/g, '""')}"`;
+        const fts = await env.DB.prepare(
+          "SELECT p.id passage_id,p.locator,p.original_text,p.literal_translation,p.review_status,p.ocr_quality,p.display_rights,p.page_start,p.page_end,s.id source_id,s.title source_title,s.author,s.language,s.tradition,s.rights_status FROM passage_fts f JOIN passages p ON p.rowid=f.rowid JOIN sources s ON s.id=p.source_id WHERE passage_fts MATCH ? AND (?='' OR s.tradition=?) AND (?='' OR p.review_status=?) LIMIT ?",
+        )
+          .bind(phrase, tradition, tradition, reviewStatus, reviewStatus, limit)
+          .all<Record<string, unknown>>();
+        ftsRows = fts.results ?? [];
+      } catch {
+        ftsRows = null;
+      }
+      const rows = ftsRows ?? (await env.DB.prepare(
         "SELECT p.id passage_id,p.locator,p.original_text,p.literal_translation,p.review_status,p.ocr_quality,p.display_rights,p.page_start,p.page_end,s.id source_id,s.title source_title,s.author,s.language,s.tradition,s.rights_status FROM passages p JOIN sources s ON s.id=p.source_id WHERE (?='' OR s.tradition=?) AND (?='' OR p.review_status=?) AND (p.original_text LIKE ? OR p.locator LIKE ? OR s.title LIKE ?) LIMIT ?",
       )
         .bind(
@@ -5158,8 +5174,8 @@ async function handleMcp(
           like,
           limit,
         )
-        .all<Record<string, unknown>>();
-      const results = (rows.results ?? []).map((row) => {
+        .all<Record<string, unknown>>()).results ?? [];
+      const results = rows.map((row) => {
         const display = String(row.display_rights),
           rights = String(row.rights_status),
           allowed =
@@ -5191,6 +5207,8 @@ async function handleMcp(
           reviewStatus: reviewStatus || null,
         },
         results,
+        searchMethod:
+          ftsRows === null ? "like-scan-fallback" : "full-text-ranked",
         rightsPolicy:
           "Restricted, unknown-rights and internal-only passage text is never returned. Passage discovery does not authorize interpretation.",
         method: PREDICTION_QUALITY_METHOD,

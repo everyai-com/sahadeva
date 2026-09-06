@@ -583,3 +583,26 @@ describe("KP Placidus cusp calculation", () => {
     expect(preview.planets.find((item) => item.name === "Lagna")?.longitude).toBeCloseTo(kpSeedSegment(203).start, 7);
   });
 });
+
+describe("KP certification quarantine", () => {
+  const quarantineChart = calculateChart({
+    name: "Quarantine", date: "2000-01-28", time: "08:05",
+    latitude: 16.1026, longitude: 81.7634, timezone: "Asia/Kolkata", timezoneOffset: 5.5,
+    place: "Ravulapalem", language: "en", methodology: "kp", focus: "general", birthTimeAccuracyMinutes: 5,
+  });
+  it("labels every preview structural and never certified", () => {
+    const preview = calculateKpPreview(quarantineChart);
+    expect(preview.certification).toMatchObject({
+      status: "structural-preview",
+      systemCertification: "pending-independent-certification",
+      reviewStatus: "draft-unreviewed",
+    });
+    expect(preview.rulebook.reviewStatus).toBe("draft-unreviewed");
+    expect(preview.safety.status).toBe("research-preview");
+  });
+  it("never emits certainty language in the serialized preview", () => {
+    const text = JSON.stringify(calculateKpPreview(quarantineChart)).toLowerCase();
+    for (const banned of ["guaranteed", "certain outcome", "will happen", "definitely", "100%"])
+      expect(text).not.toContain(banned);
+  });
+});

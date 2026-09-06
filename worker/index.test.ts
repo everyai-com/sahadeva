@@ -454,6 +454,69 @@ describe("Sahadeva MCP", () => {
     ).toBe("source-only");
   });
 
+  it("searches passages with ranked FTS first and LIKE fallback", async () => {
+    const row = {
+      passage_id: "p1",
+      locator: "Test 1",
+      original_text: "lagna lord",
+      literal_translation: "the lagna lord",
+      review_status: "draft",
+      ocr_quality: "machine",
+      display_rights: "short-excerpt",
+      rights_status: "public_domain",
+    };
+    const ftsEnv = {
+      ENGINE_VERSION: "test",
+      DB: {
+        prepare: (sql: string) => ({
+          bind() {
+            return this;
+          },
+          all: async () => ({
+            results: String(sql).includes("passage_fts MATCH") ? [row] : [],
+          }),
+        }),
+      },
+    } as never;
+    const ranked = await mcp(
+      "tools/call",
+      { name: "search_source_passages", arguments: { query: "lagna" } },
+      ftsEnv,
+    );
+    const rankedContent = ranked.body.result?.structuredContent as {
+      searchMethod: string;
+      results: unknown[];
+    };
+    expect(rankedContent.searchMethod).toBe("full-text-ranked");
+    expect(rankedContent.results).toHaveLength(1);
+    const fallbackEnv = {
+      ENGINE_VERSION: "test",
+      DB: {
+        prepare: (sql: string) => ({
+          bind() {
+            return this;
+          },
+          all: async () => {
+            if (String(sql).includes("passage_fts MATCH"))
+              throw new Error("no such table: passage_fts");
+            return { results: [row] };
+          },
+        }),
+      },
+    } as never;
+    const fallback = await mcp(
+      "tools/call",
+      { name: "search_source_passages", arguments: { query: "lagna" } },
+      fallbackEnv,
+    );
+    const fallbackContent = fallback.body.result?.structuredContent as {
+      searchMethod: string;
+      results: unknown[];
+    };
+    expect(fallbackContent.searchMethod).toBe("like-scan-fallback");
+    expect(fallbackContent.results).toHaveLength(1);
+  });
+
   it("audits claims and keeps tradition ledgers separate", async () => {
     const audit = await mcp("tools/call", {
       name: "audit_prediction_claim",

@@ -882,6 +882,14 @@ export function calculateKpPreview(chart: ChartResult, seedNumber?: number) {
   const operatingPeriods = calculateKpOperatingPeriods(chart);
   return {
     schemaVersion: "sahadeva-kp-preview-1", status: "partial-research-preview",
+    certification: {
+      status: "structural-preview",
+      cuspMath: "reference-checked-6-vectors-max-error-0.54-arcsec",
+      ayanamsaMaturity: KP_AYANAMSA_CONVENTION.maturity,
+      systemCertification: "pending-independent-certification",
+      reviewStatus: "draft-unreviewed",
+      notice: "Placidus cusp math is cross-checked against six reference vectors in tests; the KP ayanamsa, rulers, significators and event logic are not independently certified and must never be presented as certain.",
+    },
     subject: { name: chart.input.name, place: chart.input.place },
     zodiac: {
       positions: "KP sidereal positions derived by adding 6′ to Sahadeva's Lahiri longitudes",
