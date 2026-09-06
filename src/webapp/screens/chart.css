@@ -71,3 +71,7 @@
   .chart-screen .sheet.on { transform: translateX(0); }
   .chart-screen .grabber { display: none; }
 }
+
+.chart-screen .hledger { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border-soft); }
+.chart-screen .hsup, .chart-screen .hopp { font-size: var(--text-sm); line-height: 1.55; margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--border); color: var(--muted); }
+.chart-screen .hsup { border-left-color: var(--accent); }

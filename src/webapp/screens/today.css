@@ -68,3 +68,8 @@
 .today-screen .trow:first-child { border-top: 0; }
 .today-screen .trow .tv { font-family: var(--font-mono); color: var(--muted); }
 .today-screen .unavail { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--meta); line-height: 1.6; }
+.today-screen .brief { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4); }
+.today-screen .briefsub { color: var(--muted); font-size: var(--text-sm); line-height: 1.6; margin-top: var(--space-2); }
+.today-screen .briefrow { display: flex; align-items: flex-end; gap: var(--space-3); margin-top: var(--space-3); flex-wrap: wrap; }
+.today-screen .briefrow label { display: grid; gap: 6px; font-size: var(--text-sm); color: var(--muted); }
+.today-screen .briefrow select { min-height: 52px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--fg); padding: 0 12px; font-size: var(--text-base); }

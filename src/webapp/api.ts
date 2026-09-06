@@ -430,6 +430,166 @@ export function interpretConsultation(
   }).then((data) => data.response || "");
 }
 
+/* ── judgment ledgers (supporting/opposing evidence) ─────────────────── */
+
+export type JudgmentEvidenceView = { id: string; label: string; detail: string };
+export type TopicJudgmentView = {
+  topic: string;
+  title: string;
+  conclusion: string;
+  status: string;
+  score: number;
+  supportingEvidence: JudgmentEvidenceView[];
+  opposingEvidence: JudgmentEvidenceView[];
+  vargaConfirmation: { varga: string; status: string; evidence: JudgmentEvidenceView[] };
+  timingActivation: { status: string; currentLords: string[]; evidence: JudgmentEvidenceView[]; notice: string };
+  unresolvedSourceKeys?: string[];
+};
+export type HouseLedgerView = {
+  house: number;
+  lord?: string;
+  support: string[];
+  opposition: string[];
+  notice?: string;
+};
+export type HouseExplorerView = {
+  schemaVersion: string;
+  houses: HouseLedgerView[];
+  notice: string;
+};
+
+export function fetchTopicJudgment(profile: Profile, topic: string): Promise<TopicJudgmentView> {
+  return postJson<TopicJudgmentView>("/api/judgments/topic", { ...profile, topic });
+}
+
+export function fetchHouseExplorer(profile: Profile): Promise<HouseExplorerView> {
+  return postJson<HouseExplorerView>("/api/judgments/houses", { ...profile });
+}
+
+/* ── export artifacts ────────────────────────────────────────────────── */
+
+export async function downloadDashaIcs(profile: Profile): Promise<void> {
+  const res = await fetch("/api/dasha.ics", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(profile),
+  });
+  if (!res.ok) throw new Error(`Calendar export failed (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${(profile.name || "sahadeva").replace(/[^a-zA-Z0-9_-]+/g, "-")}-vimshottari.ics`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadChartJson(profile: Profile, chart: ChartResult): void {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+   notice: "Deterministic calculation artifact. Interpretive use only; not scientific fact.",
+    input: chart.input,
+    engine: chart.engine,
+    placements: chart.placements,
+    navamsa: chart.navamsa,
+    panchanga: chart.panchanga,
+    vimshottari: chart.vimshottari,
+    advanced: chart.advanced,
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${(profile.name || "sahadeva").replace(/[^a-zA-Z0-9_-]+/g, "-")}-chart.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── daily-brief push alerts ─────────────────────────────────────────── */
+
+export type BriefPushError =
+  | "unsupported"
+  | "denied"
+  | "no-key"
+  | "save-failed"
+  | "needs-signin";
+
+function vapidKeyToBytes(publicKey: string): Uint8Array<ArrayBuffer> {
+  const padded = publicKey.replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+  return Uint8Array.from(raw, (ch) => ch.charCodeAt(0)) as Uint8Array<ArrayBuffer>;
+}
+
+export function briefPushSupported(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window
+  );
+}
+
+export async function currentBriefSubscription(): Promise<PushSubscription | null> {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    return (await registration?.pushManager.getSubscription()) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function enableDailyBrief(hour: number, tzOffset: number): Promise<void> {
+  if (!briefPushSupported()) throw new Error("unsupported");
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") throw new Error("denied");
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  const { publicKey } = (await (await fetch("/api/push/key")).json()) as {
+    publicKey?: string;
+  };
+  if (!publicKey) throw new Error("no-key");
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: vapidKeyToBytes(publicKey),
+  });
+  const response = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ subscription, hour, tzOffset }),
+  });
+  if (response.status === 401) throw new Error("needs-signin");
+  if (!response.ok) throw new Error("save-failed");
+}
+
+export async function updateDailyBriefHour(
+  hour: number,
+  tzOffset: number,
+): Promise<void> {
+  const subscription = await currentBriefSubscription();
+  if (!subscription) throw new Error("save-failed");
+  const response = await fetch("/api/push/subscribe", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ subscription: subscription.toJSON(), hour, tzOffset }),
+  });
+  if (response.status === 401) throw new Error("needs-signin");
+  if (!response.ok) throw new Error("save-failed");
+}
+
+export async function disableDailyBrief(): Promise<void> {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    const subscription = await registration?.pushManager.getSubscription();
+    await fetch("/api/push/subscribe", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ endpoint: subscription?.endpoint }),
+    });
+    await subscription?.unsubscribe();
+  } catch {
+    /* best effort */
+  }
+}
+
 /* ── /api/me ───────────────────────────────────────────────────────────── */
 
 export type Person = {

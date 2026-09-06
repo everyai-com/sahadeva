@@ -5,10 +5,12 @@ import { useData } from "../data";
 import { StatusBar, TabBar } from "../shell";
 import {
   fetchConversationAlignment,
+  fetchTopicJudgment,
   recordConversationInput,
   recordResponseIntentCoverage,
   transcribeAudio,
   TranscriptionError,
+  type Profile,
   type SpeechLanguage,
   streamChat,
   submitClaimFeedback,
@@ -18,6 +20,7 @@ import {
   type ChatTurn,
   type StoredConversation,
   type ResponseIntentPoint,
+  type TopicJudgmentView,
 } from "../api";
 import { analyticsCapture } from "../../analytics";
 import { grahaName, signName, nakName } from "../format";
@@ -664,7 +667,7 @@ export function AskScreen() {
               </div>
             ) : (
               <div className="assistant-turn" key={turn.id || i}>
-                <Answer turn={turn} onFollowUp={ask} onReact={reactToClaim} />
+                <Answer turn={turn} profile={profile} onFollowUp={ask} onReact={reactToClaim} />
                 {!account && !turn.streaming && !turn.error && turns.slice(0, i + 1).filter((item) => item.role === "user").length === 4 && !guestEmail && (
                   <aside className="save-chat-card" aria-label={t("Save this conversation", "ఈ సంభాషణను భద్రపరచండి")}>
                     <span className="save-chat-icon" aria-hidden="true">
@@ -946,8 +949,79 @@ function InsightCard({
 }
 
 // Memoised: streaming updates only re-render the turn that is changing.
-const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
+// Timing topics (career/marriage/wealth/…) map onto judgment topics.
+const OUTLOOK_TO_JUDGMENT: Record<string, string> = {
+  career: "career",
+  marriage: "relationships",
+  wealth: "wealth",
+  education: "education",
+  children: "children",
+  property: "property",
+  spirituality: "spirituality",
+};
+
+/** Lazy-loaded supporting/opposing ledger for the answer's topic. */
+function TopicLedger({ profile, topic }: { profile: Profile | null; topic: string }) {
+  const { t } = useLang();
+  const [data, setData] = useState<TopicJudgmentView | null>(null);
+  const [failed, setFailed] = useState(false);
+  if (!profile) return null;
+  return (
+    <details
+      className="jy"
+      onToggle={(e) => {
+        if (!(e.target as HTMLDetailsElement).open || data || failed) return;
+        fetchTopicJudgment(profile, topic)
+          .then(setData)
+          .catch(() => setFailed(true));
+      }}
+    >
+      <summary>{t("Topic evidence ledger", "అంశ ఆధారాల పట్టిక")}</summary>
+      <div className="jybody">
+        {failed && <p className="muted small">{t("The ledger could not be loaded.", "పట్టిక లోడ్ కాలేదు.")}</p>}
+        {!failed && !data && <p className="muted small">{t("Loading the calculated evidence…", "గణించిన ఆధారాలు వస్తోంది…")}</p>}
+        {data && (
+          <>
+            <div className="jrow">
+              <b>{data.conclusion}</b>
+              <span className="tr">{data.title} · {data.status}</span>
+            </div>
+            {data.supportingEvidence.slice(0, 5).map((item) => (
+              <div className="jrow" key={item.id}>
+                <b>{item.label} — {item.detail}</b>
+                <span className="tr">{t("Supporting", "అనుకూలం")}</span>
+              </div>
+            ))}
+            {data.opposingEvidence.slice(0, 5).map((item) => (
+              <div className="jrow" key={item.id}>
+                <b>{item.label} — {item.detail}</b>
+                <span className="tr">{t("Opposing", "ప్రతికూలం")}</span>
+              </div>
+            ))}
+            <div className="jrow">
+              <b>{t(`Varga ${data.vargaConfirmation.varga}: ${data.vargaConfirmation.status}`, `వర్గ ${data.vargaConfirmation.varga}: ${data.vargaConfirmation.status}`)}</b>
+              <span className="tr">{t("Divisional confirmation", "వర్గ నిర్ధారణ")}</span>
+            </div>
+            <div className="jrow">
+              <b>{t(`Timing ${data.timingActivation.status}: ${(data.timingActivation.currentLords || []).join(", ")}`, `సమయం ${data.timingActivation.status}`)}</b>
+              <span className="tr">{t("Dasha activation", "దశ క్రియాశీలత")}</span>
+            </div>
+            {(data.unresolvedSourceKeys?.length ?? 0) > 0 && (
+              <div className="jrow">
+                <b>{t(`${data.unresolvedSourceKeys!.length} source keys await review`, `${data.unresolvedSourceKeys!.length} మూలాలు సమీక్షలో ఉన్నాయి`)}</b>
+                <span className="tr">{t("Review gap", "సమీక్ష అంతరం")}</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
+const Answer = memo(function Answer({ turn, profile, onFollowUp, onReact }: {
   turn: Turn;
+  profile: Profile | null;
   onFollowUp: (q: string) => void;
   onReact: (input: ClaimFeedbackInput) => Promise<void>;
 }) {
@@ -1126,6 +1200,10 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
           {s.anchors?.moon?.signName && <span className="evchip">Moon · {signName2(s.anchors.moon.signName, lang)}</span>}
           {s.currentTiming?.mahadasha && <span className="evchip">{grahaName(s.currentTiming.mahadasha, lang)} dasha</span>}
         </div>
+      )}
+
+      {s?.timingOutlook && OUTLOOK_TO_JUDGMENT[s.timingOutlook.topic] && !turn.streaming && (
+        <TopicLedger profile={profile} topic={OUTLOOK_TO_JUDGMENT[s.timingOutlook.topic]} />
       )}
 
       {followUps.length > 0 && (

@@ -19,6 +19,7 @@ import {
   SIGN_LORDS,
 } from "../format";
 import type { JdWindow, Placement } from "../api";
+import { BriefAlert } from "./BriefAlert";
 
 const AXIS_START = 6 * 60; // 6 am
 const AXIS_SPAN = 16 * 60; // to 10 pm
@@ -310,6 +311,10 @@ export function TodayScreen() {
                 </div>
               </details>
             </section>
+
+            <div style={{ marginTop: "var(--space-6)" }}>
+              <BriefAlert />
+            </div>
 
             <div style={{ marginTop: "var(--space-6)" }}>
               <button

@@ -7,6 +7,7 @@ import { StatusBar, TabBar } from "../shell";
 import { dms, grahaAbbr, grahaName, nakName, signName, SIGN_LORDS } from "../format";
 import { GrahaIcon } from "../design/GrahaIcon";
 import type { VargaPlacement } from "../api";
+import { downloadChartJson, fetchHouseExplorer, type HouseLedgerView } from "../api";
 import { setOnboardingMode } from "../onboardingMode";
 import { saveChartAskContext } from "../chartAskContext";
 
@@ -73,6 +74,8 @@ export function ChartScreen() {
   const { profile, chart } = useData();
   const [varga, setVarga] = useState<VargaId>("D1");
   const [openHouse, setOpenHouse] = useState<{ sign: number; house: number } | null>(null);
+  const [houseLedger, setHouseLedger] = useState<{ key: string; houses: HouseLedgerView[] } | null>(null);
+  const [houseLedgerFailed, setHouseLedgerFailed] = useState(false);
 
   const data = chart.data;
 
@@ -143,6 +146,16 @@ export function ChartScreen() {
   const house = openHouse ? HOUSES[openHouse.house - 1] : null;
   const sheetSign = openHouse ? SIGN_LAYOUT[openHouse.sign] : null;
   const sheetPlanets = openHouse ? placements.filter((p) => p.sign === openHouse.sign && p.name !== "Lagna") : [];
+  const profileKey = profile ? `${profile.date}:${profile.time}:${profile.latitude.toFixed(3)}:${profile.longitude.toFixed(3)}` : "";
+  const openLedger = houseLedger && houseLedger.key === profileKey ? houseLedger.houses.find((h) => h.house === openHouse?.house) : undefined;
+  const openSheet = (sign: number, houseNum: number) => {
+    setOpenHouse({ sign, house: houseNum });
+    if (profile && (!houseLedger || houseLedger.key !== profileKey) && !houseLedgerFailed) {
+      fetchHouseExplorer(profile)
+        .then((data) => setHouseLedger({ key: profileKey, houses: data.houses }))
+        .catch(() => setHouseLedgerFailed(true));
+    }
+  };
 
   return (
     <>
@@ -186,7 +199,7 @@ export function ChartScreen() {
                     style={{ gridColumn: s.col, gridRow: s.row }}
                     aria-pressed={openHouse?.sign === i}
                     aria-label={`${s.full || s.k}, ${s.en}, house ${houseNum}`}
-                    onClick={() => setOpenHouse({ sign: i, house: houseNum })}
+                    onClick={() => openSheet(i, houseNum)}
                   >
                     <span className="top">
                       <span className="sname">{s.k}</span>
@@ -259,6 +272,18 @@ export function ChartScreen() {
               <br />
               {t("Birth time used exactly as given. No rectification applied.", "జనన సమయాన్ని ఇచ్చినట్టుగానే వాడాం. సవరణ చేయలేదు.")}
             </p>
+
+            {profile && (
+              <div className="sheetact" style={{ marginTop: "var(--space-3)" }}>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => data && downloadChartJson(profile, data)}
+                >
+                  {t("Download this chart (.json)", "ఈ జాతకాన్ని దింపుకోండి (.json)")}
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -325,6 +350,17 @@ export function ChartScreen() {
                   })
                 )}
               </div>
+              {openLedger && (openLedger.support.length > 0 || openLedger.opposition.length > 0) && (
+                <div className="hledger">
+                  <p className="sectitle">{t("Calculated evidence for this house", "ఈ భావానికి గణించిన ఆధారాలు")}</p>
+                  {openLedger.support.slice(0, 4).map((item) => (
+                    <p className="hsup" key={item}>{item}</p>
+                  ))}
+                  {openLedger.opposition.slice(0, 4).map((item) => (
+                    <p className="hopp" key={item}>{item}</p>
+                  ))}
+                </div>
+              )}
               <div className="sheetact">
                 <button className="btn" type="button" onClick={() => setOpenHouse(null)}>
                   {t("Close", "మూసివేయి")}

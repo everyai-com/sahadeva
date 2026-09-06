@@ -5,6 +5,7 @@ import { useData } from "../data";
 import { StatusBar, TabBar, BackButton } from "../shell";
 import { dayMonthYear, monthYear, grahaName, grahaChar, grahaTr } from "../format";
 import type { DashaTimelineNode, Profile } from "../api";
+import { downloadDashaIcs } from "../api";
 import { GrahaIcon } from "../design/GrahaIcon";
 import { getDashaRecalls, saveDashaRecall } from "../dashaRecall";
 
@@ -43,6 +44,18 @@ export function DashaScreen() {
   const [open, setOpen] = useState<string | null>(null);
   const [openAntar, setOpenAntar] = useState<string | null>(null);
   const [recall, setRecall] = useState<string | null>(null);
+  const [icsState, setIcsState] = useState<"idle" | "busy" | "error">("idle");
+
+  const exportCalendar = async () => {
+    if (!profile || icsState === "busy") return;
+    setIcsState("busy");
+    try {
+      await downloadDashaIcs(profile);
+      setIcsState("idle");
+    } catch {
+      setIcsState("error");
+    }
+  };
 
   const data = dasha.data;
   const timeline = data?.timeline ?? [];
@@ -98,6 +111,15 @@ export function DashaScreen() {
 
         <section style={{ marginTop: "var(--space-6)" }}>
           <p className="sectitle">{t("Your periods in order — tap one to open its sub-periods", "మీ దశలు వరుసగా — ఏదైనా ఒకటి నొక్కితే అంతర్దశలు తెరుచుకుంటాయి")}</p>
+          <div style={{ marginBottom: "var(--space-3)" }}>
+            <button className="mini" type="button" onClick={exportCalendar} disabled={icsState === "busy" || !profile}>
+              {icsState === "busy"
+                ? t("Preparing calendar…", "క్యాలెండర్ సిద్ధమవుతోంది…")
+                : icsState === "error"
+                  ? t("Export failed — tap to retry", "ఎగుమతి విఫలం — మళ్లీ నొక్కండి")
+                  : t("Add all sub-periods to my calendar (.ics)", "అంతర్దశలన్నీ క్యాలెండర్‌కు (.ics)")}
+            </button>
+          </div>
           <div className="tl">
             {main.map((node) => {
               const st = state(node);
