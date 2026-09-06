@@ -35,6 +35,10 @@
 .dasha-screen .srow .sn { color: var(--fg); display:flex; align-items:center; gap:8px; }
 .dasha-screen .srow.done .sn { color: var(--muted); }
 .dasha-screen .srow .sd { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--muted); white-space: nowrap; }
+.dasha-screen .srowbtn { width: 100%; background: transparent; border: 0; border-left: 1px solid var(--border); margin-left: 2px; cursor: pointer; text-align: left; }
+.dasha-screen .subs2 { display: none; }
+.dasha-screen .subs2.on { display: block; }
+.dasha-screen .prow3 { margin-left: 14px; padding: 7px 12px; font-size: var(--text-sm); }
 
 .dasha-screen .recall { margin-top: var(--space-2); }
 .dasha-screen .recallbtn { min-height: 44px; padding: 0 12px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--muted); font-size: var(--text-sm); transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }

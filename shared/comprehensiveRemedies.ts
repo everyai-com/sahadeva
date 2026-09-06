@@ -63,6 +63,8 @@ function planetPotencyWindow(chart: ChartResult, planet: GrahaName) {
 export interface ComprehensiveRemedyOptions {
   allowGemstones?: boolean; // explicit opt-in; default false
   allowMantras?: boolean; // explicit opt-in; default false
+  allowFasting?: boolean; // explicit opt-in after health screening; default false
+  healthScreenedForFasting?: boolean;
   allowCharity?: boolean; // default true
 }
 
@@ -113,7 +115,7 @@ export interface PlanetRemedyCard {
   };
   charity?: { items: string[]; day: string; recipient: string };
   vrata?: { day: string; method: string };
-  stotra: string;
+  stotra?: string;
   conduct: string;
   lalKitab: {
     status: "withheld-source-only";
@@ -137,6 +139,8 @@ export function buildComprehensiveRemedies(
 ) {
   const allowGemstones = options.allowGemstones === true;
   const allowMantras = options.allowMantras === true;
+  const allowFasting =
+    options.allowFasting === true && options.healthScreenedForFasting === true;
   const allowCharity = options.allowCharity !== false;
 
   const lagna = chart.placements.find((p) => p.name === "Lagna");
@@ -184,7 +188,6 @@ export function buildComprehensiveRemedies(
       intent,
       why,
       significations: lib.bodyAndLife,
-      stotra: lib.stotra,
       conduct: lib.conduct,
       lalKitab: {
         status: "withheld-source-only",
@@ -208,6 +211,7 @@ export function buildComprehensiveRemedies(
         count: lib.beejCount,
         vedic: lib.vedicMantra,
       };
+    if (allowMantras) card.stotra = lib.stotra;
     if (allowCharity)
       card.charity = { ...lib.daana };
     // Only recommend a strengthening gemstone when the intent is to strengthen.
@@ -221,7 +225,7 @@ export function buildComprehensiveRemedies(
         guidance: lib.gemstone.wearingNote,
       };
     // Propitiation leans on observance rather than strengthening.
-    if (intent !== "strengthen") card.vrata = { ...lib.vrata };
+    if (allowFasting && intent !== "strengthen") card.vrata = { ...lib.vrata };
     cards.push(card);
   }
 

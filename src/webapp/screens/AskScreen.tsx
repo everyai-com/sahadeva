@@ -998,6 +998,19 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
   if (s?.currentTiming?.mahadasha) jrows.push([`${grahaName(s.currentTiming.mahadasha, lang)} mahadasha${s.currentTiming.antardasha ? `, ${grahaName(s.currentTiming.antardasha, lang)} antardasha` : ""}`, "Vimshottari · వింశోత్తరి"]);
   if (s?.panchanga?.nakshatra) jrows.push([`${s.panchanga.tithi || ""} · ${s.panchanga.nakshatra}`, "Panchanga · పంచాంగం"]);
 
+  const strengthRows = (s?.measuredStrengths ?? [])
+    .filter((m) => m.ratio != null)
+    .slice(0, 3)
+    .map((m) => {
+      const band = (m.ratio as number) >= 1 ? t("strong", "బలమైన") : (m.ratio as number) >= 0.7 ? t("steady", "స్థిరమైన") : t("weak", "బలహీనమైన");
+      return `${grahaName(m.planet, lang)} · ${band} (${(m.ratio as number).toFixed(2)}×)`;
+    });
+  const yogaRows = (s?.detectedYogas ?? []).map((y) => String(y.yoga));
+  const aspectRows = (s?.aspectMatrix?.houses ?? [])
+    .filter((r) => r.classicalDrishti)
+    .map((r) => `${grahaName(r.planet, lang)} → ${r.aspectedHouses.map((h) => `${h}`).join("·")}`);
+  const hasEvidenceLedger = strengthRows.length > 0 || yogaRows.length > 0 || aspectRows.length > 0;
+
   return (
     <article className="answer">
       <div className="insight-list">
@@ -1071,6 +1084,37 @@ const Answer = memo(function Answer({ turn, onFollowUp, onReact }: {
               <div className="jrow" key={i}>
                 <b>{r[0]}</b>
                 <span className="tr">{r[1]}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {hasEvidenceLedger && !turn.streaming && (
+        <details className="jy">
+          <summary>{t("Strengths, yogas & aspects", "బలాలు, యోగాలు & దృష్టులు")}</summary>
+          <div className="jybody">
+            {strengthRows.length > 0 && (
+              <div className="jrow">
+                <b>{strengthRows.join(" · ")}</b>
+                <span className="tr">{t("Measured strength vs classical requirement", "శాస్త్ర ప్రమాణంతో పోలిస్తే కొలిచిన బలం")}</span>
+              </div>
+            )}
+            {yogaRows.length > 0 ? (
+              <div className="jrow">
+                <b>{yogaRows.join(" · ")}</b>
+                <span className="tr">{t("Structural yogas found in this chart", "ఈ జాతకంలో కనిపించిన యోగాలు")}</span>
+              </div>
+            ) : (
+              <div className="jrow">
+                <b>{t("No classical yoga pattern matched", "ఏ యోగమూ సరిపోలలేదు")}</b>
+                <span className="tr">{t("Yogas", "యోగాలు")}</span>
+              </div>
+            )}
+            {aspectRows.map((row, i) => (
+              <div className="jrow" key={i}>
+                <b>{row}</b>
+                <span className="tr">{t("Houses aspected from Lagna", "లగ్నం నుండి దృష్టి ఉన్న భావాలు")}</span>
               </div>
             ))}
           </div>

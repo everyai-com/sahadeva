@@ -188,6 +188,8 @@ This completes the source-discovery and matching layer, not the publication gate
 - same-house friendship, enmity, dormancy and eclipse relationships;
 - non-conjunction house relationships: mutual assistance, general condition, 6/8 confrontation, foundation, deception, friendly joint wall, inverse 8-to-2 influence and sudden-strike candidates;
 - blind, half-blind and empty-side dormancy chart states;
+- artificial-planet synthesis for the source-defined Sun/Venus, Mercury/Venus, Sun/Jupiter, Rahu/Ketu, Sun/Mercury, Sun/Saturn, Jupiter/Rahu, Venus/Jupiter, Mercury/Mars, Mars/Saturn, Venus/Saturn and Moon/Saturn combinations;
+- speaking, silent and conditional expression states based on planet class and occupied house;
 - current Mahadasha/Antardasha activation priority;
 - whether no remedy is indicated, a fixed effect stops the remedy path, or a fixed-house-lord remedy principle is available;
 - the book's remedy sequencing and fallback order;
@@ -195,4 +197,4 @@ This completes the source-discovery and matching layer, not the publication gate
 
 The kernel explicitly reports `retrievalRequired: false`. Corpus retrieval is used only after inference for provenance or review. The web `/api/remedies` response embeds this same reasoning object, `/api/lal-kitab/reason` exposes it directly, and MCP publishes it as `reason_lal_kitab`.
 
-Still unresolved rather than guessed: quantitative confrontation fractions, artificial-planet transformations, debt graphs, annual-chart state and the conditional prose inside all 108 monographs. These must be added as verified executable rule packs to the same kernel.
+Still unresolved rather than guessed: quantitative confrontation fractions, full house-specific outcome prose for artificial planets, debt graphs, annual-chart state and the conditional prose inside all 108 monographs. These must be added as verified executable rule packs to the same kernel.

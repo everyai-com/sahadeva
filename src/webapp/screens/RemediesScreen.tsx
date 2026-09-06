@@ -31,13 +31,28 @@ const SUPERVISION_LABEL: Record<string, { en: string; te: string }> = {
   none: { en: "review", te: "సమీక్ష" },
 };
 
-const PREFS: RemedyPreferences = {
+const PREFS_KEY = "sahadev.remedy.prefs.v1";
+const DEFAULT_PREFS: RemedyPreferences = {
   beliefMode: "hindu",
   maximumBurden: "minimal",
   maximumCost: "free",
   allowPrayer: true,
   allowCharity: true,
 };
+function loadPrefs(): RemedyPreferences {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as Partial<RemedyPreferences>;
+    return {
+      beliefMode: raw.beliefMode === "spiritual" || raw.beliefMode === "tradition-specific" ? raw.beliefMode : "hindu",
+      maximumBurden: raw.maximumBurden === "moderate" ? "moderate" : "minimal",
+      maximumCost: raw.maximumCost === "low" ? "low" : "free",
+      allowPrayer: raw.allowPrayer !== false,
+      allowCharity: raw.allowCharity !== false,
+    };
+  } catch {
+    return DEFAULT_PREFS;
+  }
+}
 
 const CHECK = (
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -67,6 +82,7 @@ export function RemediesScreen() {
   const { lang, t } = useLang();
   const { profile } = useData();
   const [topic, setTopic] = useState("career");
+  const [prefs, setPrefs] = useState<RemedyPreferences>(loadPrefs);
   const [data, setData] = useState<RemedyProtocol | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [completionLog, setCompletionLog] = useState<CompletionLog>({});
@@ -84,13 +100,22 @@ export function RemediesScreen() {
     let alive = true;
     setStatus("loading");
     setData(null);
-    fetchRemedies(profile, topic, PREFS)
+    fetchRemedies(profile, topic, prefs)
       .then((r) => alive && (setData(r), setStatus("ready")))
       .catch(() => alive && setStatus("error"));
     return () => {
       alive = false;
     };
-  }, [profile, topic]);
+  }, [profile, topic, prefs]);
+
+  function updatePrefs(next: RemedyPreferences) {
+    setPrefs(next);
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  }
 
   const practices = (data?.eligiblePractices ?? []).slice(0, 4);
   // Only the gated families (mantra, gemstone, fasting, worship/ritual, pilgrimage,
@@ -173,6 +198,43 @@ export function RemediesScreen() {
         {status === "loading" && <p className="muted small">{t("Calculating safe practices…", "సురక్షిత ఆచరణలు లెక్కిస్తోంది…")}</p>}
         {status === "error" && <p className="muted small">{t("Remedies could not be calculated.", "పరిహారాలు లెక్కించలేకపోయాం.")}</p>}
 
+        <details className="prefs">
+          <summary>{t("Your limits — burden, cost, belief", "మీ పరిమితులు — భారం, ఖర్చు, నమ్మకం")}</summary>
+          <div className="prefsgrid">
+            <label>
+              {t("Belief", "నమ్మకం")}
+              <select value={prefs.beliefMode} onChange={(e) => updatePrefs({ ...prefs, beliefMode: e.target.value as RemedyPreferences["beliefMode"] })}>
+                <option value="hindu">{t("Hindu", "హిందూ")}</option>
+                <option value="spiritual">{t("Spiritual, non-specific", "ఆధ్యాత్మికం")}</option>
+                <option value="tradition-specific">{t("My own tradition", "నా సొంత సంప్రదాయం")}</option>
+              </select>
+            </label>
+            <label>
+              {t("Maximum burden", "గరిష్ట భారం")}
+              <select value={prefs.maximumBurden} onChange={(e) => updatePrefs({ ...prefs, maximumBurden: e.target.value as RemedyPreferences["maximumBurden"] })}>
+                <option value="minimal">{t("Minimal", "అతి తక్కువ")}</option>
+                <option value="moderate">{t("Moderate", "మధ్యస్థం")}</option>
+              </select>
+            </label>
+            <label>
+              {t("Maximum cost", "గరిష్ట ఖర్చు")}
+              <select value={prefs.maximumCost} onChange={(e) => updatePrefs({ ...prefs, maximumCost: e.target.value as RemedyPreferences["maximumCost"] })}>
+                <option value="free">{t("Free", "ఉచితం")}</option>
+                <option value="low">{t("Low", "తక్కువ")}</option>
+              </select>
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={prefs.allowPrayer} onChange={(e) => updatePrefs({ ...prefs, allowPrayer: e.target.checked })} />
+              {t("Include prayer", "ప్రార్థన ఉండవచ్చు")}
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={prefs.allowCharity} onChange={(e) => updatePrefs({ ...prefs, allowCharity: e.target.checked })} />
+              {t("Include charity", "దానం ఉండవచ్చు")}
+            </label>
+          </div>
+          <p className="small muted">{t("Stricter limits mean fewer, lighter suggestions — never stronger ones.", "కఠిన పరిమితులు అంటే తక్కువ, తేలికైన సూచనలు — బలమైనవి కావు.")}</p>
+        </details>
+
         {status === "ready" && data && (
           <>
             <section className="why">
@@ -186,8 +248,19 @@ export function RemediesScreen() {
               <div className="whyev">
                 <span>{`${lang === "te" ? TOPICS.find((x) => x.id === topic)?.te : topic} · ${mix}`}</span>
                 <span>{t("uncertainty · low", "అనిశ్చితి · తక్కువ")}</span>
-                <span>{t("free · minimal burden", "ఉచితం · అతి తక్కువ భారం")}</span>
+                <span>{prefs.maximumCost === "free" ? t("free", "ఉచితం") : t("low cost", "తక్కువ ఖర్చు")} · {prefs.maximumBurden === "minimal" ? t("minimal burden", "అతి తక్కువ భారం") : t("moderate burden", "మధ్యస్థ భారం")}</span>
               </div>
+              {(supporting > 0 || opposing > 0) && (
+                <details className="evledger">
+                  <summary>{t(`Evidence: ${supporting} supporting · ${opposing} opposing`, `ఆధారాలు: ${supporting} అనుకూలం · ${opposing} ప్రతికూలం`)}</summary>
+                  {data?.diagnosis.supportingEvidence.map((item) => (
+                    <p className="evsup" key={item}>{item}</p>
+                  ))}
+                  {data?.diagnosis.opposingEvidence.map((item) => (
+                    <p className="evopp" key={item}>{item}</p>
+                  ))}
+                </details>
+              )}
             </section>
 
             <section style={{ marginTop: "var(--space-6)" }}>
@@ -249,6 +322,18 @@ export function RemediesScreen() {
                   <span>{`${lalKitab.diagnoses.length} ${t("diagnosed interactions", "గుర్తించిన పరస్పర ప్రభావాలు")}`}</span>
                   <span>{lalKitab.remedyPlan.outcome}</span>
                 </div>
+                <div className="lkdecision">
+                  <b>{`${t("Lal Kitab prediction", "లాల్ కితాబ్ అంచనా")} · ${lalKitab.topicPrediction.topic} · ${lalKitab.topicPrediction.overall}`}</b>
+                  <p>{lalKitab.topicPrediction.primaryStatement}</p>
+                  <small>{lalKitab.topicPrediction.calculationBasis}</small>
+                </div>
+                {lalKitab.predictions.slice(0, 3).map((prediction) => (
+                  <div className="lkdecision" key={prediction.id}>
+                    <b>{`${prediction.planet} · H${prediction.house} · ${prediction.direction}`}</b>
+                    <p>{prediction.statement}</p>
+                    <small>{`${prediction.horizon} · ${prediction.confidence}`}</small>
+                  </div>
+                ))}
                 {lalKitab.remedyPlan.ordered.slice(0, 4).map((item) => (
                   <div className="lkdecision" key={`${item.planet}-${item.house}`}>
                     <b>{`${item.priority}. ${item.planet} · H${item.house}`}</b>
@@ -272,6 +357,18 @@ export function RemediesScreen() {
               </section>
             )}
 
+            {data && data.availableChoices.length > 0 && (
+              <section className="choices">
+                <p className="sectitle">{t("Ways you could begin", "మీరు మొదలుపెట్టగల మార్గాలు")}</p>
+                {data.availableChoices.map((choice) => (
+                  <details className="choice" key={choice.family}>
+                    <summary><b>{FAMILY_LABEL[choice.family] ? (lang === "te" ? FAMILY_LABEL[choice.family].te : FAMILY_LABEL[choice.family].en) : choice.family}</b><span>{choice.availability}</span></summary>
+                    {choice.choicePrompt && <p>{choice.choicePrompt}</p>}
+                  </details>
+                ))}
+              </section>
+            )}
+
             {held.length > 0 && (
               <section className="held">
                 <p className="sectitle">{t("Held back until reviewed", "సమీక్ష పూర్తయ్యే వరకు ఆపి ఉంచినవి")}</p>
@@ -279,14 +376,27 @@ export function RemediesScreen() {
                   const fl = FAMILY_LABEL[f.family];
                   const sv = SUPERVISION_LABEL[f.supervision] || SUPERVISION_LABEL.none;
                   return (
-                    <div className="hrow" key={f.family}>
-                      <span className="hn">
-                        <img src={`/brand/sahadeva/remedy/${f.family === "fasting" ? "vrata" : f.family === "worship" || f.family === "ritual" ? "puja" : f.family === "charity" ? "dana" : f.family}-24.svg`} alt="" />
-                        {fl ? (lang === "te" ? fl.te : fl.en) : f.family}
-                        <span>{f.reasons?.[0] || f.requiredReview?.[0] || t("Needs independent review before use.", "వాడకముందు స్వతంత్ర సమీక్ష అవసరం.")}</span>
-                      </span>
-                      <span className="hstat">{lang === "te" ? sv.te : sv.en}</span>
-                    </div>
+                    <details className="hrow2" key={f.family}>
+                      <summary>
+                        <span className="hn">
+                          <img src={`/brand/sahadeva/remedy/${f.family === "fasting" ? "vrata" : f.family === "worship" || f.family === "ritual" ? "puja" : f.family === "charity" ? "dana" : f.family}-24.svg`} alt="" />
+                          {fl ? (lang === "te" ? fl.te : fl.en) : f.family}
+                        </span>
+                        <span className="hstat">{lang === "te" ? sv.te : sv.en}</span>
+                      </summary>
+                      <div className="hdetail">
+                        {f.reasons.map((reason) => (
+                          <p key={reason}><b>{t("Why held", "ఎందుకు ఆపాం")}:</b> {reason}</p>
+                        ))}
+                        {f.requiredReview.map((item) => (
+                          <p key={item}><b>{t("Needs review", "సమీక్ష కావాలి")}:</b> {item}</p>
+                        ))}
+                        {f.contraindications.map((item) => (
+                          <p key={item}><b>{t("Do not use when", "ఎప్పుడు వద్దు")}:</b> {item}</p>
+                        ))}
+                        <p><b>{t("Supervision", "పర్యవేక్షణ")}:</b> {lang === "te" ? sv.te : sv.en}</p>
+                      </div>
+                    </details>
                   );
                 })}
               </section>

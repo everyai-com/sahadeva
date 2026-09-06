@@ -23,6 +23,7 @@ import {
   transitCalendarIcs,
 } from "../shared/transitCalendar";
 import {
+  bestEffortKnownLocation,
   locationLabel,
   resolveKnownLocation,
   searchKnownLocations,
@@ -77,6 +78,7 @@ import {
 import { calculateStrengthLineage } from "../shared/strengthLineage";
 import { synthesizeVargas } from "../shared/vargaSynthesis";
 import { additionalDashaStatus } from "../shared/additionalDashas";
+import { calculatePlanetHouseAspectMatrix } from "../shared/advanced";
 import {
   buildTopicJudgment,
   JUDGMENT_TOPICS,
@@ -180,8 +182,20 @@ type Env = {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   EXPO_ACCESS_TOKEN?: string;
+  OPENAI_APPS_CHALLENGE?: string;
 };
 const app = new Hono<{ Bindings: Env }>();
+
+// OpenAI's plugin submission portal verifies control of the MCP domain here.
+// The response must contain only the current challenge token.
+app.get("/.well-known/openai-apps-challenge", (c) => {
+  const token = c.env.OPENAI_APPS_CHALLENGE?.trim();
+  if (!token) return c.text("Not configured", 404);
+  return c.text(token, 200, {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+});
 
 // First-party PostHog proxy. A neutral same-origin path is less likely to be
 // blocked than known analytics hosts. No Sahadeva cookies are forwarded.
@@ -538,9 +552,48 @@ type RpcRequest = {
   jsonrpc?: string;
   id?: string | number | null;
   method?: string;
-  params?: { name?: string; arguments?: unknown };
+  params?: {
+    name?: string;
+    arguments?: unknown;
+    protocolVersion?: string;
+    cursor?: string;
+    _meta?: Record<string, string | undefined>;
+  };
 };
-const MCP_PROTOCOL_VERSION = "2025-11-25";
+const MCP_PROTOCOL_VERSION = "2026-07-28";
+const MCP_LEGACY_PROTOCOL_VERSION = "2025-11-25";
+const MCP_SUPPORTED_PROTOCOL_VERSIONS = [
+  MCP_PROTOCOL_VERSION,
+  MCP_LEGACY_PROTOCOL_VERSION,
+  "2025-06-18",
+  "2025-03-26",
+  "2024-11-05",
+] as const;
+// Resolve the protocol version to operate on and echo back. For initialize the
+// client states its version in the body; for later requests it repeats the
+// negotiated version in the mcp-protocol-version header. Fall back to the
+// legacy version on initialize (matching the initialize handshake) and to the
+// current version otherwise.
+function negotiateMcpProtocolVersion(
+  request: RpcRequest,
+  headerVersion: string | undefined,
+): string {
+  const requested =
+    request.method === "initialize" &&
+    typeof request.params?.protocolVersion === "string"
+      ? request.params.protocolVersion
+      : headerVersion;
+  if (
+    requested &&
+    (MCP_SUPPORTED_PROTOCOL_VERSIONS as readonly string[]).includes(requested)
+  )
+    return requested;
+  return request.method === "initialize"
+    ? MCP_LEGACY_PROTOCOL_VERSION
+    : MCP_PROTOCOL_VERSION;
+}
+const judgmentTopicFocus = (topic: string) =>
+  topic === "relationships" ? "marriage" : topic === "wealth" ? "general" : topic;
 const mcpTools = [
   {
     name: "recommend_tools",
@@ -582,7 +635,7 @@ const mcpTools = [
     name: "calculate_chart_from_known_place",
     title: "Calculate a chart from a place or coordinates",
     description:
-      "Calculates a complete South Indian chart from a known catalogue place or explicit latitude, longitude, and IANA timezone supplied by the MCP host. This deterministic tool never invokes another AI model.",
+      "EXPERT FULL-MATRIX TOOL — prefer consult_jyotishya (normal questions) or get_compact_chart_evidence (compact facts). Use this only when the user explicitly requests full technical matrices. Calculates a complete South Indian chart from a known catalogue place or explicit latitude, longitude, and IANA timezone supplied by the MCP host. Bare place names auto-resolve to the curated best-effort match with alternatives noted. This deterministic tool never invokes another AI model.",
     inputSchema: {
       type: "object",
       required: ["name", "date", "time", "place"],
@@ -1264,7 +1317,7 @@ const mcpTools = [
     name: "reason_lal_kitab",
     title: "Run the deterministic Lal Kitab inference kernel",
     description:
-      "Calculates a Lal Kitab fact graph, resolves fixed versus remediable effect, conjunction friendship/enmity, dormancy, eclipse conditions, active-period priority and remedy principles. It reasons from calculated chart facts without searching the corpus at runtime and returns a complete explanation trace.",
+      "Calculates a topic-aware Lal Kitab natal prediction and remedy plan from fixed houses, conjunction friendship/enmity, dormancy, eclipse conditions and birth-period context. It reasons from calculated chart facts without searching the corpus at runtime and returns a complete explanation trace; annual timing is not implied.",
     inputSchema: {
       type: "object",
       required: ["name", "date", "time"],
@@ -1272,6 +1325,7 @@ const mcpTools = [
         name: { type: "string" }, date: { type: "string" }, time: { type: "string" },
         place: { type: "string" }, latitude: { type: "number" }, longitude: { type: "number" },
         timezone: { type: "string" }, timezoneOffset: { type: "number" },
+        topic: { type: "string", enum: [...JUDGMENT_TOPICS, "general"], default: "general" },
         birthTimeAccuracyMinutes: { type: "number", minimum: 0, maximum: 1440, default: 5 },
       },
       anyOf: [{ required: ["place"] }, { required: ["latitude", "longitude", "timezone"] }],
@@ -1447,6 +1501,8 @@ const mcpTools = [
           properties: {
             allowGemstones: { type: "boolean", default: false },
             allowMantras: { type: "boolean", default: false },
+            allowFasting: { type: "boolean", default: false },
+            healthScreenedForFasting: { type: "boolean", default: false },
             allowCharity: { type: "boolean", default: true },
           },
         },
@@ -1745,7 +1801,7 @@ const mcpTools = [
     name: "generate_full_life_report",
     title: "Generate a complete evidence-linked life report",
     description:
-      "Builds a complete South Indian astrology report covering all major life areas, domain-specific timing outlooks, measured strengths, Vargas, structural Yogas, current Dasha and upcoming Antardashas. Timing activation identifies an area, never a specific event; interpretations remain qualified and evidence-linked.",
+      "EXPERT FULL-REPORT TOOL — prefer consult_jyotishya (brief dossier + profileRef) for normal questions; use get_full_life_report_section for one section at a time. Builds a complete South Indian astrology report covering all major life areas, domain-specific timing outlooks, measured strengths, Vargas, structural Yogas, current Dasha and upcoming Antardashas. Timing activation identifies an area, never a specific event; interpretations remain qualified and evidence-linked.",
     inputSchema: {
       type: "object",
       required: [
@@ -1800,7 +1856,7 @@ const mcpTools = [
     name: "get_full_reading_context",
     title: "Get complete one-shot reading context",
     description:
-      "One-call alias for the complete evidence-linked life report. Returns enriched placements, strengths, Vargas, synthesis, current Dasha, and a configurable future transit-and-Dasha horizon for narration clients.",
+      "EXPERT FULL-REPORT ALIAS — prefer consult_jyotishya for normal questions. One-call alias for the complete evidence-linked life report. Returns enriched placements, strengths, Vargas, synthesis, current Dasha, and a configurable future transit-and-Dasha horizon for narration clients.",
     inputSchema: {
       type: "object",
       required: [
@@ -1901,7 +1957,7 @@ const mcpTools = [
     name: "calculate_south_indian_chart",
     title: "Calculate South Indian Jyotish chart",
     description:
-      "Deterministically calculates sidereal placements, all 16 Parashari vargas, Panchanga, Vimshottari timing, layered evidence and uncertainty from explicit birth data. Placement sign is a zero-based 0-11 index and signName is the display-safe name.",
+      "EXPERT FULL-MATRIX TOOL — prefer consult_jyotishya or get_compact_chart_evidence for normal questions. Deterministically calculates sidereal placements, all 16 Parashari vargas, Panchanga, Vimshottari timing, layered evidence and uncertainty from explicit birth data. Placement sign is a zero-based 0-11 index and signName is the display-safe name.",
     inputSchema: {
       type: "object",
       required: [
@@ -2990,7 +3046,7 @@ const mcpOutputSchemas: Record<string, unknown> = {
   },
   reason_lal_kitab: {
     type: "object",
-    required: ["schemaVersion", "computation", "factGraph", "diagnoses", "remedyPlan", "explanationTrace", "unresolved", "safety"],
+    required: ["schemaVersion", "computation", "factGraph", "diagnoses", "topicPrediction", "predictions", "remedyPlan", "explanationTrace", "unresolved", "safety"],
     additionalProperties: true,
   },
   explore_lal_kitab_remedy_catalog: {
@@ -3890,12 +3946,34 @@ const publicMcpToolNames = new Set([
   "render_chart",
   "generate_report_pdf",
 ]);
-// Every defined tool is discoverable in tools/list. (Tools were always
-// callable regardless of this list; publicMcpToolNames now only marks the
-// baseline "public" set, while advanced tools are surfaced alongside them.)
-const publicMcpTools = mcpTools;
+// Default discovery is intentionally compact (~13 tools) so host models
+// choose reliably. Every defined tool remains callable by name for backwards
+// compatibility and is documented via sahadeva://expert-tools; only the
+// default set is returned by tools/list (paginated). publicMcpToolNames is
+// the broader documented set (task-oriented + domain tools).
+const DEFAULT_MCP_TOOL_NAMES = new Set([
+  "recommend_tools",
+  "search_locations",
+  "consult_jyotishya",
+  "calculate_chart_from_known_place",
+  "get_compact_chart_evidence",
+  "get_timing_context",
+  "assess_prediction_readiness",
+  "audit_chart_calculation",
+  "calculate_prashna",
+  "search_reviewed_rules",
+  "compare_traditions",
+  "audit_prediction_claim",
+  "get_validation_report",
+]);
+const defaultMcpTools = mcpTools.filter((tool) =>
+  DEFAULT_MCP_TOOL_NAMES.has(tool.name),
+);
+// tools/list surface: compact default only. Specialist tools stay callable
+// and are listed in the sahadeva://expert-tools resource.
+const publicMcpTools = defaultMcpTools;
 const expertMcpTools = mcpTools
-  .filter((tool) => !publicMcpToolNames.has(tool.name))
+  .filter((tool) => !DEFAULT_MCP_TOOL_NAMES.has(tool.name))
   .map((tool) => ({
     name: tool.name,
     title: tool.title,
@@ -4374,7 +4452,15 @@ function resolveToolLocation(
   date: string,
   time = "12:00",
 ): {
-  location?: ResolvedToolLocation;
+  location?: ResolvedToolLocation & {
+    autoResolved?: boolean;
+    alternatives?: Array<{
+      label: string;
+      latitude: number;
+      longitude: number;
+      timezone: string;
+    }>;
+  };
   resolution?: ReturnType<typeof resolveKnownLocation>;
   error?: string;
 } {
@@ -4426,17 +4512,53 @@ function resolveToolLocation(
     typeof args?.place === "string"
       ? resolveKnownLocation(args.place)
       : { status: "none" as const, matches: [] };
-  if (resolution.status !== "resolved") return { resolution };
-  return {
-    location: {
-      label: locationLabel(resolution.location),
-      latitude: resolution.location.latitude,
-      longitude: resolution.location.longitude,
-      timezone: resolution.location.timezone,
-      timezoneOffset: resolution.location.timezoneOffset,
-      source: "catalogue",
-    },
-  };
+  if (resolution.status === "resolved")
+    return {
+      location: {
+        label: locationLabel(resolution.location),
+        latitude: resolution.location.latitude,
+        longitude: resolution.location.longitude,
+        timezone: resolution.location.timezone,
+        timezoneOffset: resolution.location.timezoneOffset,
+        source: "catalogue",
+      },
+    };
+  // Single-call tolerance: bare names like "Hyderabad" match several rows
+  // (curated + GeoNames). Auto-pick the curated best-effort winner and carry
+  // the alternatives as a transparent notice instead of forcing a retry.
+  // Only status "none" (no principled winner) still returns a resolution
+  // error for the caller to surface as LOCATION_RESOLUTION_REQUIRED.
+  if (resolution.status === "ambiguous") {
+    const winner = bestEffortKnownLocation(resolution.matches);
+    if (winner) {
+      const alternatives = resolution.matches
+        .filter(
+          (m) =>
+            m.latitude !== winner.latitude ||
+            m.longitude !== winner.longitude,
+        )
+        .slice(0, 4)
+        .map((m) => ({
+          label: locationLabel(m),
+          latitude: m.latitude,
+          longitude: m.longitude,
+          timezone: m.timezone,
+        }));
+      return {
+        location: {
+          label: locationLabel(winner),
+          latitude: winner.latitude,
+          longitude: winner.longitude,
+          timezone: winner.timezone,
+          timezoneOffset: winner.timezoneOffset,
+          source: "catalogue",
+          autoResolved: true,
+          alternatives,
+        },
+      };
+    }
+  }
+  return { resolution };
 }
 function locationInput(location: ResolvedToolLocation) {
   return {
@@ -4554,12 +4676,22 @@ async function handleMcp(
   request: RpcRequest,
   env?: Env,
   identity?: KeyIdentity,
+  protocolVersion?: string,
 ): Promise<any> {
   if (request.jsonrpc !== "2.0" || !request.method)
     return rpcError(request.id, -32600, "Invalid JSON-RPC request");
-  if (request.method === "initialize")
+  if (request.method === "initialize") {
+    const requestedVersion =
+      typeof request.params?.protocolVersion === "string"
+        ? request.params.protocolVersion
+        : undefined;
+    const negotiatedVersion = MCP_SUPPORTED_PROTOCOL_VERSIONS.includes(
+      requestedVersion as (typeof MCP_SUPPORTED_PROTOCOL_VERSIONS)[number],
+    )
+      ? requestedVersion
+      : MCP_LEGACY_PROTOCOL_VERSION;
     return rpcResult(request.id, {
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion: negotiatedVersion,
       capabilities: {
         tools: { listChanged: false },
         prompts: { listChanged: false },
@@ -4567,26 +4699,62 @@ async function handleMcp(
       },
       serverInfo: { name: "sahadeva", version: "0.3.0" },
     });
+  }
   if (request.method === "server/discover")
     return rpcResult(request.id, {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      serverInfo: { name: "sahadeva", version: "0.3.0" },
+      resultType: "complete",
+      supportedVersions: MCP_SUPPORTED_PROTOCOL_VERSIONS,
       capabilities: {
-        tools: { listChanged: false },
-        prompts: { listChanged: false },
-        resources: { subscribe: false, listChanged: false },
+        tools: {},
+        prompts: {},
+        resources: {},
       },
-      security: {
-        architecture: MCP_SECURITY_CONTRACT.architecture,
-        resource: "sahadeva://security",
+      instructions:
+        "Use deterministic calculation tools for Jyotishya questions. Explain conventions, evidence, uncertainty, and calculation boundaries; do not present astrology as scientific fact or professional advice.",
+      ttlMs: 3_600_000,
+      cacheScope: "public",
+      _meta: {
+        "io.modelcontextprotocol/serverInfo": {
+          name: "sahadeva",
+          version: "0.3.0",
+        },
       },
     });
   if (request.method === "notifications/initialized") return null;
   if (request.method === "ping") return rpcResult(request.id, {});
-  if (request.method === "tools/list")
+  if (request.method === "tools/list") {
+    // Compact default catalog for every protocol version (paginated).
+    // Specialist tools remain callable by name and are documented via
+    // sahadeva://expert-tools; they are intentionally not inlined here so
+    // host models are not overwhelmed (previously 86 tools / ~120KB).
+    const includeExpert =
+      (request.params as unknown as { includeExpert?: unknown })
+        ?.includeExpert === true;
+    const baseTools = includeExpert ? mcpTools : publicMcpTools;
+    const isLegacy = protocolVersion === "2024-11-05";
+    const listed = isLegacy
+      ? baseTools.map(({ name, description, inputSchema }) => ({
+          name,
+          description,
+          inputSchema,
+        }))
+      : baseTools;
+    const parsedCursor = Number.parseInt(
+      String(request.params?.cursor || "0"),
+      10,
+    );
+    const offset =
+      Number.isFinite(parsedCursor) && parsedCursor >= 0 ? parsedCursor : 0;
+    const pageSize = 32;
+    const tools = listed.slice(offset, offset + pageSize);
+    const nextOffset = offset + tools.length;
     return rpcResult(request.id, {
-      tools: publicMcpTools,
+      tools,
+      ...(nextOffset < listed.length
+        ? { nextCursor: String(nextOffset) }
+        : {}),
     });
+  }
   if (request.method === "prompts/list")
     return rpcResult(request.id, {
       prompts: [
@@ -5577,6 +5745,20 @@ async function handleMcp(
           source: resolved.location.source,
           confidence: resolved.location.confidence ?? 1,
           model: resolved.location.model || null,
+          ...(resolved.location.autoResolved
+            ? {
+                autoResolved: true,
+                resolvedLabel: resolved.location.label,
+                alternatives: resolved.location.alternatives ?? [],
+                notice:
+                  "Bare place name auto-resolved to the curated best-effort match; retry with an exact candidate label or explicit coordinates if another place was intended.",
+              }
+            : {}),
+        },
+        responseGuidance: {
+          profile: "full-matrix",
+          notice:
+            "Full chart matrices are large (~100KB). Prefer consult_jyotishya or get_compact_chart_evidence for normal questions; use get_full_life_report_section for one section at a time.",
         },
       };
       return rpcResult(request.id, {
@@ -6424,7 +6606,7 @@ async function handleMcp(
               : name === "analyze_lal_kitab_remedies"
                   ? buildLalKitabRemedyCandidates(chart)
                   : name === "reason_lal_kitab"
-                    ? analyzeLalKitabInference(chart)
+                    ? analyzeLalKitabInference(chart, JUDGMENT_TOPICS.includes(String(args?.topic) as JudgmentTopic) ? String(args?.topic) as JudgmentTopic : "general")
                 : name === "get_natal_panchanga"
                   ? (() => {
                       const analysis = analyzeNatalPanchanga(chart),
@@ -6499,7 +6681,7 @@ async function handleMcp(
           ...args,
           ...locationInput(located.location),
           methodology: "parashari",
-          focus: topic,
+          focus: judgmentTopicFocus(topic),
           birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
         }),
         allowed = new Set<AyanamsaId>([
@@ -6872,7 +7054,7 @@ async function handleMcp(
         ...args,
         ...locationInput(located.location),
         methodology: "parashari",
-        focus: topic === "marriage" ? "marriage" : topic || "general",
+        focus: judgmentTopicFocus(topic || "general"),
         birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
       });
       if (!parsed.success)
@@ -7012,6 +7194,9 @@ async function handleMcp(
         structuredContent = buildComprehensiveRemedies(chart, {
           allowGemstones: opts?.allowGemstones === true,
           allowMantras: opts?.allowMantras === true,
+          allowFasting: opts?.allowFasting === true,
+          healthScreenedForFasting:
+            opts?.healthScreenedForFasting === true,
           allowCharity: opts?.allowCharity !== false,
         });
       return rpcResult(request.id, {
@@ -7058,7 +7243,7 @@ async function handleMcp(
         ...args,
         ...locationInput(located.location),
         methodology: "parashari",
-        focus: topic === "relationships" ? "marriage" : topic,
+        focus: judgmentTopicFocus(topic),
         birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
       });
       if (!parsed.success)
@@ -7127,7 +7312,7 @@ async function handleMcp(
         ...args,
         ...locationInput(located.location),
         methodology: "parashari",
-        focus: topic === "relationships" ? "marriage" : topic,
+        focus: judgmentTopicFocus(topic),
         birthTimeAccuracyMinutes: args?.birthTimeAccuracyMinutes ?? 5,
       });
       if (!parsed.success)
@@ -11199,7 +11384,7 @@ app.post("/api/remedies", async (c) => {
   const parsed = birthInputSchema.safeParse({
     ...(body as Record<string, unknown>),
     methodology: "parashari",
-    focus: topic === "relationships" ? "marriage" : topic,
+    focus: judgmentTopicFocus(topic),
     birthTimeAccuracyMinutes:
       (body as Record<string, unknown>)?.birthTimeAccuracyMinutes ?? 5,
   });
@@ -11252,10 +11437,12 @@ app.post("/api/lal-kitab", async (c) => {
 app.post("/api/lal-kitab/reason", async (c) => {
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
   if (limited) return limited;
-  const parsed = birthInputSchema.safeParse(await c.req.json().catch(() => null));
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const parsed = birthInputSchema.safeParse(body);
   if (!parsed.success)
     return c.json({ error: "Invalid Lal Kitab reasoning details", issues: parsed.error.flatten() }, 400);
-  return c.json(analyzeLalKitabInference(await calculateChartCached(c.env, parsed.data)));
+  const topic = JUDGMENT_TOPICS.includes(String(body?.topic) as JudgmentTopic) ? String(body?.topic) as JudgmentTopic : "general";
+  return c.json(analyzeLalKitabInference(await calculateChartCached(c.env, parsed.data), topic));
 });
 
 app.post("/api/calculation-audit", async (c) => {
@@ -11402,7 +11589,7 @@ app.post("/api/judgments/topic", async (c) => {
   const parsed = birthInputSchema.safeParse({
     ...body,
     methodology: "parashari",
-    focus: topic === "relationships" ? "marriage" : topic,
+    focus: judgmentTopicFocus(topic),
   });
   if (!parsed.success)
     return c.json(
@@ -12978,6 +13165,10 @@ app.post("/api/interpret", async (c) => {
     "Separate observation from traditional interpretation. State that astrology is a cultural practice, not scientific fact.",
     "Use only the selected methodology. Never blend KP, Western, Nadi, or other systems into Parashari analysis.",
     "Follow this evidence order: Lagna, relevant house and lord, natural karaka, dignity/aspects, relevant varga, then dasha timing.",
+    "Be specific, not generic: name exact signs with degrees, nakshatra and pada, house lords and their placement, dignity/combustion/retrograde states, varga confirmation (especially Navamsa), and the current Mahadasha/Antardasha with its dates. Every paragraph should reference at least one concrete calculated fact.",
+    "Use the aspect matrix: state which whole-sign houses each relevant planet aspects from Lagna and what that supports or challenges for the question.",
+    "Structure the answer with sections: ## Chart anchors, ## Evidence for the question, ## Timing now, ## What weighs against it. Write 600-1000 words for a first reading, 250-500 for a focused follow-up.",
+    "End with 2-3 optional low-risk next steps. Never guarantee outcomes or remedies.",
     "Do not present medical, death, fertility, legal, or financial outcomes as facts. Do not frighten the user. Do not prescribe guaranteed remedies.",
     `Confidence metadata: ${JSON.stringify(chart.advanced?.guidance?.confidence || {})}`,
     `Respond in ${body.language || "English"}.`,
@@ -13499,6 +13690,7 @@ app.post("/api/chat", async (c) => {
         detectedYogas: chart.advanced.yogas
           .filter((item) => item.detected)
           .map((item) => ({ yoga: item.yoga, evidence: item.evidence })),
+        aspectMatrix: calculatePlanetHouseAspectMatrix(chart.placements),
         focus: chart.advanced.guidance.focus,
         anchors: {
           lagna: {
@@ -13633,7 +13825,7 @@ app.post("/api/chat", async (c) => {
           }
         })(),
         ...(body.mode?.prashna
-          ? (() => {
+          ? await (async () => {
               const question =
                 [...history].reverse().find((m) => m.role === "user")
                   ?.content || "General question";
@@ -13653,10 +13845,54 @@ app.post("/api/chat", async (c) => {
                             ? "lost-object"
                             : "general";
               try {
+                // Chat clients may pass mode.prashna as `true` or as an
+                // options object {tradition, referenceHouse, seedNumber}.
+                // Options are validated against the same Prashna request
+                // contract; anything invalid falls back to the defaults so a
+                // malformed option can never corrupt the consultation.
+                const prashnaOpts =
+                  typeof body.mode?.prashna === "object" &&
+                  body.mode.prashna !== null
+                    ? (body.mode.prashna as {
+                        tradition?: unknown;
+                        referenceHouse?: unknown;
+                        seedNumber?: unknown;
+                      })
+                    : {};
+                const chatTradition = ([
+                  "integrated",
+                  "classical",
+                  "tajaka",
+                  "systems-approach",
+                  "prashna-nadi",
+                ].includes(String(prashnaOpts.tradition))
+                  ? String(prashnaOpts.tradition)
+                  : "integrated") as
+                  | "integrated"
+                  | "classical"
+                  | "tajaka"
+                  | "systems-approach"
+                  | "prashna-nadi";
+                const chatReferenceHouse =
+                  Number.isInteger(prashnaOpts.referenceHouse) &&
+                  (prashnaOpts.referenceHouse as number) >= 1 &&
+                  (prashnaOpts.referenceHouse as number) <= 12
+                    ? (prashnaOpts.referenceHouse as number)
+                    : 1;
+                const chatSeed =
+                  chatTradition === "prashna-nadi" &&
+                  Number.isInteger(prashnaOpts.seedNumber) &&
+                  (prashnaOpts.seedNumber as number) >= 1 &&
+                  (prashnaOpts.seedNumber as number) <= 249
+                    ? (prashnaOpts.seedNumber as number)
+                    : undefined;
                 const prashna = buildPrashnaConsultation(
                   {
                     question: question.slice(0, 500),
                     category,
+                    tradition: chatTradition,
+                    referenceHouse: chatReferenceHouse,
+                    ...(chatSeed === undefined ? {} : { seedNumber: chatSeed }),
                     place: parsed.data.place,
                     latitude: parsed.data.latitude,
                     longitude: parsed.data.longitude,
@@ -13665,12 +13901,30 @@ app.post("/api/chat", async (c) => {
                   },
                   new Date(),
                 );
-                return {
-                  prashna: {
-                    ...prashna,
-                    confirmationToken: undefined,
-                  },
-                };
+                // Close the outcome loop for chat-originated readings the same
+                // way POST /api/prashna does: persist the hashed confirmation
+                // and return the token so record_prashna_outcome can resolve it.
+                // Persistence must never break narration, so failures are
+                // swallowed here and surfaced via observability, not the chat.
+                try {
+                  await c.env.DB.prepare(
+                    "INSERT INTO consultations (id,created_at,method,category,question_hash,confirmation_hash,asked_at,result_json,outcome_status) VALUES (?,?,?,?,?,?,?,?,'awaiting-outcome')",
+                  )
+                    .bind(
+                      prashna.consultationId,
+                      new Date().toISOString(),
+                      "prashna-chat",
+                      category,
+                      await sha256(question.trim().toLowerCase().slice(0, 500)),
+                      await sha256(prashna.feedback.confirmationToken),
+                      prashna.question.askedAt,
+                      JSON.stringify(redactConfirmationToken(prashna)),
+                    )
+                    .run();
+                } catch {
+                  // Narration proceeds without a persisted outcome hook.
+                }
+                return { prashna };
               } catch {
                 return {};
               }
@@ -13828,6 +14082,7 @@ app.post("/api/chat", async (c) => {
         "The placements list is the only truth about planet positions. If the user asserts a placement that contradicts it, gently correct them with the calculated position before interpreting.",
         "For dasha sequence, use only currentTiming (including nextAntardasha and nextMahadasha). For periods beyond those, say the exact sequence would need to be calculated instead of guessing.",
         "House positions are given in wholeSignHouses (whole-sign from the lagna) — use them instead of recomputing. Mention detectedYogas only when relevant, always with their evidence; never claim a yoga that is not listed.",
+        "aspectMatrix lists, for each planet, the whole-sign houses it aspects from the lagna (classical Graha Drishti; Rahu/Ketu aspect only the house they occupy). When a question turns on how planets influence a house — e.g. career, marriage, children — cite the aspecting planets and house numbers from aspectMatrix instead of speaking in generalities.",
         "For every focused question, follow the practitioner sequence: (1) restate the exact question and identify the relevant house/topic, (2) establish natal promise from the house, lord and occupants, (3) assess the lord's dignity, measured strength, combustion/retrogression and relevant relationships that are actually supplied, (4) check the natural karakas, (5) confirm or contradict through the relevant varga, (6) state supporting and opposing evidence separately, (7) only then discuss current dasha and transit activation, (8) explain birth-time or source-review uncertainty, and (9) end with practical reflection rather than a guaranteed prediction.",
         "When `focusedJudgment` is present, treat it as the controlling evidence ledger. Preserve its status and conclusion, explain both supportingEvidence and opposingEvidence, identify its vargaConfirmation and timingActivation, and state when citations are absent or source keys remain unresolved. Never turn its score into a probability.",
         "Do not merely list placements. Synthesize why each cited factor matters to the exact question, how factors reinforce or weaken one another, and what the chart does not establish.",
@@ -13906,6 +14161,8 @@ app.post("/api/chat", async (c) => {
         currentTiming: evidence.currentTiming,
         measuredStrengths: evidence.measuredStrengths,
         confidence: evidence.confidence,
+        detectedYogas: evidence.detectedYogas,
+        aspectMatrix: evidence.aspectMatrix,
         everyday: reading,
         provenance: {
           calculationShare: reading.provenance.calculationShare,
@@ -14239,15 +14496,40 @@ app.post("/api/chat", async (c) => {
   }
 });
 
-app.get("/mcp", (c) =>
-  c.json({
+app.get("/mcp", (c) => {
+  // Streamable HTTP clients open a GET to establish the optional server→client
+  // SSE stream. This server uses the JSON response profile and never pushes
+  // server-initiated messages, so per the transport spec we must return 405
+  // (not a JSON body the client's SSE parser would choke on, which aborts the
+  // connection before tools are registered).
+  if ((c.req.header("accept") || "").includes("text/event-stream"))
+    return c.body(null, 405, { Allow: "POST" });
+  return c.json({
     name: "Sahadeva MCP",
     protocolVersion: MCP_PROTOCOL_VERSION,
     transport: "Streamable HTTP (JSON response profile)",
     tools: publicMcpTools.map((tool) => tool.name),
     expertToolsResource: "sahadeva://expert-tools",
-  }),
-);
+  });
+});
+
+function isAllowedMcpOrigin(origin: string, requestUrl: string): boolean {
+  try {
+    const originUrl = new URL(origin);
+    const requestHost = new URL(requestUrl).host;
+    if (originUrl.host === requestHost) return true;
+    if (originUrl.protocol !== "https:") return false;
+    return (
+      originUrl.hostname === "openai.com" ||
+      originUrl.hostname.endsWith(".openai.com") ||
+      originUrl.hostname === "chatgpt.com" ||
+      originUrl.hostname.endsWith(".chatgpt.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
 app.post("/mcp", async (c) => {
   const requestStartedAt = performance.now();
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
@@ -14266,19 +14548,27 @@ app.post("/mcp", async (c) => {
   if (Number(c.req.header("content-length") || 0) > 32_768)
     return c.json(rpcError(null, -32000, "Request body too large"), 413);
   const origin = c.req.header("origin");
-  const host = new URL(c.req.url).host;
-  if (origin && new URL(origin).host !== host)
+  if (origin && !isAllowedMcpOrigin(origin, c.req.url))
     return c.json(rpcError(null, -32000, "Origin not allowed"), 403);
   const request = await c.req.json<RpcRequest>().catch(() => null);
   if (!request) return c.json(rpcError(null, -32700, "Parse error"), 400);
+  const clientProtocolVersion =
+    c.req.header("mcp-protocol-version") ||
+    request.params?._meta?.["io.modelcontextprotocol/protocolVersion"];
+  const negotiatedProtocolVersion = negotiateMcpProtocolVersion(
+    request,
+    clientProtocolVersion,
+  );
   const response = enforceSafetyContract(
-    await handleMcp(request, c.env, keyIdentity),
+    await handleMcp(request, c.env, keyIdentity, negotiatedProtocolVersion),
     request.params?.name,
   );
   if (response === null) return c.body(null, 202);
   const durationMs = performance.now() - requestStartedAt;
   return c.json(response, 200, {
-    "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+    // Echo the version the client negotiated; a mismatch here makes strict
+    // clients reject every response after initialize.
+    "MCP-Protocol-Version": negotiatedProtocolVersion,
     "Server-Timing": `sahadeva;dur=${durationMs.toFixed(1)}`,
     "X-Sahadeva-Response-Profile":
       request.params?.name === "consult_jyotishya" ? "compact" : "expert",

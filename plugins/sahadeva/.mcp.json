@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sahadeva": {
+      "type": "http",
+      "url": "https://sahadeva.everyai-com.workers.dev/mcp"
+    }
+  }
+}

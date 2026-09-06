@@ -55,6 +55,23 @@ export function NotFoundScreen() {
   </main>;
 }
 
-export default function LegalScreens({ kind = "privacy", notFound = false }: { kind?: "privacy" | "terms"; notFound?: boolean }) {
-  return notFound ? <NotFoundScreen /> : <LegalScreen kind={kind} />;
+export function SupportScreen() {
+  const { t } = useLang();
+  return <>
+    <div className="topbar"><a className="backbtn" href="/#more" aria-label={t("Back", "వెనుకకు")}><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg></a></div>
+    <main className="screen legal-screen" id="content">
+      <header><p className="eyebrow">Sahadeva</p><h1>{t("Support", "సహాయం")}</h1></header>
+      <p className="legal-summary">{t("Get help with accounts, calculations, privacy requests, or unexpected results.", "ఖాతాలు, గణనలు, గోప్యతా అభ్యర్థనలు లేదా అనుకోని ఫలితాలపై సహాయం పొందండి.")}</p>
+      <div className="legal-sections">
+        <section><h2>{t("Report a problem", "సమస్యను నివేదించండి")}</h2><p>{t("Open a support issue and include what you expected, what happened, and the calculation inputs needed to reproduce the problem. Never include passwords, API keys, or payment details.", "సహాయ అభ్యర్థనను తెరిచి, మీరు ఆశించినది, జరిగినది, సమస్యను పునరుత్పత్తి చేయడానికి అవసరమైన గణన వివరాలను జోడించండి. పాస్‌వర్డ్‌లు, API కీలు లేదా చెల్లింపు వివరాలను ఎప్పుడూ చేర్చవద్దు.")}</p><p><a className="legal-home" href="https://github.com/everyai-com/sahadeva/issues" target="_blank" rel="noreferrer">{t("Open Sahadeva support", "సహదేవ సహాయాన్ని తెరవండి")}</a></p></section>
+        <section><h2>{t("Privacy and deletion", "గోప్యత మరియు తొలగింపు")}</h2><p>{t("Use the same support channel for data-access or deletion requests. State that the request is privacy-related; do not post birth details publicly.", "డేటా యాక్సెస్ లేదా తొలగింపు అభ్యర్థనలకు అదే సహాయ మార్గాన్ని ఉపయోగించండి. అభ్యర్థన గోప్యతకు సంబంధించినదని పేర్కొనండి; జనన వివరాలను బహిరంగంగా పోస్ట్ చేయవద్దు.")}</p></section>
+      </div>
+    </main>
+  </>;
+}
+
+export default function LegalScreens({ kind = "privacy", notFound = false, support = false }: { kind?: "privacy" | "terms"; notFound?: boolean; support?: boolean }) {
+  if (notFound) return <NotFoundScreen />;
+  if (support) return <SupportScreen />;
+  return <LegalScreen kind={kind} />;
 }

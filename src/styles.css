@@ -1680,7 +1680,8 @@ footer p {
   gap: 0.5rem;
 }
 .prashna-panel textarea,
-.prashna-panel select {
+.prashna-panel select,
+.prashna-panel input {
   width: 100%;
   box-sizing: border-box;
 }

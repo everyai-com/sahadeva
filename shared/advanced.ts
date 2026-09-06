@@ -93,6 +93,60 @@ export function calculateAspects(placements: Placement[]) {
   return aspects;
 }
 
+// Explicit planet-to-house Graha Drishti matrix (whole-sign, from Lagna).
+// Additive public evidence: every classical planet lists the whole-sign
+// houses it aspects (7th + Mars 4/8, Jupiter 5/9, Saturn 3/10 from its own
+// sign, plus its occupied house by conjunction). Rahu/Ketu cast no classical
+// Parashari drishti; only their occupied house is listed, with the method
+// stated so clients never mistake absence for a missing calculation.
+export function calculatePlanetHouseAspectMatrix(placements: Placement[]) {
+  const lagna = placements.find((p) => p.name === "Lagna");
+  const lagnaSign = lagna?.sign ?? 0;
+  const specialOffsets: Partial<Record<string, number[]>> = {
+    Mars: [3, 6, 7],
+    Jupiter: [4, 6, 8],
+    Saturn: [2, 6, 9],
+  };
+  const classical = new Set([
+    "Sun",
+    "Moon",
+    "Mars",
+    "Mercury",
+    "Jupiter",
+    "Venus",
+    "Saturn",
+  ]);
+  const rows = placements
+    .filter((p) => p.name !== "Lagna")
+    .map((p) => {
+      const occupiedHouse = ((p.sign - lagnaSign + 12) % 12) + 1;
+      if (!classical.has(p.name))
+        return {
+          planet: p.name,
+          occupiedHouse,
+          aspectedHouses: [occupiedHouse],
+          classicalDrishti: false,
+        };
+      const offsets = specialOffsets[p.name] ?? [6];
+      const aspectedHouses = [
+        occupiedHouse,
+        ...offsets.map((off) => ((p.sign + off - lagnaSign + 24) % 12) + 1),
+      ];
+      return {
+        planet: p.name,
+        occupiedHouse,
+        aspectedHouses: [...new Set(aspectedHouses)].sort((a, b) => a - b),
+        classicalDrishti: true,
+      };
+    });
+  return {
+    system: "whole-sign",
+    method:
+      "Parashari Graha Drishti: all aspect 7th from own sign; Mars adds 4th/8th, Jupiter 5th/9th, Saturn 3rd/10th; Rahu/Ketu conjunction only",
+    houses: rows,
+  };
+}
+
 export function calculateVimshottariTimeline(jd: number, birthLord: string, balanceYears: number) {
   const startIndex = DASHA_LORDS.indexOf(birthLord);
   let cursor = jd - (DASHA_YEARS[startIndex] - balanceYears) * DAYS_PER_DASHA_YEAR;

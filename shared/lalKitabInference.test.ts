@@ -13,8 +13,18 @@ describe("Lal Kitab inference kernel", () => {
     const result = analyzeLalKitabInference(chart);
     expect(result.computation.retrievalRequired).toBe(false);
     expect(result.factGraph.placements).toHaveLength(9);
-    expect(result.explanationTrace.map((step) => step.order)).toEqual([1, 2, 3, 4, 5]);
+    expect(result.explanationTrace.map((step) => step.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(result.explanationTrace.every((step) => step.sourceLocator.includes("book-gosvami"))).toBe(true);
+  });
+  it("predicts each remedy topic from calculated Lal Kitab factors and links remedies", () => {
+    for (const topic of ["career", "education", "property", "relationships", "spirituality", "wealth", "health", "children"] as const) {
+      const result = analyzeLalKitabInference(chart, topic);
+      expect(result.topicPrediction.topic).toBe(topic);
+      expect(result.predictions.length).toBeGreaterThan(0);
+      expect(result.predictions.every((prediction) => prediction.topic === topic && prediction.logic.length >= 4)).toBe(true);
+      expect(result.remedyPlan.ordered.every((item) => item.basis === "artificial-planet" || Array.isArray(item.predictionIds))).toBe(true);
+      expect(JSON.stringify(result.predictions)).not.toMatch(/guaranteed|certain death|medical diagnosis|fertility certainty/i);
+    }
   });
   it("never selects a remedy for an adverse fixed planet-effect", () => {
     const result = analyzeLalKitabInference(chart);
@@ -28,5 +38,10 @@ describe("Lal Kitab inference kernel", () => {
     const result = analyzeLalKitabInference(chart);
     const kinds = new Set(result.factGraph.relationshipEdges.flatMap((edge) => edge.kinds));
     expect([...kinds]).toEqual(expect.arrayContaining(["mutual-assistance", "confrontation", "foundation", "deception"]));
+  });
+  it("synthesizes artificial planets and speaking states as calculated facts", () => {
+    const result = analyzeLalKitabInference(chart);
+    expect(result.factGraph.placements.every((state) => ["speaking", "silent", "conditional"].includes(state.expressionState))).toBe(true);
+    expect(result.factGraph.artificialPlanets.every((state) => state.effectClass === "sign-effect-remediable")).toBe(true);
   });
 });

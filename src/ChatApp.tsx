@@ -3234,7 +3234,11 @@ function DetailsSheet({
           starLordOccupiedHouse: number;
           starLordOwnedHouses: number[];
         }>;
-        rulingPlanets: Array<{ role: string; planet: string }>;
+        rulingPlanets: Array<{
+          planet: string;
+          roles: string[];
+          status: "selected" | "rejected-retrograde-star-lord" | "delayed-retrograde";
+        }>;
       };
     } catch {
       return null;
@@ -4511,10 +4515,10 @@ function DetailsSheet({
                   <h3>{t.rulingTitle}</h3>
                   <div className="fact-grid">
                     {kp.rulingPlanets.map((row) => (
-                      <div key={row.role}>
-                        <span>{row.role}</span>
+                      <div key={row.planet}>
+                        <span>{row.roles.join(" · ")}</span>
                         <strong>
-                          {localize(row.planet, language, TELUGU_GRAHAS)}
+                          {localize(row.planet, language, TELUGU_GRAHAS)}{row.status === "selected" ? "" : ` · ${row.status}`}
                         </strong>
                       </div>
                     ))}

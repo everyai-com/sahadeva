@@ -41,6 +41,7 @@ export function DashaScreen() {
   const { lang, t } = useLang();
   const { profile, dasha } = useData();
   const [open, setOpen] = useState<string | null>(null);
+  const [openAntar, setOpenAntar] = useState<string | null>(null);
   const [recall, setRecall] = useState<string | null>(null);
 
   const data = dasha.data;
@@ -133,14 +134,38 @@ export function DashaScreen() {
                       {node.antardashas.filter((a) => !birthIso || Date.parse(a.endIso) > Date.parse(birthIso)).map((a) => {
                         const ast = state(a);
                         const antarStart = birthIso && Date.parse(a.startIso) < Date.parse(birthIso) ? birthIso : a.startIso;
+                        const antarKey = `${node.lord}${node.startIso}/${a.lord}${a.startIso}`;
+                        const antarOpen = openAntar === antarKey;
                         return (
-                          <div className={`srow ${ast === "past" ? "done" : ast === "active" ? "now" : ""}`} key={a.lord + a.startIso}>
-                            <span className="sn">
-                              <GrahaIcon name={a.lord} size={20} decorative />
-                              {grahaName(a.lord, lang)}
-                              {ast === "active" ? t(" — running now", " — ఇప్పుడు నడుస్తోంది") : ""}
-                            </span>
-                            <span className="sd">{antarStart !== a.startIso ? t("At birth", "జననం నుండి") : dayMonthYear(antarStart, lang)} – {dayMonthYear(a.endIso, lang)}</span>
+                          <div key={a.lord + a.startIso}>
+                            <button
+                              className={`srow srowbtn ${ast === "past" ? "done" : ast === "active" ? "now" : ""}`}
+                              type="button"
+                              aria-expanded={antarOpen}
+                              onClick={() => setOpenAntar(antarOpen ? null : antarKey)}
+                            >
+                              <span className="sn">
+                                <GrahaIcon name={a.lord} size={20} decorative />
+                                {grahaName(a.lord, lang)}
+                                {ast === "active" ? t(" — running now", " — ఇప్పుడు నడుస్తోంది") : ""}
+                              </span>
+                              <span className="sd">{antarStart !== a.startIso ? t("At birth", "జననం నుండి") : dayMonthYear(antarStart, lang)} – {dayMonthYear(a.endIso, lang)}</span>
+                            </button>
+                            <div className={`subs subs2${antarOpen ? " on" : ""}`}>
+                              {a.pratyantardashas.filter((pd) => !birthIso || Date.parse(pd.endIso) > Date.parse(birthIso)).map((pd) => {
+                                const pst = state(pd);
+                                return (
+                                  <div className={`srow prow3 ${pst === "past" ? "done" : pst === "active" ? "now" : ""}`} key={pd.lord + pd.startIso}>
+                                    <span className="sn">
+                                      <GrahaIcon name={pd.lord} size={20} decorative />
+                                      {grahaName(pd.lord, lang)}
+                                      {pst === "active" ? t(" — running now", " — ఇప్పుడు నడుస్తోంది") : ""}
+                                    </span>
+                                    <span className="sd">{dayMonthYear(pd.startIso, lang)} – {dayMonthYear(pd.endIso, lang)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         );
                       })}

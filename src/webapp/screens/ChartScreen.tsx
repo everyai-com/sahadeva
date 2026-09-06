@@ -45,34 +45,67 @@ const HOUSES: House[] = [
 type Cell = { name: string; planet: string; deg: string; flags: string };
 const BHAVA_IDS = ["tanu","dhana","sahaja","bandhu","putra","ari","yuvati","randhra","dharma","karma","labha","vyaya"];
 
+// Divisional charts the web app can render from the already-fetched payload.
+// D1 carries degrees/nakshatra; higher vargas carry sign placement only.
+const VARGAS = [
+  { id: "D1", label: "Rasi", labelTe: "రాశి", sub: "D-1" },
+  { id: "D9", label: "Navamsa", labelTe: "నవాంశ", sub: "D-9" },
+  { id: "D10", label: "Dasamsa", labelTe: "దశాంశ", sub: "D-10" },
+  { id: "D7", label: "Saptamsa", labelTe: "సప్తాంశ", sub: "D-7" },
+  { id: "D12", label: "Dwadasamsa", labelTe: "ద్వాదశాంశ", sub: "D-12" },
+] as const;
+type VargaId = (typeof VARGAS)[number]["id"];
+
+// Classical Graha Drishti offsets (signs forward from the planet's own sign).
+const DRISHTI_OFFSETS: Record<string, number[]> = {
+  Mars: [3, 6, 7],
+  Jupiter: [4, 6, 8],
+  Saturn: [2, 6, 9],
+};
+function aspectedSigns(planet: string, sign: number): number[] {
+  if (planet === "Rahu" || planet === "Ketu" || planet === "Lagna") return [sign];
+  const offsets = DRISHTI_OFFSETS[planet] ?? [6];
+  return [...new Set([sign, ...offsets.map((off) => (sign + off) % 12)])];
+}
+
 export function ChartScreen() {
   const { lang, t } = useLang();
   const { profile, chart } = useData();
-  const [varga, setVarga] = useState<"d1" | "d9">("d1");
+  const [varga, setVarga] = useState<VargaId>("D1");
   const [openHouse, setOpenHouse] = useState<{ sign: number; house: number } | null>(null);
 
   const data = chart.data;
 
   // Build placements-by-sign for the active varga.
   const dignityByName = new Map((data?.advanced.dignities ?? []).map((d) => [d.name, d]));
+  const d1ByName = new Map((data?.placements ?? []).map((p) => [p.name, p]));
   let placements: Array<{ name: string; sign: number; deg?: number; retro?: boolean }> = [];
   let lagnaSign = 0;
   if (data) {
-    if (varga === "d1") {
+    if (varga === "D1") {
       placements = data.placements.map((p) => ({ name: p.name, sign: p.sign, deg: p.degree, retro: p.retrograde }));
       lagnaSign = data.placements.find((p) => p.name === "Lagna")?.sign ?? 0;
     } else {
-      const nav: VargaPlacement[] = data.navamsa ?? data.advanced.vargas["D9"] ?? [];
-      placements = nav.map((p) => ({ name: p.name, sign: p.sign }));
-      lagnaSign = nav.find((p) => p.name === "Lagna")?.sign ?? 0;
+      const division: VargaPlacement[] = data.advanced.vargas[varga] ?? data.navamsa ?? [];
+      placements = division.map((p) => ({ name: p.name, sign: p.sign }));
+      lagnaSign = division.find((p) => p.name === "Lagna")?.sign ?? 0;
     }
   }
+  const vargaMeta = VARGAS.find((v) => v.id === varga)!;
 
   const bySign = new Map<number, Cell[]>();
   for (const p of placements) {
     if (p.name === "Lagna") continue;
+    const dg = dignityByName.get(p.name);
     const own = SIGN_LORDS[p.sign] === p.name;
-    const flags = [p.retro ? "R" : "", own ? "own" : ""].filter(Boolean).join(" · ");
+    const flags = [
+      p.retro ? "R" : "",
+      own ? "own" : "",
+      dg?.dignity && dg.dignity !== "neutral" ? dg.dignity : "",
+      dg?.combust ? "combust" : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const arr = bySign.get(p.sign) ?? [];
     arr.push({ name: p.name, planet: grahaAbbr(p.name), deg: p.deg != null ? dms(p.deg) : "", flags });
     bySign.set(p.sign, arr);
@@ -81,16 +114,30 @@ export function ChartScreen() {
   const moon = data?.placements.find((p) => p.name === "Moon");
   const lagnaD1 = data?.placements.find((p) => p.name === "Lagna");
 
+  // Planets aspecting a sign (whole-sign Graha Drishti, D1 only).
+  const aspectingBySign = new Map<number, string[]>();
+  if (varga === "D1" && data) {
+    for (const p of data.placements) {
+      if (p.name === "Lagna") continue;
+      for (const s of aspectedSigns(p.name, p.sign)) {
+        if (s === p.sign) continue;
+        const arr = aspectingBySign.get(s) ?? [];
+        arr.push(p.name);
+        aspectingBySign.set(s, arr);
+      }
+    }
+  }
+
   // summary strip
   const summaryLine =
-    varga === "d1"
+    varga === "D1"
       ? t(
           `Your ascendant is ${signName(lagnaSign, "en")}, and your Moon is in ${moon ? signName(moon.sign, "en") : ""} — in the star ${moon ? nakName(moon.nakshatra, "en") : ""}.`,
           `మీ లగ్నం ${signName(lagnaSign, "te")}, మీ చంద్రుడు ${moon ? signName(moon.sign, "te") : ""} రాశిలో — ${moon ? nakName(moon.nakshatra, "te") : ""} నక్షత్రంలో.`,
         )
       : t(
-          `In the ninth division your ascendant is ${signName(lagnaSign, "en")}.`,
-          `నవాంశలో మీ లగ్నం ${signName(lagnaSign, "te")}.`,
+          `In ${vargaMeta.label} your ascendant is ${signName(lagnaSign, "en")}.`,
+          `${vargaMeta.labelTe}లో మీ లగ్నం ${signName(lagnaSign, "te")}.`,
         );
 
   const house = openHouse ? HOUSES[openHouse.house - 1] : null;
@@ -116,12 +163,11 @@ export function ChartScreen() {
         </button>
 
         <div className="seg" role="tablist" aria-label="Chart division">
-          <button type="button" role="tab" aria-selected={varga === "d1"} onClick={() => setVarga("d1")}>
-            <span>{t("Rasi", "రాశి")}</span> <span className="sub">D-1</span>
-          </button>
-          <button type="button" role="tab" aria-selected={varga === "d9"} onClick={() => setVarga("d9")}>
-            <span>{t("Navamsa", "నవాంశ")}</span> <span className="sub">D-9</span>
-          </button>
+          {VARGAS.map((v) => (
+            <button key={v.id} type="button" role="tab" aria-selected={varga === v.id} onClick={() => setVarga(v.id)}>
+              <span>{t(v.label, v.labelTe)}</span> <span className="sub">{v.sub}</span>
+            </button>
+          ))}
         </div>
 
         {chart.status === "error" && <p className="muted small">{t("The chart could not be calculated.", "జాతకం లెక్కించలేకపోయాం.")}</p>}
@@ -165,7 +211,7 @@ export function ChartScreen() {
                   <br />
                   {profile?.place} · {profile?.latitude.toFixed(2)} N, {profile?.longitude.toFixed(2)} E
                 </span>
-                <span className="cv">{varga === "d1" ? t("Rasi · D-1", "రాశి · D-1") : t("Navamsa · D-9", "నవాంశ · D-9")}</span>
+                <span className="cv">{varga === "D1" ? t("Rasi · D-1", "రాశి · D-1") : t(`${vargaMeta.label} · ${vargaMeta.sub}`, `${vargaMeta.labelTe} · ${vargaMeta.sub}`)}</span>
               </div>
             </div>
 
@@ -173,9 +219,9 @@ export function ChartScreen() {
               <p>
                 <span className="sline">{summaryLine}</span>
                 <span className="tr">
-                  {varga === "d1"
+                  {varga === "D1"
                     ? `${signName(lagnaSign, lang)} lagna${moon ? ` · ${signName(moon.sign, lang)} · ${nakName(moon.nakshatra, lang)} ${lagnaD1 ? "" : ""}` : ""}`
-                    : `${signName(lagnaSign, lang)} navamsa lagna`}
+                    : `${signName(lagnaSign, lang)} ${vargaMeta.label.toLowerCase()} lagna`}
                 </span>
               </p>
             </div>
@@ -227,6 +273,20 @@ export function ChartScreen() {
                 {house.tr} &nbsp;·&nbsp; {sheetSign.full || sheetSign.k} ({sheetSign.en})
               </p>
               <p className="sgov">{lang === "te" ? house.gTe : house.g}</p>
+              {varga === "D1" && (
+                <p className="strn">
+                  {t(`Lord: ${grahaName(SIGN_LORDS[openHouse.sign], "en")}`, `అధిపతి: ${grahaName(SIGN_LORDS[openHouse.sign], "te")}`)}
+                  {(aspectingBySign.get(openHouse.sign) ?? []).length > 0 && (
+                    <>
+                      {" "}&nbsp;·&nbsp;{" "}
+                      {t(
+                        `Aspected by ${(aspectingBySign.get(openHouse.sign) ?? []).map((n) => grahaName(n, "en")).join(", ")}`,
+                        `దృష్టి: ${(aspectingBySign.get(openHouse.sign) ?? []).map((n) => grahaName(n, "te")).join(", ")}`,
+                      )}
+                    </>
+                  )}
+                </p>
+              )}
               <div className="plist">
                 {sheetPlanets.length === 0 ? (
                   <p className="empty">
@@ -238,6 +298,8 @@ export function ChartScreen() {
                 ) : (
                   sheetPlanets.map((p, i) => {
                     const dg = dignityByName.get(p.name);
+                    const d1 = varga === "D1" ? d1ByName.get(p.name) : undefined;
+                    const houseNum = ((p.sign - lagnaSign + 12) % 12) + 1;
                     return (
                       <div className="prow" key={i}>
                         <span className="pn">
@@ -246,7 +308,17 @@ export function ChartScreen() {
                           <span>{p.name}</span>
                         </span>
                         <span className="pd">
-                          {[p.deg != null ? dms(p.deg) : "", p.retro ? "R" : "", dg?.dignity && dg.dignity !== "neutral" ? dg.dignity : ""].filter(Boolean).join(" · ")}
+                          {[
+                            p.deg != null ? dms(p.deg) : "",
+                            d1 ? `${nakName(d1.nakshatra, lang)} ${d1.pada}` : "",
+                            `${t("house", "భావం")} ${houseNum}`,
+                            `${t("lord", "అధిపతి")} ${grahaName(SIGN_LORDS[p.sign], lang)}`,
+                            p.retro ? "R" : "",
+                            dg?.dignity && dg.dignity !== "neutral" ? dg.dignity : "",
+                            dg?.combust ? t("combust", "అస్తంగత") : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
                       </div>
                     );
@@ -259,7 +331,7 @@ export function ChartScreen() {
                 </button>
                 <button className="btn" type="button" onClick={() => {
                   saveChartAskContext({
-                    division: varga,
+                    division: varga === "D1" ? "d1" : varga === "D9" ? "d9" : varga === "D10" ? "d10" : varga === "D7" ? "d7" : "d12",
                     house: openHouse.house,
                     sign: `${sheetSign.full || sheetSign.k} (${sheetSign.en})`,
                     planets: sheetPlanets.map((planet) => planet.name),

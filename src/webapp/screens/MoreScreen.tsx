@@ -94,6 +94,7 @@ export function MoreScreen() {
 
   const moon = chart.data?.placements.find((p) => p.name === "Moon");
   const lagna = chart.data?.placements.find((p) => p.name === "Lagna");
+  const natalPanchanga = chart.data?.panchanga;
 
   const rows: Array<{ to: Route | "#pro"; icon: ReactNode; title: string; sub: string }> = [
     {
@@ -125,6 +126,17 @@ export function MoreScreen() {
       ),
       title: t("Remedies", "పరిహారాలు"),
       sub: t("Safe, low-burden practices — nothing sold", "సురక్షితమైన, తక్కువ భారం ఉన్న ఆచరణలు"),
+    },
+    {
+      to: "prashna",
+      icon: (
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 7v5l3 3" />
+        </svg>
+      ),
+      title: t("Prashna", "ప్రశ్న"),
+      sub: t("Ask this moment — horary consultation", "ఈ క్షణాన్ని అడగండి — తత్కాల ప్రశ్న"),
     },
     {
       to: "#pro",
@@ -237,6 +249,13 @@ export function MoreScreen() {
                 {moon && <div><dt>{t("Birth star (Nakshatra)", "జన్మ నక్షత్రం")}</dt><dd>{nakName(moon.nakshatra, lang)}</dd></div>}
                 {moon && <div><dt>{t("Moon sign (Rashi)", "చంద్ర రాశి")}</dt><dd>{signName(moon.sign, lang)}{lang === "en" ? ` · ${SIGN_GLOSS_EN[moon.sign]}` : ""}</dd></div>}
               </dl>
+              {natalPanchanga && (
+                <dl className="profilefacts">
+                  <div className="wide"><dt>{t("Birth panchanga", "జన్మ పంచాంగం")}</dt><dd className="mono">{[natalPanchanga.vara, natalPanchanga.tithi, natalPanchanga.nakshatra, natalPanchanga.yoga, natalPanchanga.karana].filter(Boolean).join(" · ")}</dd></div>
+                  <div><dt>{t("Paksha", "పక్షం")}</dt><dd>{natalPanchanga.paksha}</dd></div>
+                  <div><dt>{t("Moon star, quarter", "నక్షత్ర పాదం")}</dt><dd>{moon ? `${nakName(moon.nakshatra, lang)} · ${t(`pada ${moon.pada}`, `పాదం ${moon.pada}`)}` : "—"}</dd></div>
+                </dl>
+              )}
               {moon && lagna && (
                 <p className="profilehelp">
                   {t(
@@ -333,6 +352,7 @@ export function MoreScreen() {
         <nav className="legal-links" aria-label={t("Legal", "చట్టపరమైన సమాచారం")}>
           <a href="/privacy">{t("Privacy", "గోప్యత")}</a>
           <a href="/terms">{t("Terms", "నిబంధనలు")}</a>
+          <a href="/support">{t("Support", "సహాయం")}</a>
         </nav>
       </main>
       <AuthSheet open={authOpen} onClose={() => setAuthOpen(false)} />

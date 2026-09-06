@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bestEffortKnownLocation,
   findKnownLocation,
   KNOWN_LOCATIONS,
   locationLabel,
@@ -95,5 +96,16 @@ describe("offline location catalogue", () => {
     const result = resolveKnownLocation("Rampur, Telangana, India", catalogue);
     expect(result.status).toBe("ambiguous");
     expect(result.matches).toHaveLength(2);
+  });
+  it("best-effort prefers curated full names over GeoNames admin codes", () => {
+    const result = resolveKnownLocation("Hyderabad");
+    // Bare "Hyderabad" hits curated + generated rows; resolution stays
+    // ambiguous so search can show choices, but chart tools auto-pick curated.
+    expect(result.status).toBe("ambiguous");
+    if (result.status === "ambiguous") {
+      const winner = bestEffortKnownLocation(result.matches);
+      expect(winner?.state).toBe("Telangana");
+      expect(winner?.country).toBe("India");
+    }
   });
 });

@@ -13,4 +13,5 @@ describe("AI-compatible dasha calendar", () => {
   });
   it("exports valid calendar events", () => { const ics=dashaCalendarIcs(chart); expect(ics).toContain("BEGIN:VCALENDAR"); expect((ics.match(/BEGIN:VEVENT/g)||[]).length).toBe(81); });
   it("returns a compact versioned AI evidence packet", () => { const evidence=compactChartEvidence(chart); expect(evidence.schemaVersion).toBe("sahadeva-evidence-2"); expect(evidence.placements).toHaveLength(10); expect(evidence.houses.sripati.status).toBe("supported"); expect(evidence.safety.interpretiveOnly).toBe(true); });
+  it("carries the explicit planet-to-house aspect matrix", () => { const evidence=compactChartEvidence(chart) as unknown as { aspectMatrix: { system: string; houses: Array<{ planet: string; occupiedHouse: number; aspectedHouses: number[] }> } }; expect(evidence.aspectMatrix.system).toBe("whole-sign"); expect(evidence.aspectMatrix.houses.length).toBeGreaterThanOrEqual(9); const mars=evidence.aspectMatrix.houses.find((r) => r.planet==="Mars")!; expect(mars.aspectedHouses).toContain(mars.occupiedHouse); expect(mars.aspectedHouses.length).toBe(4); });
 });

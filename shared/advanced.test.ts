@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateChart } from "./jyotish";
-import { calculateVargas } from "./advanced";
+import { calculatePlanetHouseAspectMatrix, calculateVargas } from "./advanced";
 import type { BirthInput } from "./schema";
 
 const input: BirthInput = { name: "Boundary suite", date: "2000-01-01", time: "12:00", place: "Greenwich", latitude: 51.4779, longitude: 0, timezoneOffset: 0, language: "en", methodology: "parashari", focus: "general", birthTimeAccuracyMinutes: 5 };
@@ -47,4 +47,35 @@ describe("advanced Jyotish derivations", () => {
   });
 
   it("provides one dignity record per placement", () => expect(chart.advanced.dignities).toHaveLength(chart.placements.length));
+
+  it("pins the calculation version policy in every chart", () => {
+    expect(chart.engine.version).toMatch(/^cleanroom-/);
+    expect(chart.engine.ayanamsaConvention.id).toBe("lahiri-iae-1985-mean");
+    expect(chart.engine.ayanamsaConvention.version).toBeTruthy();
+    expect(chart.engine.zodiac.signIndexBase).toBe(0);
+    expect(chart.engine.validation.productionCertified).toBe(false);
+  });
+
+  it("builds an explicit planet-to-house drishti matrix", () => {
+    const lagna = { name: "Lagna" as const, sign: 0 };
+    const matrix = calculatePlanetHouseAspectMatrix([
+      lagna,
+      { name: "Mars" as const, sign: 0 },
+      { name: "Jupiter" as const, sign: 3 },
+      { name: "Rahu" as const, sign: 6 },
+    ] as never);
+    expect(matrix.system).toBe("whole-sign");
+    // Mars in house 1 aspects 1 (occupied), 4, 7, 8.
+    expect(
+      matrix.houses.find((r) => r.planet === "Mars")?.aspectedHouses,
+    ).toEqual([1, 4, 7, 8]);
+    // Jupiter in house 4 aspects 4 (occupied), 8, 10, 12.
+    expect(
+      matrix.houses.find((r) => r.planet === "Jupiter")?.aspectedHouses,
+    ).toEqual([4, 8, 10, 12]);
+    // Nodes cast no classical drishti: occupied house only.
+    const rahu = matrix.houses.find((r) => r.planet === "Rahu");
+    expect(rahu?.aspectedHouses).toEqual([7]);
+    expect(rahu?.classicalDrishti).toBe(false);
+  });
 });

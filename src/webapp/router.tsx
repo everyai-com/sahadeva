@@ -9,8 +9,10 @@ export type Route =
   | "dasha"
   | "match"
   | "remedies"
+  | "prashna"
   | "privacy"
   | "terms"
+  | "support"
   | "not-found";
 
 const ROUTES: Route[] = [
@@ -22,8 +24,10 @@ const ROUTES: Route[] = [
   "dasha",
   "match",
   "remedies",
+  "prashna",
   "privacy",
   "terms",
+  "support",
 ];
 
 /** The default landing screen — Ask (అడగండి), framed around the jatakam. */

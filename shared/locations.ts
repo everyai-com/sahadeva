@@ -1124,6 +1124,25 @@ export function findKnownLocation(query: string) {
   const result = resolveKnownLocation(query);
   return result.status === "resolved" ? result.location : null;
 }
+// Best-effort single-call resolution for MCP chart tools. Bare names like
+// "Hyderabad" match both the curated catalogue and generated GeoNames rows.
+// Prefer curated full-name records (district/state/country spelled out) over
+// 2-letter GeoNames admin codes so one call succeeds with a transparent
+// notice instead of forcing a retry round-trip. Returns null when there is
+// no principled winner; callers must then return candidates as an error.
+export function bestEffortKnownLocation(
+  matches: KnownLocation[],
+): KnownLocation | null {
+  if (!matches.length) return null;
+  const curated = matches.filter(
+    (m) => m.country.length > 2 && Boolean(m.state && m.state.length > 2),
+  );
+  const pool = curated.length ? curated : matches;
+  const distinct = uniqueLocations(pool);
+  // Prefer an exact normalized name hit; catalogue order is deterministic
+  // (curated entries precede generated ones), so [0] is stable.
+  return distinct[0] ?? null;
+}
 export function searchKnownLocations(query: string, limit = 20) {
   const needle = normalize(query);
   if (!needle) return KNOWN_LOCATIONS.slice(0, limit);

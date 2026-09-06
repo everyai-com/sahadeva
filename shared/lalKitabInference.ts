@@ -1,9 +1,38 @@
 import type { ChartResult, GrahaName } from "./schema";
+import type { JudgmentTopic } from "./judgmentTopics";
 
 export const LAL_KITAB_PLANETS = [
   "Jupiter", "Sun", "Moon", "Venus", "Mars", "Mercury", "Saturn", "Rahu", "Ketu",
 ] as const satisfies readonly GrahaName[];
 type LalKitabPlanet = (typeof LAL_KITAB_PLANETS)[number];
+export type LalKitabPredictionTopic = JudgmentTopic | "general";
+
+const HOUSE_THEMES: Record<number, string[]> = {
+  1: ["body", "identity", "life direction"], 2: ["family resources", "speech", "stored wealth"],
+  3: ["effort", "siblings", "initiative"], 4: ["home", "property", "emotional foundation"],
+  5: ["children", "learning", "creative judgment"], 6: ["health routines", "service", "conflict"],
+  7: ["relationships", "agreements", "partnership"], 8: ["disruption", "shared obligations", "transformation"],
+  9: ["fortune", "teachers", "belief"], 10: ["career", "status", "responsibility"],
+  11: ["gains", "networks", "fulfilment"], 12: ["expenses", "withdrawal", "closure"],
+};
+const PLANET_THEMES: Record<LalKitabPlanet, string[]> = {
+  Sun: ["authority", "vitality", "father figures"], Moon: ["mind", "mother figures", "home"],
+  Mars: ["action", "conflict", "property"], Mercury: ["speech", "trade", "learning"],
+  Jupiter: ["judgment", "children", "teachers"], Venus: ["relationships", "comfort", "resources"],
+  Saturn: ["work", "delay", "endurance"], Rahu: ["ambition", "disruption", "unconventional paths"],
+  Ketu: ["separation", "insight", "closure"],
+};
+const TOPIC_FACTORS: Record<LalKitabPredictionTopic, { houses: number[]; planets: LalKitabPlanet[] }> = {
+  general: { houses: [1, 4, 7, 10], planets: ["Sun", "Moon", "Jupiter", "Saturn"] },
+  career: { houses: [2, 6, 10, 11], planets: ["Sun", "Mercury", "Jupiter", "Saturn"] },
+  education: { houses: [2, 4, 5, 9], planets: ["Mercury", "Jupiter", "Moon"] },
+  property: { houses: [2, 4, 8, 11], planets: ["Mars", "Moon", "Saturn", "Venus"] },
+  relationships: { houses: [2, 4, 7, 8, 11], planets: ["Venus", "Moon", "Mars", "Jupiter"] },
+  spirituality: { houses: [5, 8, 9, 12], planets: ["Jupiter", "Ketu", "Saturn", "Moon"] },
+  wealth: { houses: [2, 6, 10, 11, 12], planets: ["Jupiter", "Venus", "Mercury", "Saturn"] },
+  health: { houses: [1, 6, 8, 12], planets: ["Sun", "Moon", "Mars", "Saturn"] },
+  children: { houses: [2, 5, 9, 11], planets: ["Jupiter", "Moon", "Sun"] },
+};
 
 const FIXED_HOUSES: Record<LalKitabPlanet, number[]> = {
   Sun: [1], Jupiter: [2, 5, 9, 11], Mars: [3, 8], Moon: [4], Ketu: [6],
@@ -39,6 +68,25 @@ const HOUSE_METHOD: Record<number, string> = {
   10: "service connected with father or public duty", 11: "no house-method remedy",
   12: "safe elevated placement",
 };
+const ARTIFICIAL_COMBINATIONS: Array<{
+  pair: [LalKitabPlanet, LalKitabPlanet];
+  produces: LalKitabPlanet | "Mars-positive" | "Mars-negative";
+  disposition: "neutral" | "exalted" | "debilitated" | "hollow" | "ketu-like" | "rahu-like";
+}> = [
+  { pair: ["Sun", "Venus"], produces: "Jupiter", disposition: "hollow" },
+  { pair: ["Mercury", "Venus"], produces: "Sun", disposition: "neutral" },
+  { pair: ["Sun", "Jupiter"], produces: "Moon", disposition: "neutral" },
+  { pair: ["Rahu", "Ketu"], produces: "Venus", disposition: "neutral" },
+  { pair: ["Sun", "Mercury"], produces: "Mars-positive", disposition: "neutral" },
+  { pair: ["Sun", "Saturn"], produces: "Mars-negative", disposition: "neutral" },
+  { pair: ["Jupiter", "Rahu"], produces: "Mercury", disposition: "neutral" },
+  { pair: ["Venus", "Jupiter"], produces: "Saturn", disposition: "ketu-like" },
+  { pair: ["Mercury", "Mars"], produces: "Saturn", disposition: "rahu-like" },
+  { pair: ["Mars", "Saturn"], produces: "Rahu", disposition: "exalted" },
+  { pair: ["Sun", "Saturn"], produces: "Rahu", disposition: "debilitated" },
+  { pair: ["Venus", "Saturn"], produces: "Ketu", disposition: "exalted" },
+  { pair: ["Moon", "Saturn"], produces: "Ketu", disposition: "debilitated" },
+];
 const SOURCE = {
   fixedHouses: "book-gosvami-lal-kitab:L2060-L2075",
   relationships: "book-gosvami-lal-kitab:L2115-L2165",
@@ -48,6 +96,8 @@ const SOURCE = {
   houseMethod: "book-gosvami-lal-kitab:L4358-L4387",
   dormantBlind: "book-gosvami-lal-kitab:L2384-L2396;L3063-L3110",
   aspectGrammar: "book-gosvami-lal-kitab:L3296-L3385",
+  artificialPlanets: "book-gosvami-lal-kitab:L2025-L2045;L4480-L4535",
+  speakingPlanets: "book-gosvami-lal-kitab:L3296-L3310",
 } as const;
 
 const houseFromLagna = (lagnaSign: number, sign: number) => ((sign - lagnaSign + 12) % 12) + 1;
@@ -61,7 +111,7 @@ export type LalKitabExplanationStep = {
   sourceLocator: string;
 };
 
-export function analyzeLalKitabInference(chart: ChartResult) {
+export function analyzeLalKitabInference(chart: ChartResult, topic: LalKitabPredictionTopic = "general") {
   const lagna = chart.placements.find((item) => item.name === "Lagna");
   if (!lagna) throw new Error("Lagna is required for Lal Kitab inference");
   const placements = LAL_KITAB_PLANETS.map((planet) => {
@@ -71,7 +121,21 @@ export function analyzeLalKitabInference(chart: ChartResult) {
   });
   const byHouse = new Map<number, LalKitabPlanet[]>();
   for (const item of placements) byHouse.set(item.house, [...(byHouse.get(item.house) ?? []), item.planet]);
-  const currentDasha = new Set([chart.advanced.birthPeriods.mahadasha, chart.advanced.birthPeriods.antardasha]);
+  const birthPeriodLords = new Set([chart.advanced.birthPeriods.mahadasha, chart.advanced.birthPeriods.antardasha]);
+  const artificialPlanets = [...byHouse].flatMap(([house, planets]) => ARTIFICIAL_COMBINATIONS.flatMap((rule) =>
+    rule.pair.every((planet) => planets.includes(planet))
+      ? [{
+          id: `${rule.pair.join("+")}=>${rule.produces}@H${house}`,
+          house,
+          inputs: rule.pair,
+          produces: rule.produces,
+          disposition: rule.disposition,
+          effectClass: "sign-effect-remediable" as const,
+          adverse: rule.disposition === "debilitated" || rule.produces === "Mars-negative",
+          sourceLocator: SOURCE.artificialPlanets,
+        }]
+      : [],
+  ));
   const occupied = [...byHouse.keys()];
   const priorSideBlank = !occupied.some((house) => house <= 6);
   const latterSideBlank = !occupied.some((house) => house >= 7);
@@ -90,7 +154,10 @@ export function analyzeLalKitabInference(chart: ChartResult) {
     if ((delta === 2 || delta === 12) && mutualFriends) kinds.push("joint-wall-companion");
     if (from.house === 8 && to.house === 2) kinds.push("inverse-aspect");
     if (suddenPairs.has(`${from.house}:${to.house}`)) kinds.push("sudden-strike-candidate");
-    return kinds.length ? [{ from: from.planet, fromHouse: from.house, to: to.planet, toHouse: to.house, kinds, mutualFriends, enemies }] : [];
+    const direction = from.house === 8 && to.house === 2
+      ? "inverse-backward" as const
+      : from.house < to.house ? "prior-to-latter" as const : "cyclic-forward" as const;
+    return kinds.length ? [{ from: from.planet, fromHouse: from.house, to: to.planet, toHouse: to.house, kinds, mutualFriends, enemies, direction }] : [];
   }));
   const halfBlindChart = byHouse.get(4)?.includes("Sun") === true && byHouse.get(7)?.includes("Saturn") === true;
   const blindChart = (byHouse.get(10) ?? []).some((planet) =>
@@ -139,7 +206,14 @@ export function analyzeLalKitabInference(chart: ChartResult) {
       ...friendlyCompanions.map((planet) => `conjoined friend ${planet}`),
       ...relationalSupport,
     ])];
-    const activation = currentDasha.has(item.planet) ? "active-dasha" as const : "background" as const;
+    const activation = birthPeriodLords.has(item.planet) ? "birth-period-lord" as const : "natal-background" as const;
+    const expressionState = ["Jupiter", "Sun", "Mars"].includes(item.planet)
+      ? item.house % 2 === 0 ? "speaking" as const : "conditional" as const
+      : ["Moon", "Venus"].includes(item.planet)
+        ? item.house % 2 === 1 ? "speaking" as const : "conditional" as const
+        : item.planet === "Mercury"
+          ? [3, 6].includes(item.house) ? "speaking" as const : "conditional" as const
+          : item.house === 2 ? "silent" as const : "conditional" as const;
     const condition = adverseSignals.length && supportiveSignals.length ? "mixed" as const
       : adverseSignals.length ? "adverse" as const
         : supportiveSignals.length ? "supported" as const : "unresolved" as const;
@@ -156,6 +230,7 @@ export function analyzeLalKitabInference(chart: ChartResult) {
       ...item, companions, enemyCompanions, friendlyCompanions, dormant, dormantByConjunction, dormantByEmptySide, eclipse,
       chartStates: { blindChart, halfBlindChart },
       effectClass, fixedReasons, adverseSignals, supportiveSignals, activation, condition,
+      expressionState,
       remedyDecision: {
         decision,
         targetPlanets,
@@ -166,37 +241,114 @@ export function analyzeLalKitabInference(chart: ChartResult) {
   });
 
   const diagnoses = states.filter((state) => state.adverseSignals.length).sort((a, b) =>
-    Number(b.activation === "active-dasha") - Number(a.activation === "active-dasha") ||
+    Number(b.activation === "birth-period-lord") - Number(a.activation === "birth-period-lord") ||
     b.adverseSignals.length - a.adverseSignals.length,
   );
+  const artificialDiagnoses = artificialPlanets.filter((state) => state.adverse).map((state) => ({
+    id: state.id,
+    planet: state.produces,
+    house: state.house,
+    cause: `${state.inputs.join("+")} forms ${state.produces} in ${state.disposition} condition`,
+    effectClass: state.effectClass,
+    remedyDecision: {
+      decision: "candidate-remedy-principle-found" as const,
+      targetPlanets: ownersOfHouse(state.house),
+      houseMethod: HOUSE_METHOD[state.house],
+      instructionStatus: "principle-only-no-procedure" as const,
+    },
+  }));
+  const topicFactors = TOPIC_FACTORS[topic];
+  const predictions = states.map((state) => {
+    const houseRelevant = topicFactors.houses.includes(state.house);
+    const planetRelevant = topicFactors.planets.includes(state.planet);
+    const relevance = (houseRelevant ? 3 : 0) + (planetRelevant ? 2 : 0) +
+      (state.activation === "birth-period-lord" ? 2 : 0) + (state.condition !== "unresolved" ? 1 : 0);
+    const direction = state.condition === "supported" ? "supportive" as const
+      : state.condition === "adverse" ? "challenging" as const
+        : state.condition === "mixed" ? "mixed" as const : "unclear" as const;
+    const theme = houseRelevant ? HOUSE_THEMES[state.house][0] : PLANET_THEMES[state.planet][0];
+    const tendency = direction === "supportive" ? "may receive steadier support"
+      : direction === "challenging" ? "may face pressure, delay, or uneven expression"
+        : direction === "mixed" ? "may alternate between support and obstruction"
+          : "does not yield a clear direction from the calculated rules";
+    return {
+      id: `lk-${topic}-${state.planet.toLowerCase()}-h${state.house}`,
+      topic, planet: state.planet, house: state.house, theme, direction,
+      activation: state.activation,
+      horizon: state.activation === "birth-period-lord" ? "natal-birth-period-emphasis" as const : "natal-background" as const,
+      relevance,
+      statement: `In ${topic === "general" ? "general life matters" : topic}, ${theme} ${tendency} through ${state.planet} in house ${state.house}.`,
+      logic: [
+        `${state.planet} occupies fixed house ${state.house}.`,
+        `Its calculated condition is ${state.condition}.`,
+        state.activation === "birth-period-lord" ? "It is emphasized by the calculated birth-period context." : "It remains a natal background tendency.",
+        state.effectClass === "planet-effect-fixed" ? "The effect is treated as fixed, so a remedy is not used to erase it." : "The sign-effect is eligible for a remedy principle when adverse.",
+      ],
+      supportingEvidence: state.supportiveSignals,
+      opposingEvidence: state.adverseSignals,
+      confidence: houseRelevant && planetRelevant ? "structural-high" as const
+        : houseRelevant || planetRelevant ? "structural-medium" as const : "low" as const,
+      remedyLink: { decision: state.remedyDecision.decision, targetPlanets: state.remedyDecision.targetPlanets },
+      sourceLocators: [SOURCE.fixedHouses, SOURCE.aspectGrammar, SOURCE.remediability],
+    };
+  }).filter((prediction) => prediction.relevance >= 3).sort((a, b) =>
+    Number(b.activation === "birth-period-lord") - Number(a.activation === "birth-period-lord") ||
+    b.relevance - a.relevance || b.opposingEvidence.length - a.opposingEvidence.length,
+  );
+  const directional = predictions.filter((prediction) => prediction.direction !== "unclear");
+  const supportiveCount = directional.filter((prediction) => prediction.direction === "supportive").length;
+  const challengingCount = directional.filter((prediction) => prediction.direction === "challenging").length;
+  const mixedCount = directional.filter((prediction) => prediction.direction === "mixed").length;
+  const overall = !directional.length ? "insufficient" as const
+    : mixedCount || (supportiveCount && challengingCount) ? "mixed" as const
+      : challengingCount ? "challenging" as const : "supportive" as const;
+  const primaryPrediction = predictions.find((prediction) => prediction.activation === "birth-period-lord" && prediction.direction !== "unclear") ??
+    predictions.find((prediction) => prediction.direction !== "unclear") ?? predictions[0];
   const trace: LalKitabExplanationStep[] = [
     { order: 1, rule: "fixed-house conversion", conclusion: "The natal placements were converted once into fixed houses.", facts: placements.map((p) => `${p.planet}=H${p.house}`), sourceLocator: SOURCE.fixedHouses },
-    { order: 2, rule: "relationship resolution", conclusion: `${diagnoses.length} planets have an explicit same-house adverse relationship.`, facts: diagnoses.flatMap((d) => d.adverseSignals.map((signal) => `${d.planet}: ${signal}`)), sourceLocator: SOURCE.relationships },
-    { order: 3, rule: "planet-effect versus sign-effect", conclusion: "Only sign-effect cases proceed to a remedy principle; fixed planet-effect cases stop.", facts: states.map((s) => `${s.planet}: ${s.effectClass}`), sourceLocator: SOURCE.remediability },
-    { order: 4, rule: "fixed-house-lord remedy selection", conclusion: "For an adverse remediable placement, the fixed owner of the occupied house becomes the first remedy target.", facts: diagnoses.map((d) => `${d.planet} H${d.house} -> ${d.remedyDecision.targetPlanets.join("+") || "no automatic target"}`), sourceLocator: SOURCE.remedyOfPlanet },
-    { order: 5, rule: "remedy order", conclusion: "Resolve diagnosed/dormant planets, then active-period planets, enmity, and only then fallback stages.", facts: diagnoses.map((d) => `${d.planet}: ${d.activation}`), sourceLocator: SOURCE.sequence },
+    { order: 2, rule: "expression state", conclusion: "Planet type and house parity determine which planets actively speak in the chart.", facts: states.map((s) => `${s.planet} H${s.house}: ${s.expressionState}`), sourceLocator: SOURCE.speakingPlanets },
+    { order: 3, rule: "relationship resolution", conclusion: `${diagnoses.length} planets have calculated adverse relationships after support is retained as contrary evidence.`, facts: diagnoses.flatMap((d) => d.adverseSignals.map((signal) => `${d.planet}: ${signal}`)), sourceLocator: SOURCE.aspectGrammar },
+    { order: 4, rule: "artificial-planet synthesis", conclusion: `${artificialPlanets.length} artificial planet states were formed from same-house combinations.`, facts: artificialPlanets.map((item) => `${item.inputs.join("+")} -> ${item.produces} (${item.disposition}) in H${item.house}`), sourceLocator: SOURCE.artificialPlanets },
+    { order: 5, rule: "planet-effect versus sign-effect", conclusion: "Only sign-effect cases proceed to a remedy principle; fixed planet-effect cases stop.", facts: states.map((s) => `${s.planet}: ${s.effectClass}`), sourceLocator: SOURCE.remediability },
+    { order: 6, rule: "fixed-house-lord remedy selection", conclusion: "For an adverse remediable placement, the fixed owner of the occupied house becomes the first remedy target.", facts: diagnoses.map((d) => `${d.planet} H${d.house} -> ${d.remedyDecision.targetPlanets.join("+") || "no automatic target"}`), sourceLocator: SOURCE.remedyOfPlanet },
+    { order: 7, rule: "topic prediction synthesis", conclusion: `${predictions.length} ${topic} natal tendencies were derived from relevant houses, planets, conditions, and birth-period context.`, facts: predictions.map((prediction) => `${prediction.planet} H${prediction.house}: ${prediction.direction} (${prediction.horizon})`), sourceLocator: SOURCE.aspectGrammar },
+    { order: 8, rule: "remedy order", conclusion: "Resolve diagnosed/dormant planets, then period context, enmity, and only then fallback stages.", facts: diagnoses.map((d) => `${d.planet}: ${d.activation}`), sourceLocator: SOURCE.sequence },
   ];
   return {
-    schemaVersion: "sahadeva-lal-kitab-inference-1",
+    schemaVersion: "sahadeva-lal-kitab-inference-2",
     tradition: "lal-kitab-gosvami-1952",
     computation: { retrievalRequired: false, sourceLookupUsedForReasoning: false, chartCalculatedOnce: true },
     factGraph: {
       placements: states,
       occupiedHouses: [...byHouse].map(([house, planets]) => ({ house, planets })),
       relationshipEdges,
+      artificialPlanets,
       chartStates: { blindChart, halfBlindChart, priorSideBlank, latterSideBlank },
     },
     diagnoses,
+    artificialDiagnoses,
+    topicPrediction: {
+      topic, overall,
+      primaryPredictionId: primaryPrediction?.id ?? null,
+      primaryStatement: primaryPrediction?.statement ?? `The calculated Lal Kitab rules do not provide enough ${topic} evidence for a bounded prediction.`,
+      counts: { supportive: supportiveCount, challenging: challengingCount, mixed: mixedCount, unclear: predictions.length - directional.length },
+      calculationBasis: "Fixed houses + planet condition + Lal Kitab relationship grammar + birth-period context; no text retrieval or paragraph matching.",
+    },
+    predictions,
     remedyPlan: {
-      outcome: diagnoses.length ? "conditional-principles" : "no-remedy-indicated",
-      ordered: diagnoses.map((state, index) => ({ priority: index + 1, planet: state.planet, house: state.house, ...state.remedyDecision })),
+      outcome: diagnoses.length || artificialDiagnoses.length ? "conditional-principles" : "no-remedy-indicated",
+      ordered: [
+        ...diagnoses.map((state) => ({ planet: state.planet as string, house: state.house, basis: "natal-planet" as const, predictionIds: predictions.filter((prediction) => prediction.planet === state.planet && prediction.direction !== "supportive").map((prediction) => prediction.id), ...state.remedyDecision })),
+        ...artificialDiagnoses.map((state) => ({ planet: state.planet as string, house: state.house, basis: "artificial-planet" as const, ...state.remedyDecision })),
+      ].map((item, index) => ({ priority: index + 1, ...item })),
       sequencingRule: "One remedy principle at a time; do not combine simultaneous 40/43-day remedy courses.",
       fallbackOrder: ["diagnosed or dormant planet", "active-period planet", "enemy relationship", "sign-effect support", "Sun", "Rahu-Ketu-Saturn", "Mercury"],
     },
     explanationTrace: trace,
     unresolved: [
       "Annual-chart state is not inferred from natal astronomy.",
-      "Quantitative confrontation fractions and artificial-planet transformations require separately verified rule tables.",
+      "Quantitative confrontation fractions require a separately verified rule table.",
+      "Artificial planets are synthesized structurally; their full house-specific outcome prose remains unexecuted.",
       "A remedy principle is not a publishable ritual instruction.",
     ],
     safety: {

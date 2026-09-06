@@ -160,6 +160,13 @@ export type ChatSummary = {
   anchors?: { lagna?: { signName?: string; degree?: number }; moon?: { signName?: string; degree?: number; nakshatra?: string; pada?: number } };
   panchanga?: { vara?: string; tithi?: string; paksha?: string; nakshatra?: string; yoga?: string; karana?: string };
   currentTiming?: { mahadasha?: string | null; antardasha?: string | null; nextMahadasha?: { lord: string; startIso: string; endIso: string } | null };
+  measuredStrengths?: Array<{ planet: string; ratio: number | null; avastha: string | null }>;
+  detectedYogas?: Array<{ yoga: string; evidence: unknown }>;
+  aspectMatrix?: {
+    system: string;
+    method: string;
+    houses: Array<{ planet: string; occupiedHouse: number; aspectedHouses: number[]; classicalDrishti: boolean }>;
+  };
   everyday?: { dailyLife?: { questions?: string[] } };
   fullProfile?: { nextQuestions?: string[] } | null;
   followUps?: string[];
@@ -304,6 +311,17 @@ export type RemedyProtocol = {
   };
   lalKitabInference?: {
     computation: { retrievalRequired: boolean; chartCalculatedOnce: boolean };
+    topicPrediction: {
+      topic: string; overall: string; primaryPredictionId: string | null; primaryStatement: string;
+      counts: { supportive: number; challenging: number; mixed: number; unclear: number };
+      calculationBasis: string;
+    };
+    predictions: Array<{
+      id: string; topic: string; planet: string; house: number; theme: string;
+      direction: string; activation: string; horizon: string; statement: string;
+      logic: string[]; supportingEvidence: string[]; opposingEvidence: string[]; confidence: string;
+      remedyLink: { decision: string; targetPlanets: string[] };
+    }>;
     diagnoses: Array<{
       planet: string;
       house: number;
@@ -315,7 +333,7 @@ export type RemedyProtocol = {
     remedyPlan: {
       outcome: string;
       sequencingRule: string;
-      ordered: Array<{ priority: number; planet: string; house: number; decision: string; targetPlanets: string[]; houseMethod: string }>;
+      ordered: Array<{ priority: number; planet: string; house: number; predictionIds?: string[]; decision: string; targetPlanets: string[]; houseMethod: string }>;
     };
     explanationTrace: Array<{ order: number; rule: string; conclusion: string; facts: string[]; sourceLocator: string }>;
   };
@@ -335,6 +353,81 @@ export function fetchRemedies(
   preferences: RemedyPreferences,
 ): Promise<RemedyProtocol> {
   return postJson<RemedyProtocol>("/api/remedies", { ...profile, topic, preferences });
+}
+
+/* ── prashna (horary) ──────────────────────────────────────────────────── */
+
+export type PrashnaCategory =
+  | "career" | "relationship" | "money" | "property" | "travel"
+  | "lost-object" | "health" | "education" | "litigation"
+  | "children" | "missing-person" | "general";
+export type PrashnaTradition =
+  | "integrated" | "classical" | "tajaka" | "systems-approach" | "prashna-nadi";
+
+export type PrashnaObservation = {
+  id: string;
+  label: string;
+  polarity: string;
+  facts: string[];
+  provenance: { ruleId: string; tier: string; sourceIds?: string[] };
+};
+export type PrashnaResult = {
+  consultationId: string;
+  judgment: { direction: string; score: number | null; tier: string; confidence: string; rationale: string[] };
+  chartFitness: { status: string };
+  observations: PrashnaObservation[];
+  uncertainty: string[];
+  remedies: Array<{ id: string; label: string; instructions: string; timing: string; reviewStatus: string }>;
+  methodSelection: { unavailableCapabilities?: string[] };
+  feedback: { confirmationToken: string; status: string; suggestedFollowUpAt: string | null };
+  safety: { notice: string };
+};
+
+export function fetchPrashna(
+  profile: Profile,
+  args: {
+    question: string;
+    category: PrashnaCategory;
+    tradition: PrashnaTradition;
+    referenceHouse: number;
+    seedNumber?: number;
+  },
+): Promise<PrashnaResult> {
+  return postJson<PrashnaResult>("/api/prashna", {
+    place: profile.place,
+    latitude: profile.latitude,
+    longitude: profile.longitude,
+    timezone: profile.timezone || "UTC",
+    language: profile.language,
+    question: args.question,
+    category: args.category,
+    tradition: args.tradition,
+    referenceHouse: args.referenceHouse,
+    ...(args.seedNumber === undefined ? {} : { seedNumber: args.seedNumber }),
+  });
+}
+
+export function recordPrashnaOutcome(
+  confirmationToken: string,
+  outcome: "confirmed" | "partly-confirmed" | "not-confirmed" | "unresolved",
+): Promise<{ status: string }> {
+  return postJson<{ status: string }>("/api/prashna/outcome", {
+    confirmationToken,
+    outcome,
+    resolvedAt: new Date().toISOString(),
+  });
+}
+
+export function interpretConsultation(
+  consultation: PrashnaResult,
+  question: string,
+  language: Lang,
+): Promise<string> {
+  return postJson<{ response?: string }>("/api/interpret", {
+    consultation,
+    question,
+    language: language === "te" ? "Telugu" : "English",
+  }).then((data) => data.response || "");
 }
 
 /* ── /api/me ───────────────────────────────────────────────────────────── */

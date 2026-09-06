@@ -7,6 +7,11 @@ export type QuestionCategory =
   | "property"
   | "travel"
   | "lost-object"
+  | "health"
+  | "education"
+  | "litigation"
+  | "children"
+  | "missing-person"
   | "general";
 export type JudgmentTier = "structural-convention" | "citation-backed";
 export type JudgmentDirection =
@@ -22,6 +27,8 @@ export type RuleProvenance = {
   convention: string;
   sourceIds: string[];
   reviewStatus: "structural-unreviewed" | "reviewed" | "publishable";
+  sourceLocators?: string[];
+  ruleMaturity?: "structural" | "located" | "reproduced" | "reviewed" | "calibrated";
 };
 export type EvidenceObservation = {
   id: string;
@@ -59,13 +66,34 @@ export type ConsultationResult = {
     method: "prashna" | "natal";
     chartTypes: string[];
     reason: string;
+    tradition?: string;
+    capabilityStatus?: "available" | "partial";
+    unavailableCapabilities?: string[];
+  };
+  questionStructure?: {
+    referenceHouse: number;
+    roles: Array<{
+      role: string;
+      radicalHouse: number;
+      derivedHouse: number;
+      status: "primary" | "supporting" | "conditional";
+      sourceIds: string[];
+      locator: string;
+    }>;
   };
   chartFitness: {
-    status: "fit" | "unfit";
+    status: "fit" | "sensitive" | "unfit";
     reasons: string[];
     unavailableChecks: string[];
   };
   observations: EvidenceObservation[];
+  traditionResults?: Array<{
+    tradition: string;
+    observations: EvidenceObservation[];
+    direction: JudgmentDirection;
+    score: number | null;
+    maturity: "structural" | "located" | "reproduced" | "reviewed" | "calibrated";
+  }>;
   confirmations: string[];
   contradictions: string[];
   timingWindows: TimingWindow[];
@@ -75,6 +103,23 @@ export type ConsultationResult = {
     tier: JudgmentTier;
     confidence: "low" | "moderate" | "high";
     rationale: string[];
+  };
+  judgmentDimensions?: {
+    promise: {
+      direction: JudgmentDirection;
+      score: number | null;
+      evidenceRuleIds: string[];
+    };
+    quality: {
+      status: "calculated" | "unavailable";
+      summary: string | null;
+      evidenceRuleIds: string[];
+    };
+    timing: {
+      status: "calculated" | "unavailable";
+      windows: TimingWindow[];
+      reason: string | null;
+    };
   };
   remedies: Array<{
     id: string;
