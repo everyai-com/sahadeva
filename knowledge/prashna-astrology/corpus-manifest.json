@@ -1,0 +1,211 @@
+{
+  "schemaVersion": "sahadeva-prashna-corpus-1",
+  "generatedAt": "2026-09-06T11:16:32.026Z",
+  "policy": {
+    "publicFullText": false,
+    "sourceDocumentsAreAuthoritative": true
+  },
+  "summary": {
+    "sourceFiles": 9,
+    "uniqueWorks": 8,
+    "markdownWords": 563369,
+    "headings": 3737,
+    "tableRows": 4800,
+    "imageMarkers": 426,
+    "incompleteSources": [
+      "book-umang-taneja-prashna-nadi"
+    ],
+    "sourcesWithoutRuleReferences": []
+  },
+  "sources": [
+    {
+      "sourceId": "book-application-prasna-astrology",
+      "title": "Application of Prasna Astrology",
+      "extractionStatus": "complete-ocr",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/application-of-prasna-astrology.pdf",
+        "bytes": 2861832,
+        "sha256": "19c0b376da8813b34ed831abd8951eee9af3b4895f18b0da977f3b6f15cdf9cf"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/application-of-prasna-astrology.md",
+        "bytes": 189179,
+        "sha256": "fb0c47fa3a585020922d20c1a46f16b2dab8b8812337f1ad06407db461348584",
+        "lines": 4558,
+        "words": 32701,
+        "headings": 122,
+        "tableRows": 412,
+        "imageMarkers": 114
+      },
+      "ruleReferenceOccurrences": 9
+    },
+    {
+      "sourceId": "book-chappanna-prasana-sastra",
+      "title": "Chappanna or Prasana Sastra",
+      "extractionStatus": "complete-ocr",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/chappanna-or-prasana-sastra.pdf",
+        "bytes": 10163394,
+        "sha256": "4f6b115298e6eb0216e69fdae2480cebe0cbb149b9aa8fe367bc0048c4bcca86"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/chappanna-or-prasana-sastra.md",
+        "bytes": 171397,
+        "sha256": "e78258dc45007bf8a0c942db859c867131deed0bb0ecf50231ebd1bb1d823cad",
+        "lines": 3842,
+        "words": 26031,
+        "headings": 207,
+        "tableRows": 14,
+        "imageMarkers": 172
+      },
+      "ruleReferenceOccurrences": 2
+    },
+    {
+      "sourceId": "book-neelakanta-prasna-tantra",
+      "title": "Sri Neelakanta's Prasna Tantra",
+      "extractionStatus": "complete-ocr",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/sri-neelakanta_prasna-tantra.pdf",
+        "bytes": 23734768,
+        "sha256": "345cb054b4096f264e062f809698fbd0e5e93372b635f0e0eac6f150b226939f"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/sri-neelakanta_prasna-tantra.md",
+        "bytes": 351462,
+        "sha256": "e3f405bf218550635593937879ad87463f9044c31e9340cd9a634115298b1c1e",
+        "lines": 7898,
+        "words": 52697,
+        "headings": 534,
+        "tableRows": 177,
+        "imageMarkers": 120
+      },
+      "ruleReferenceOccurrences": 16
+    },
+    {
+      "sourceId": "book-umang-taneja-prashna-nadi",
+      "title": "Prashna Nadi Astrology",
+      "extractionStatus": "incomplete-source-ends-in-chapter-7",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/umang-taneja_prashna-nadi-astrology.docx",
+        "bytes": 1950521,
+        "sha256": "faeabfc169c3af54ed5b17c1667c2a304c096d2ed7acc5d80249db1e5a1d6bed"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/umang-taneja_prashna-nadi-astrology.md",
+        "bytes": 232353,
+        "sha256": "887ce28de8faaf252d936b3df06c4b821ac4ef24b59d029ffd8e96b723f309d0",
+        "lines": 4645,
+        "words": 45613,
+        "headings": 129,
+        "tableRows": 1224,
+        "imageMarkers": 19
+      },
+      "ruleReferenceOccurrences": 2
+    },
+    {
+      "sourceId": "book-viswanath-prashna-remedies-vol-1",
+      "title": "Prashna Astrology and Remedies, Volume I",
+      "extractionStatus": "complete-ocr",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/mk-viswanath-nair_prashna-astrology-remedies-vol-1.pdf",
+        "bytes": 2086736,
+        "sha256": "8aeea6103b549f807434b6a7c33122e4a8bc938b6ab17dbbbe32aa5536aaab3d"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/mk-viswanath-nair_prashna-astrology-remedies-vol-1.md",
+        "bytes": 288018,
+        "sha256": "9dd42ab084b0bfa35218a9f4f96fae5d23d2917085f626b39485057091a3cbc5",
+        "lines": 6585,
+        "words": 60379,
+        "headings": 440,
+        "tableRows": 1981,
+        "imageMarkers": 1
+      },
+      "ruleReferenceOccurrences": 4
+    },
+    {
+      "sourceId": "book-prasna-marga-raman",
+      "title": "Prasna Marga, Part I",
+      "extractionStatus": "complete-ocr",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/b-v-raman_prasna-marga-vol-1.pdf",
+        "bytes": 18423499,
+        "sha256": "484bbce4a10a01bf51ec6891597107ac04208661cabb219821be4369807e0bd6"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/b-v-raman_prasna-marga-vol-1.md",
+        "bytes": 998989,
+        "sha256": "097c2a27e5ab0e7f5d8dcff8276c48a3477c387c944762204c2ecb462d0e8406",
+        "lines": 16066,
+        "words": 122079,
+        "headings": 1683,
+        "tableRows": 246,
+        "imageMarkers": 0
+      },
+      "ruleReferenceOccurrences": 10
+    },
+    {
+      "sourceId": "book-prasna-marga-raman",
+      "title": "Prasna Marga, Part II",
+      "extractionStatus": "complete-ocr",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/b-v-raman_prasna-marga-vol-2.pdf",
+        "bytes": 13094699,
+        "sha256": "b8e2b5ba93e807be326a7dc9d760821177bb1611bdf1ce331e55d997cce4b2cb"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/b-v-raman_prasna-marga-vol-2.md",
+        "bytes": 561963,
+        "sha256": "2a8bd650d93b2b3445d5ed78d4ac5c7e257979c733f6a4ef9c586dc735dc4866",
+        "lines": 6903,
+        "words": 99215,
+        "headings": 430,
+        "tableRows": 167,
+        "imageMarkers": 0
+      },
+      "ruleReferenceOccurrences": 10
+    },
+    {
+      "sourceId": "book-kp-reader-vi-horary",
+      "title": "Horary Astrology / KP Reader VI",
+      "extractionStatus": "complete-ocr",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/k-s-krishnamurti_horary-astrology-kp-reader-vi.pdf",
+        "bytes": 19062898,
+        "sha256": "09260634077df6f2008ec6f56f89ce5a4b612d88c9d35df7f8d3c1e506e949c6"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/k-s-krishnamurti_horary-astrology-kp-reader-vi.md",
+        "bytes": 625500,
+        "sha256": "b1cd084fa5ead564d95bd13a4657d75bc2815aaf1c0c4a151d5f3975522553cb",
+        "lines": 7151,
+        "words": 112580,
+        "headings": 192,
+        "tableRows": 579,
+        "imageMarkers": 0
+      },
+      "ruleReferenceOccurrences": 9
+    },
+    {
+      "sourceId": "book-daivajna-vallabha",
+      "title": "Daivajna Vallabha",
+      "extractionStatus": "complete-ocr",
+      "original": {
+        "path": "knowledge/prashna-astrology/books/varahamihira_daivajna-vallabha.pdf",
+        "bytes": 72080,
+        "sha256": "3672d4ce627c1e27a2778c45b11795740bd2aebed6eb0835925603922fdd1ca1"
+      },
+      "markdown": {
+        "path": "knowledge/prashna-astrology/texts/varahamihira_daivajna-vallabha.md",
+        "bytes": 66733,
+        "sha256": "2b73b189b973dbb819deff1fce411643b483c204e34109f1835c5872e0d552dd",
+        "lines": 871,
+        "words": 12074,
+        "headings": 0,
+        "tableRows": 0,
+        "imageMarkers": 0
+      },
+      "ruleReferenceOccurrences": 53
+    }
+  ]
+}
