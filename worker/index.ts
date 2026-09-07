@@ -161,6 +161,10 @@ import {
   crossTraditionRemedySummary,
   safeProfileProjection,
 } from "../shared/mcpSecurity";
+import {
+  buildConsultationDossier,
+  type ConsultationDossierArgs,
+} from "../shared/consultationDossier";
 
 type RateLimiter = {
   limit(input: { key: string }): Promise<{ success: boolean }>;
@@ -7425,11 +7429,94 @@ async function handleMcp(
           parsed.error.flatten(),
         );
       try {
-        const chart = await calculateChartCached(env, parsed.data),
-          asOf =
+        // The dossier computation lives in shared/consultationDossier so the
+        // web /api/chat endpoint builds from the same verified evidence.
+        const built = await buildConsultationDossier({
+          birth: parsed.data,
+          question: String(args?.question || ""),
+          asOfDate:
+            typeof args?.asOfDate === "string"
+              ? args.asOfDate
+              : undefined,
+          detail: args?.detail === "standard" ? "standard" : "brief",
+          readingMode: ["auto", "full-profile", "follow-up"].includes(
+            String(args?.readingMode || "auto"),
+          )
+            ? (String(args?.readingMode || "auto") as
+                | "auto"
+                | "full-profile"
+                | "follow-up")
+            : "auto",
+          profileRef:
+            typeof args?.profileRef === "string" ? args.profileRef : "",
+          traditions: Array.isArray(args?.traditions)
+            ? args.traditions.map(String)
+            : undefined,
+          remedyPreferences: (args?.remedyPreferences as
+            | Record<string, unknown>
+            | undefined) ?? undefined,
+          engineVersion: env?.ENGINE_VERSION || "unknown",
+          hasServerSecret: Boolean(env?.BETTER_AUTH_SECRET),
+          locationLabel: located.location.label,
+          locationSource: located.location.source,
+          computeProfileRef: (birth) =>
+            opaqueProfileReference(env, [
+              birth.date,
+              birth.time,
+              birth.latitude,
+              birth.longitude,
+              birth.timezone,
+              birth.houseSystem,
+              env?.ENGINE_VERSION || "unknown",
+            ]),
+          attachCitations: (judgment) =>
+            attachJudgmentCitations(judgment, env?.DB),
+        });
+        if ("error" in built)
+          return rpcError(
+            request.id,
+            -32602,
+            built.error.kind === "profile-ref-mismatch"
+              ? "profileRef does not match these birth details or engine version; create a new full profile instead of reusing another person's context"
+              : "follow-up mode requires the profileRef returned by the first reading",
+          );
+        // MCP-only envelope on top of the shared dossier core:
+        // completeLifeReading + advancedProfileAnchors (web chat receives a
+        // trimmed variant of the same evidence; see /api/chat).
+        type DossierCore = Record<string, any> & {
+          chartRef: string;
+          responseProfile: string;
+          priorities: Array<{ title: string; message: string }>;
+          subject: { name: string; question: string | null };
+          anchors: {
+            lagna: { signName: string };
+            moon: { signName: string; nakshatra: string };
+          };
+          currentTiming: {
+            mahadasha: string | null;
+            antardasha: string | null;
+          };
+          consultationAnalysis: {
+            inferredTopic: string | null;
+            enginesRun: string[];
+          };
+          verification: { status: string; contradictions: unknown[] };
+          confidence: { score: number; level: string };
+          crossTraditionProfile: { selectedTraditions: string[] };
+          crossTraditionRemedies: {
+            traditions: Array<{ tradition: string; status: string }>;
+          };
+          answerContract: { instruction: string };
+        };
+        const { dossier: dossierCore, chart: dossierChart } = built as unknown as {
+          dossier: DossierCore;
+          chart: ChartResult;
+        };
+        const asOf =
             typeof args?.asOfDate === "string"
               ? args.asOfDate
               : new Date().toISOString(),
+          chart = await calculateChartCached(env, parsed.data),
           current = queryDashaAt(chart, asOf),
           reading = buildEverydayReading(chart, current, parsed.data.language),
           detail = args?.detail === "standard" ? "standard" : "brief",
@@ -7440,439 +7527,21 @@ async function handleMcp(
                   preferredIds.has(section.id),
                 )
               : reading.sections,
-          lagna = chart.placements.find((item) => item.name === "Lagna")!,
-          moon = chart.placements.find((item) => item.name === "Moon")!,
-          strengths = chart.advanced.planetaryStates.avasthas
-            .filter((item) => item.requiredStrengthRatio !== null)
-            .sort(
-              (a, b) =>
-                Number(b.requiredStrengthRatio) -
-                Number(a.requiredStrengthRatio),
-            ),
-          question = String(args?.question || "").trim(),
-          consultTopic = consultationTopic(question, parsed.data.focus),
-          topic = consultTopic === "health" ? null : consultTopic,
-          range = consultationRange(asOf),
-          vargaAnalysis = topic ? synthesizeVargas(chart, topic) : null,
-          timingAnalysis: any = topic
-            ? fuseTiming(chart, topic, range.startIso, range.endIso)
-            : null,
-          lifeThemeAnalysis: any = detectLifeThemes(
-            chart,
-            range.startIso,
-            range.endIso,
-          ),
-          activeThemePeriod = lifeThemeAnalysis.periods.find(
-            (period: { startIso: string; endIso: string }) =>
-              Date.parse(period.startIso) <= Date.parse(range.startIso) &&
-              Date.parse(period.endIso) > Date.parse(range.startIso),
-          ),
-          completeReading = completeDomainReading(chart),
-          doshaAnalysis = calculateDoshas(chart),
-          jaiminiAnalysis = calculateJaimini(chart),
-          devataAnalysis = calculateDevataProfile(chart),
-          kpAnalysis = calculateKpPreview(chart),
-          chartRef = await opaqueProfileReference(env, [
-            parsed.data.date,
-            parsed.data.time,
-            parsed.data.latitude,
-            parsed.data.longitude,
-            parsed.data.timezone,
-            parsed.data.houseSystem,
-            env?.ENGINE_VERSION || "unknown",
-          ]),
-          judgmentTopic =
-            topic === "career" ||
-            topic === "education" ||
-            topic === "property" ||
-            topic === "spirituality"
-              ? topic
-              : topic === "marriage"
-                ? "relationships"
-                : null,
-          topicJudgment = judgmentTopic
-            ? await attachJudgmentCitations(
-                buildTopicJudgment(chart, judgmentTopic, asOf),
-                env?.DB,
-              )
-            : null;
-        const requestedTraditions = Array.isArray(args?.traditions)
-            ? [...new Set(args.traditions.map(String))].filter((item) =>
-                ["parashari", "jaimini", "kp", "lal-kitab"].includes(item),
-              )
-            : ["parashari", "jaimini", "kp", "lal-kitab"],
-          selectedTraditions = requestedTraditions.length
-            ? requestedTraditions
-            : ["parashari"],
-          lalKitabAnalysis = selectedTraditions.includes("lal-kitab")
-            ? inspectLalKitabStructure(chart)
-            : null,
-          traditionLedgers: TraditionLedger[] = selectedTraditions.map(
-            (tradition) =>
-              tradition === "parashari"
-                ? {
-                    tradition,
-                    status: topicJudgment?.citations?.length
-                      ? "reviewed"
-                      : "calculated",
-                    supportingEvidence: topicJudgment?.supportingEvidence ?? [],
-                    opposingEvidence: topicJudgment?.opposingEvidence ?? [],
-                    unresolvedSources:
-                      topicJudgment?.unresolvedSourceKeys ?? [],
-                    limitations: topicJudgment?.uncertainty?.warnings ?? [],
-                  }
-                : tradition === "jaimini"
-                  ? {
-                      tradition,
-                      status: "calculated",
-                      supportingEvidence: [
-                        {
-                          atmakaraka:
-                            jaiminiAnalysis.charaKarakas.sevenKaraka[0],
-                          karakamsha: jaiminiAnalysis.karakamsha,
-                          arudhaLagna: jaiminiAnalysis.arudhaPadas.arudhaLagna,
-                          upapadaLagna:
-                            jaiminiAnalysis.arudhaPadas.upapadaLagna,
-                        },
-                      ],
-                      opposingEvidence: [],
-                      unresolvedSources: [],
-                      limitations: [
-                        "Structural Jaimini anchors are calculated; predictive doctrine remains independently review-gated.",
-                      ],
-                    }
-                  : tradition === "kp"
-                    ? {
-                        tradition,
-                        status: "source-linked",
-                        supportingEvidence: [kpAnalysis.rulingPlanets],
-                        opposingEvidence: [],
-                        unresolvedSources: [],
-                        limitations: [
-                          "KP ayanamsa and Placidus cusp certification remain incomplete.",
-                        ],
-                      }
-                    : {
-                        tradition,
-                        status: "source-linked",
-                        supportingEvidence:
-                          lalKitabAnalysis?.placements.map((item) => ({
-                            planet: item.planet,
-                            house: item.house,
-                            locator: item.source.locator,
-                            status: item.interpretation.status,
-                          })) ?? [],
-                        opposingEvidence: [],
-                        unresolvedSources:
-                          lalKitabAnalysis?.placements.map(
-                            (item) => item.source.locator,
-                          ) ?? [],
-                        limitations: lalKitabAnalysis?.blockedOutputs ?? [
-                          "Dedicated reviewed prediction rules are unavailable.",
-                        ],
-                      },
-          ),
-          remedyPrefs = args?.remedyPreferences as
-            Record<string, unknown> | undefined,
-          remedyPreferencesValid = Boolean(
-            remedyPrefs &&
-            ["hindu", "spiritual", "tradition-specific"].includes(
-              String(remedyPrefs.beliefMode),
-            ) &&
-            ["minimal", "moderate"].includes(
-              String(remedyPrefs.maximumBurden),
-            ) &&
-            ["free", "low"].includes(String(remedyPrefs.maximumCost)) &&
-            typeof remedyPrefs.allowPrayer === "boolean" &&
-            typeof remedyPrefs.allowCharity === "boolean",
-          ),
-          parashariRemedyProtocol =
-            topicJudgment && remedyPreferencesValid
-              ? buildChartRemedyProtocol(chart, topicJudgment, {
-                  beliefMode: String(remedyPrefs!.beliefMode) as
-                    "hindu" | "spiritual" | "tradition-specific",
-                  tradition:
-                    typeof remedyPrefs!.tradition === "string"
-                      ? remedyPrefs!.tradition
-                      : undefined,
-                  maximumBurden: String(remedyPrefs!.maximumBurden) as
-                    "minimal" | "moderate",
-                  maximumCost: String(remedyPrefs!.maximumCost) as
-                    "free" | "low",
-                  allowPrayer: Boolean(remedyPrefs!.allowPrayer),
-                  allowCharity: Boolean(remedyPrefs!.allowCharity),
-                  accessibilityNotes: Array.isArray(
-                    remedyPrefs!.accessibilityNotes,
-                  )
-                    ? remedyPrefs!.accessibilityNotes
-                        .filter(
-                          (item): item is string => typeof item === "string",
-                        )
-                        .slice(0, 8)
-                    : undefined,
-                })
-              : null,
-          traditionComparison = compareTraditionLedgers(traditionLedgers),
-          crossTraditionRemedies = crossTraditionRemedySummary(
-            selectedTraditions,
-            parashariRemedyProtocol,
-          );
-        const requestedMode = String(args?.readingMode || "auto"),
-          requestedProfileRef = String(args?.profileRef || "").trim();
-        if (requestedProfileRef && requestedProfileRef !== chartRef)
-          return rpcError(
-            request.id,
-            -32602,
-            "profileRef does not match these birth details or engine version; create a new full profile instead of reusing another person's context",
-          );
-        if (requestedMode === "follow-up" && !requestedProfileRef)
-          return rpcError(
-            request.id,
-            -32602,
-            "follow-up mode requires the profileRef returned by the first reading",
-          );
-        const isFollowUp =
-            requestedMode === "follow-up" ||
-            (requestedMode === "auto" && requestedProfileRef === chartRef),
-          structuredContent = {
-            schemaVersion: "sahadeva-consultation-1",
-            chartRef,
-            responseProfile: isFollowUp ? "focused-follow-up" : "full-profile",
-            profileLifecycle: {
-              mode: isFollowUp ? "follow-up" : "first-reading",
-              profileRef: chartRef,
-              verifiedAgainstBirthData: true,
-              referenceProtection: env?.BETTER_AUTH_SECRET
-                ? "server-keyed-hmac; birth details are not encoded in the reference"
-                : "local-development deterministic reference; configure BETTER_AUTH_SECRET before deployment",
-              nextAction: isFollowUp
-                ? "Continue passing this profileRef with the same birth details for later focused questions."
-                : "Retain this profileRef. Pass it with the same birth details on later questions so the complete dossier is not repeated.",
-            },
-            profileCalculationManifest: isFollowUp
-              ? {
-                  status: "verified-existing-profile",
-                  profileRef: chartRef,
-                  focusedEnginesRun: [
-                    "question-intent",
-                    "relevant-varga-synthesis",
-                    "current-dasha",
-                    "timing-fusion",
-                    "contradiction-check",
-                  ],
-                }
-              : {
-                  status: "full-natal-dossier-calculated",
-                  calculatedFromBirthData: [
-                    "sidereal natal placements and houses",
-                    "Panchanga and Nakshatra anchors",
-                    "Shodashavarga divisional charts",
-                    "Vimshottari timeline and current sub-periods",
-                    "planetary dignities, combustion and retrogression",
-                    "Shadbala and planetary-state lineage",
-                    "Parashari Graha Drishti",
-                    "Ashtakavarga",
-                    "structural Yogas",
-                    "Doshas with cancellations and mitigations",
-                    "Jaimini structural anchors",
-                    "KP structural preview boundaries",
-                    "additional Dasha availability",
-                    "cross-Varga analysis for every major life domain",
-                    "natal-promise gates for education, career, wealth, marriage, property, children and spirituality",
-                    "current life-theme activation",
-                    "slow-transit and Dasha timing context for the focused topic",
-                    "birth-time uncertainty and boundary warnings",
-                  ],
-                  requiresAdditionalInput: [
-                    {
-                      workflow: "compatibility and relationship matching",
-                      requires: "the second person's verified birth details",
-                    },
-                    {
-                      workflow: "birth-time rectification",
-                      requires: "dated life events and a candidate time range",
-                    },
-                    {
-                      workflow: "Muhurta",
-                      requires: "activity, location and date range",
-                    },
-                    {
-                      workflow: "Varshaphal annual return",
-                      requires: "target year",
-                    },
-                    {
-                      workflow: "Prashna",
-                      requires:
-                        "a precise question and the server receipt time",
-                    },
-                  ],
-                  rule: "A workflow requiring missing external input is not guessed or represented as already calculated.",
-                },
-            subject: {
-              name: parsed.data.name,
-              place: parsed.data.place,
-              question: question || null,
-              focus: parsed.data.focus,
-            },
-            privacyProfile: safeProfileProjection({
-              name: parsed.data.name,
-              place: parsed.data.place,
-              question,
-            }),
-            crossTraditionProfile: {
-              selectedTraditions,
-              comparison: {
-                schemaVersion: traditionComparison.schemaVersion,
-                traditions: traditionComparison.traditions.map((ledger) => ({
-                  tradition: ledger.tradition,
-                  status: ledger.status,
-                  supportingEvidence: ledger.supportingEvidence.slice(0, 2),
-                  opposingEvidence: ledger.opposingEvidence.slice(0, 2),
-                  unresolvedSourceCount: ledger.unresolvedSources.length,
-                  unresolvedSourceSample: ledger.unresolvedSources.slice(0, 3),
-                  limitations: ledger.limitations.slice(0, 3),
-                })),
-                agreements: traditionComparison.agreements,
-                contradictions: traditionComparison.contradictions,
-                synthesisPolicy: traditionComparison.synthesisPolicy,
-              },
-              interconnection: {
-                sharedTopic: topic,
-                rule: "Methods are connected by the user's life topic and common calculated chart facts; doctrine, scores and remedies remain tradition-labelled.",
-              },
-            },
-            crossTraditionRemedies,
-            answerContract: {
-              userQuestion: String(args?.question || "").trim() || null,
-              instruction: isFollowUp
-                ? "This is a verified follow-up to an existing profile. Answer the exact question directly using consultationAnalysis, currentTiming, priorities, verification and the retained profile context. Do not repeat the whole-person dossier unless the user asks. Never invent missing profile facts."
-                : "This is the first reading. Give a deep whole-person dossier covering every domain in completeLifeReading, explain the calculation manifest and verification limits, then answer the user's exact question. Distinguish calculated facts from traditional interpretation. Never invent placements, dates, citations, remedies, medical claims or guaranteed events.",
-              evidenceOrder: [
-                "verification",
-                "completeLifeReading",
-                "consultationAnalysis",
-                "remediesAndPracticalSupport",
-                "priorities",
-                "currentTiming",
-                "measuredStrengths",
-                "anchors",
-                "confidence",
-              ],
-              responseShape: isFollowUp
-                ? [
-                    "direct answer",
-                    "strongest existing profile evidence",
-                    "new timing evidence when relevant",
-                    "contradictions and uncertainty",
-                    "one practical next step",
-                  ]
-                : [
-                    "whole-person executive overview",
-                    "education, work/business, money, relationships/marriage, health routines, home/family, children and spirituality",
-                    "direct answer to the initial question",
-                    "calculation coverage and verification limits",
-                    "optional low-risk practical supports",
-                  ],
-            },
-            anchors: {
-              lagna: {
-                signName: lagna.signName,
-                degree: Number(lagna.degree.toFixed(2)),
-              },
-              moon: {
-                signName: moon.signName,
-                degree: Number(moon.degree.toFixed(2)),
-                nakshatra: moon.nakshatra,
-                pada: moon.pada,
-              },
-            },
-            priorities,
-            currentTiming: {
-              asOf: current.instantIso,
-              mahadasha: current.mahadasha,
-              antardasha: current.antardasha,
-              pratyantardasha: current.pratyantardasha,
-              boundaries: current.boundaries,
-            },
-            measuredStrengths: strengths
-              .slice(0, detail === "brief" ? 3 : 7)
-              .map((item) => ({
-                planet: item.name,
-                ratio: item.requiredStrengthRatio,
-                avastha: item.balaadiAvastha,
-              })),
-            consultationAnalysis: {
-              inferredTopic: topic,
-              judgment: topicJudgment
-                ? {
-                    schemaVersion: topicJudgment.schemaVersion,
-                    topic: topicJudgment.topic,
-                    conclusion: topicJudgment.conclusion,
-                    status: topicJudgment.status,
-                    score: topicJudgment.score,
-                    supportingEvidence: topicJudgment.supportingEvidence.slice(
-                      0,
-                      3,
-                    ),
-                    opposingEvidence: topicJudgment.opposingEvidence.slice(
-                      0,
-                      3,
-                    ),
-                    vargaConfirmation: {
-                      varga: topicJudgment.vargaConfirmation.varga,
-                      status: topicJudgment.vargaConfirmation.status,
-                    },
-                    timingActivation: topicJudgment.timingActivation,
-                    citations: topicJudgment.citations,
-                    unresolvedSourceKeys: topicJudgment.unresolvedSourceKeys,
-                    uncertainty: topicJudgment.uncertainty,
-                  }
-                : null,
-              enginesRun: [
-                "natal-chart",
-                "vimshottari",
-                "planetary-strengths",
-                "life-theme-synthesis",
-                ...(topic ? ["relevant-varga-synthesis", "timing-fusion"] : []),
-                "complete-life-domain-screen",
-                "dosha-and-cancellation-analysis",
-              ],
-              relevantVargas: vargaAnalysis,
-              timing: timingAnalysis
-                ? {
-                    schemaVersion: timingAnalysis.schemaVersion,
-                    topic: timingAnalysis.topic,
-                    promise: timingAnalysis.promise,
-                    windows: (timingAnalysis.windows || []).slice(0, 4),
-                    notice: timingAnalysis.notice || null,
-                  }
-                : null,
-              activeLifeThemes: activeThemePeriod
-                ? {
-                    mahadasha: activeThemePeriod.mahadasha,
-                    antardasha: activeThemePeriod.antardasha,
-                    startIso: activeThemePeriod.startIso,
-                    endIso: activeThemePeriod.endIso,
-                    themes: activeThemePeriod.themes.slice(0, 4),
-                  }
-                : null,
-              doshas: {
-                summary: doshaAnalysis.summary,
-                patterns: doshaAnalysis.patterns.map((pattern) => ({
-                  id: pattern.id,
-                  label: pattern.label,
-                  detected: pattern.detected,
-                  rawSeverity: pattern.rawSeverity,
-                  effectiveSeverity: pattern.severity,
-                  mitigations: pattern.cancellationsOrMitigations.map(
-                    (item) => item.evidence,
-                  ),
-                  sourceKey: pattern.sourceKey,
-                })),
-                rulebookStatus: doshaAnalysis.rulebook.reviewStatus,
-                safety: doshaAnalysis.safety,
-              },
-            },
+          // MCP-only extras (completeLifeReading, advancedProfileAnchors)
+          // derived from the dossier chart; the dossier core already holds
+          // topic judgment, traditions, remedies and verification.
+          completeReading = completeDomainReading(dossierChart),
+          doshaAnalysis = calculateDoshas(dossierChart),
+          jaiminiAnalysis = calculateJaimini(dossierChart),
+          devataAnalysis = calculateDevataProfile(dossierChart),
+          kpAnalysis = calculateKpPreview(dossierChart),
+          chartRef = String(dossierCore.chartRef),
+          isFollowUp = dossierCore.responseProfile === "focused-follow-up";
+        // Dossier core comes from shared/consultationDossier (same evidence
+        // /api/chat narrates). MCP-only envelope adds the full life reading
+        // and advanced anchors for first readings.
+        const structuredContent = {
+            ...dossierCore,
             completeLifeReading: isFollowUp ? null : completeReading,
             advancedProfileAnchors: isFollowUp
               ? null
@@ -7897,138 +7566,6 @@ async function handleMcp(
                   },
                   uncertainty: chart.advanced.uncertainty,
                 },
-            remediesAndPracticalSupport: isFollowUp
-              ? null
-              : {
-                  practicalSupports: [
-                    {
-                      id: "clear-decisions",
-                      label: "Written decision check",
-                      instruction:
-                        "Before a major commitment, write the facts, assumptions, alternatives, costs and review date. Use the chart as a reflection aid, not as the sole reason for acting.",
-                      burden: "minimal",
-                      optional: true,
-                      type: "practical-support",
-                    },
-                    {
-                      id: "steady-routine",
-                      label: "Sustainable daily discipline",
-                      instruction:
-                        "Choose one modest sleep, movement, study, budgeting or work routine that can be repeated safely for four weeks, then review its real-world effect.",
-                      burden: "minimal",
-                      optional: true,
-                      type: "practical-support",
-                    },
-                    {
-                      id: "reflection-or-prayer",
-                      label: "Voluntary reflection or prayer",
-                      instruction:
-                        "If it fits the person's beliefs, use a few quiet minutes of prayer, meditation or reflection before the next practical action. No astrological hour or purchase is required.",
-                      burden: "minimal",
-                      optional: true,
-                      type: "traditional-low-risk-practice",
-                    },
-                  ],
-                  traditionalRemedies: [],
-                  traditionalRemedyStatus:
-                    "No chart-specific mantra, gemstone, donation, ritual or planetary remedy is published until its source and rule have completed review.",
-                  sourceGroundedRemedyEngine: {
-                    tool: "analyze_remedies",
-                    status: "available-with-user-preferences",
-                    requiredPreferences: [
-                      "beliefMode",
-                      "maximumBurden",
-                      "maximumCost",
-                      "allowPrayer",
-                      "allowCharity",
-                    ],
-                    notice:
-                      "Call the dedicated tool before presenting chart-specific remedy candidates; the consultation does not assume the person's beliefs.",
-                  },
-                  prohibited: [
-                    "guaranteed remedies",
-                    "medical substitutes",
-                    "expensive gemstones or purchases",
-                    "fear-based ritual pressure",
-                  ],
-                },
-            verification: {
-              status: "completed",
-              checks: [
-                {
-                  id: "location",
-                  status: located.location.source ? "passed" : "unverified",
-                  evidence: `${located.location.label} · ${located.location.timezone} · ${located.location.latitude}, ${located.location.longitude}`,
-                },
-                {
-                  id: "cross-varga",
-                  status: vargaAnalysis
-                    ? vargaAnalysis.judgment === "mixed"
-                      ? "mixed"
-                      : "passed"
-                    : "not-applicable",
-                  evidence: vargaAnalysis
-                    ? `${vargaAnalysis.judgment}; score ${vargaAnalysis.score}/100`
-                    : "No single life-area topic was inferred",
-                },
-                {
-                  id: "natal-promise-before-timing",
-                  status: timingAnalysis
-                    ? timingAnalysis.promise.present
-                      ? "passed"
-                      : "limited"
-                    : "not-applicable",
-                  evidence: timingAnalysis
-                    ? `Promise score ${timingAnalysis.promise.score}/100; ${timingAnalysis.promise.contradictions.length} contradiction(s)`
-                    : "No topic-specific timing claim requested",
-                },
-                {
-                  id: "birth-time-sensitivity",
-                  status:
-                    parsed.data.birthTimeAccuracyMinutes <= 15
-                      ? "passed"
-                      : "caution",
-                  evidence: `Reported accuracy ±${parsed.data.birthTimeAccuracyMinutes} minutes`,
-                },
-                {
-                  id: "reviewed-textual-grounding",
-                  status: "unavailable",
-                  evidence:
-                    "Calculation evidence is present; reviewed classical passage retrieval is not currently deployed",
-                },
-              ],
-              contradictions: [
-                ...(timingAnalysis?.promise?.contradictions || []),
-                ...(vargaAnalysis?.judgment === "mixed"
-                  ? [
-                      "Relevant divisional charts give mixed structural confirmation",
-                    ]
-                  : []),
-              ],
-              rule: "Lead with agreement across independent factors. State mixed evidence plainly. Never convert an unreviewed rule or heuristic score into certainty.",
-            },
-            coverage: {
-              completeForQuestion: Boolean(topic || !question),
-              omittedBecauseNotApplicable: [
-                "compatibility requires a second person's birth details",
-                "rectification requires dated life events",
-                "muhurta requires an activity and date range",
-              ],
-              followUpNeeded: topic
-                ? []
-                : question
-                  ? [
-                      "The question did not map cleanly to a supported specialist topic; clarify the intended life area for full Varga and timing fusion.",
-                    ]
-                  : [],
-            },
-            confidence: chart.advanced.guidance.confidence,
-            meta: {
-              calculationMs: Date.now() - startedAt,
-              engineVersion: chart.engine.version,
-              locationSource: located.location.source,
-              hiddenAiCalls: 0,
-            },
             safety: safetyEnvelope(),
             mcpSecurity: {
               architecture: MCP_SECURITY_CONTRACT.architecture,
@@ -8040,15 +7577,15 @@ async function handleMcp(
                 "untrusted-data-boundary",
               ],
             },
-          },
-          textSummary = [
+          };
+        const textSummary = [
             structuredContent.answerContract.instruction,
             structuredContent.subject.question
               ? `Question to answer: ${structuredContent.subject.question}`
               : "Question to answer: general chart overview",
             `Specialist topic: ${structuredContent.consultationAnalysis.inferredTopic || "general"}; engines: ${structuredContent.consultationAnalysis.enginesRun.join(", ")}`,
             `Verification: ${structuredContent.verification.status}; contradictions: ${structuredContent.verification.contradictions.length}`,
-            `Traditions kept separate: ${selectedTraditions.join(", ")}; remedy protocols: ${crossTraditionRemedies.traditions.map((item) => `${item.tradition}:${item.status}`).join(", ")}`,
+            `Traditions kept separate: ${dossierCore.crossTraditionProfile.selectedTraditions.join(", ")}; remedy protocols: ${dossierCore.crossTraditionRemedies.traditions.map((item: { tradition: string; status: string }) => `${item.tradition}:${item.status}`).join(", ")}`,
             `${structuredContent.subject.name} · ${structuredContent.anchors.lagna.signName} Lagna · ${structuredContent.anchors.moon.nakshatra} Moon`,
             `Current period: ${current.mahadasha || "—"} / ${current.antardasha || "—"}`,
             ...priorities.map(
@@ -9665,6 +9202,92 @@ app.get("/api/panchanga/today", async (c) => {
     return c.json(result, 200, { "cache-control": "public, max-age=600" });
   } catch {
     return c.json({ error: "Panchanga could not be calculated" }, 500);
+  }
+});
+
+app.post("/api/today/brief", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  const parsed = birthInputSchema.safeParse({
+    ...body,
+    methodology: "parashari",
+    focus: "general",
+  });
+  if (!parsed.success)
+    return c.json(
+      { error: "Invalid birth details", issues: parsed.error.flatten() },
+      400,
+    );
+  try {
+    const natal = await calculateChartCached(c.env, parsed.data),
+      tzOffset = parsed.data.timezoneOffset,
+      dayIso = (offsetDays: number) =>
+        new Date(Date.now() + (tzOffset * 3600 + offsetDays * 86400) * 1000)
+          .toISOString()
+          .slice(0, 10),
+      base = { ...parsed.data, name: "Today", time: "12:00", birthTimeAccuracyMinutes: 0 },
+      todayChart = calculateChart({ ...base, date: dayIso(0) }),
+      nextChart = calculateChart({ ...base, date: dayIso(1) }),
+      daily = buildDailyPanchanga(todayChart, nextChart, natal),
+      nowIso = new Date().toISOString(),
+      current = queryDashaAt(natal, nowIso),
+      personalized = (daily as { personalized?: unknown }).personalized as {
+        taraBala?: {
+          birthNakshatra: string;
+          todayNakshatra: string;
+          count: number;
+          cyclePosition: number;
+          favorable: boolean;
+        };
+        chandraBala?: {
+          natalMoonSignName: string;
+          transitMoonSignName: string;
+          houseFromNatalMoon: number;
+          favorable: boolean;
+        };
+      } | null,
+      tara = personalized?.taraBala ?? null,
+      chandra = personalized?.chandraBala ?? null,
+      favCount = (tara?.favorable ? 1 : 0) + (chandra?.favorable ? 1 : 0),
+      quality = !tara || !chandra ? "good" : favCount === 2 ? "good" : favCount === 1 ? "mixed" : "hard",
+      whyToday =
+        !tara || !chandra
+          ? "Today's personal Moon checks could not be computed; the general panchanga still applies."
+          : [
+              tara.favorable
+                ? `${tara.todayNakshatra} supports renewal from your ${tara.birthNakshatra} (Sampat star, count ${tara.count}).`
+                : `${tara.todayNakshatra} is a guarded star from your ${tara.birthNakshatra} (count ${tara.count}); keep the day routine and low-stakes.`,
+              chandra.favorable
+                ? `The Moon stands ${chandra.houseFromNatalMoon} from your natal Moon in ${chandra.transitMoonSignName} — the mind has support today.`
+                : `The Moon stands ${chandra.houseFromNatalMoon} from your natal Moon in ${chandra.transitMoonSignName} — a low-comfort Moon seat, so heaviness today is weather, not verdict.`,
+            ].join(" ");
+    return c.json({
+      schemaVersion: "sahadeva-today-brief-1",
+      date: (daily as { date: string }).date,
+      fiveLimbs: (daily as { fiveLimbs: unknown }).fiveLimbs,
+      festivalFlags: (daily as { festivalFlags: unknown }).festivalFlags,
+      taraBala: tara,
+      chandraBala: chandra,
+      quality,
+      whyToday,
+      runningPeriod: {
+        mahadasha: current.mahadasha,
+        antardasha: current.antardasha,
+        pratyantardasha: current.pratyantardasha,
+        pratyantardashaEnds: current.boundaries.pratyantardasha?.endIso ?? null,
+        antardashaEnds: current.boundaries.antardasha?.endIso ?? null,
+        mahadashaEnds: current.boundaries.mahadasha?.endIso ?? null,
+      },
+      keepClear: {
+        rahuKaal: (daily as { inauspicious: { rahuKaal: unknown } }).inauspicious.rahuKaal,
+        yamaganda: (daily as { inauspicious: { yamaganda: unknown } }).inauspicious.yamaganda,
+        gulikaKaal: (daily as { inauspicious: { gulikaKaal: unknown } }).inauspicious.gulikaKaal,
+      },
+      safety: safetyEnvelope(),
+    });
+  } catch {
+    return c.json({ error: "Today's brief could not be calculated" }, 500);
   }
 });
 
@@ -13475,6 +13098,46 @@ app.post("/api/chat", async (c) => {
             c.env.DB,
           )
         : null,
+      // Whole-person dossier: the same verified evidence the MCP
+      // consult_jyotishya tool returns (priorities, consultation analysis,
+      // cross-tradition ledgers and remedies, verification, coverage). The
+      // narrator phrases pre-synthesized conclusions; it never recomputes.
+      chatDossier = await (async () => {
+        try {
+          const result = await buildConsultationDossier({
+            birth: parsed.data,
+            question: latestQuestion,
+            detail: "brief",
+            readingMode: "auto",
+            profileRef:
+              typeof body.profileRef === "string" ? body.profileRef : "",
+            traditions: ["parashari", "jaimini", "kp", "lal-kitab"],
+            remedyPreferences: undefined,
+            engineVersion: c.env.ENGINE_VERSION || "unknown",
+            hasServerSecret: Boolean(c.env.BETTER_AUTH_SECRET),
+            locationLabel: parsed.data.place,
+            locationSource: "profile",
+            computeProfileRef: (birth) =>
+              opaqueProfileReference(c.env, [
+                birth.date,
+                birth.time,
+                birth.latitude,
+                birth.longitude,
+                birth.timezone,
+                birth.houseSystem,
+                c.env.ENGINE_VERSION || "unknown",
+              ]),
+            attachCitations: (judgment) =>
+              attachJudgmentCitations(judgment, c.env.DB),
+          });
+          if ("error" in result) return { error: result.error } as const;
+          return { dossier: result.dossier as Record<string, any> } as const;
+        } catch {
+          return null;
+        }
+      })(),
+      chatDossierError =
+        chatDossier && "error" in chatDossier ? chatDossier.error : null,
       lagna = chart.placements.find((item) => item.name === "Lagna")!,
       moon = chart.placements.find((item) => item.name === "Moon")!,
       strengths = chart.advanced.planetaryStates.avasthas
@@ -13565,6 +13228,13 @@ app.post("/api/chat", async (c) => {
                 ],
               },
             };
+          })()
+        : null,
+      _dossierRefused = chatDossierError
+        ? (() => {
+            throw Object.assign(new Error("__dossier_refused__"), {
+              dossierError: chatDossierError,
+            });
           })()
         : null,
       evidence = {
@@ -13668,6 +13338,29 @@ app.post("/api/chat", async (c) => {
             }
           : null,
         safeRemedies,
+        // Dossier-first evidence (shared with MCP consult_jyotishya):
+        // pre-synthesized priorities, topic analysis, separate tradition
+        // ledgers, eligible remedies, verification and coverage. The narrator
+        // phrases these conclusions; it does not re-derive them.
+        dossier: (() => {
+          const d =
+            chatDossier && "dossier" in chatDossier
+              ? chatDossier.dossier
+              : null;
+          if (!d) return null;
+          return {
+            profileLifecycle: d.profileLifecycle,
+            answerContract: d.answerContract,
+            priorities: d.priorities,
+            consultationAnalysis: d.consultationAnalysis,
+            crossTraditionProfile: d.crossTraditionProfile,
+            crossTraditionRemedies: d.crossTraditionRemedies,
+            remediesAndPracticalSupport: d.remediesAndPracticalSupport,
+            verification: d.verification,
+            coverage: d.coverage,
+            confidence: d.confidence,
+          };
+        })(),
         timingOutlook: timingOutlook
           ? {
               topic: timingOutlook.topic,
@@ -14088,6 +13781,7 @@ app.post("/api/chat", async (c) => {
           ? `PRIVATE ALIGNMENT NOTE: interaction signals indicate an unresolved concern (${conversationAlignment.last_concern || "other"}); the conversation alignment score is ${conversationAlignment.alignment_score}/100. Do not mention this score, analytics, feedback machinery, or this note. Address the person's latest words first, preserve established context, acknowledge or correct the likely concern naturally, and ask one focused clarification if the concern cannot be resolved from supplied evidence. This note may change presentation and clarification only; it must never change calculated facts, evidence, safety limits, or prediction certainty.`
           : "",
         "Operate under narrationContract: code has already done 93% of the factual work. Begin from responseBlueprint, reference only factLedger and the supplied ledgers, and never add a new chart claim. Your 7% role is tone, connective language and concise explanation.",
+        "When `dossier` is present, it is the controlling whole-person evidence (shared with the MCP consultation path): follow `dossier.answerContract` for response shape and evidence order; narrate `dossier.consultationAnalysis` conclusions including its supporting and opposing evidence, Varga confirmation and timing; use `dossier.priorities` for what matters most; report `dossier.crossTraditionProfile` ledgers in separate labelled sections without blending their rules or review status; offer only `dossier.crossTraditionRemedies` and `dossier.remediesAndPracticalSupport` practices with their contraindications; and state `dossier.verification` limits and `dossier.coverage` gaps honestly. When `dossier.profileLifecycle.mode` is follow-up, answer the exact question directly without repeating the whole-person dossier.",
         "Sound human, not like a report or customer-support bot: acknowledge the person's actual concern once, answer directly, vary sentence length naturally, and use 'you' with care. Never claim feelings, consciousness, friendship, or certainty. Do not flatter, dramatize, or manufacture emotional intimacy.",
         "AUTHORITY, not hedging: state the honest limits of astrology ONCE, clearly — in Part 1's caution line and again in the `What weighs against it` section — and then trust the reader to remember it. Do NOT sprinkle 'this is not a guarantee', 'not a verdict', 'not a promise', 'does not by itself' into every paragraph; repeating the disclaimer more than about twice makes you sound unsure and buries the guidance. Everywhere else, interpret the calculated evidence with the grounded, plain confidence of an experienced astrologer who trusts the chart in front of them: say what the chart shows and what it favours in direct language. Confidence is in the clarity of the reading, never in claiming certainty about outcomes.",
         "ONE vivid anchor: somewhere in a substantial reading, include exactly one concrete, memorable image or metaphor that captures the core dynamic of THIS chart, tied to real supplied evidence (e.g. 'Saturn here builds like a stone wall — slow, unglamorous, then suddenly load-bearing'). Keep it grounded and earthy, never purple or mystical, and use only one — a single sharp image the person remembers is worth more than a paragraph of adjectives. Skip it entirely for greetings and short factual replies.",
@@ -14159,9 +13853,24 @@ app.post("/api/chat", async (c) => {
           3.6,
       ),
       profileRef = expectedProfileRef,
+      chatDossierSummary = (() => {
+        const d =
+          chatDossier && "dossier" in chatDossier ? chatDossier.dossier : null;
+        if (!d) return null;
+        return {
+          responseProfile: d.responseProfile,
+          answerContract: d.answerContract,
+          verification: d.verification,
+          coverage: d.coverage,
+          consultationTopic:
+            (d.consultationAnalysis as { inferredTopic?: string } | null)
+              ?.inferredTopic ?? null,
+        };
+      })(),
       summary = {
         profileRef,
         generatedAt: asOf,
+        dossier: chatDossierSummary,
         conversationAlignment: conversationAlignment
           ? {
               score: conversationAlignment.alignment_score,
@@ -14417,16 +14126,40 @@ app.post("/api/chat", async (c) => {
       // Workers AI fallback needs a NON-reasoning model: reasoning models
       // (GLM-5.x, GLM-4.7, DeepSeek) burn 15-50s on hidden reasoning before
       // the first visible token, and Workers AI cannot fully disable it.
+      // The fallback model is also smaller, so it receives a compact
+      // dossier-led prompt instead of the full frontier instruction set:
+      // the dossier already contains pre-synthesized conclusions, so the
+      // fallback only phrases them in order instead of analyzing from raw
+      // placements.
       const configuredModel =
         c.env.AI_CHAT_MODEL || "@cf/meta/llama-4-scout-17b-16e-instruct";
       model = configuredModel.startsWith("@cf/")
         ? configuredModel
         : "@cf/meta/llama-4-scout-17b-16e-instruct";
       provider = "cloudflare-workers-ai";
+      const fallbackMessages = (() => {
+        const dossierEvidence = (
+          evidence as { dossier?: Record<string, unknown> | null }
+        ).dossier;
+        if (!dossierEvidence) return chatMessages;
+        const compactSystem = [
+          `You are Sahadeva, a warm Jyotisha narrator. Respond in ${parsed.data.language === "te" ? "Telugu" : "English"}.`,
+          "Phrase ONLY the supplied dossier evidence in plain everyday language. Never add placements, dates, yogas, remedies, or certainty beyond it.",
+          "Follow dossier.answerContract.responseShape in order. State the direct answer first, then supporting and opposing evidence from dossier.consultationAnalysis, then timing from dossier.currentTiming, then one practical next step.",
+          "Keep tradition ledgers separate: dossier.crossTraditionProfile ledgers are labelled and never blended. Offer only dossier.remediesAndPracticalSupport practices with their limits.",
+          "State dossier.verification limits and dossier.coverage gaps briefly, once. No medical, legal, financial, or guaranteed claims.",
+          "Keep the reply focused and readable (under 500 words unless the question needs more). End with at most two follow-up options.",
+          `Evidence JSON (immutable): ${JSON.stringify({ ...evidence, placements: undefined, navamsa: undefined, wholeSignHouses: undefined, aspectMatrix: undefined })}`,
+        ].join("\n");
+        return [
+          { role: "system" as const, content: compactSystem },
+          ...chatMessages.slice(1),
+        ];
+      })();
       aiStream = (await c.env.AI.run(
         model as Parameters<Ai["run"]>[0],
         {
-          messages: chatMessages,
+          messages: fallbackMessages,
           // Telugu output is token-dense; too small a cap yields an empty reply.
           max_tokens: fullProfileRequested
             ? 7000
@@ -14498,6 +14231,19 @@ app.post("/api/chat", async (c) => {
       },
     });
   } catch (error) {
+    const dossierRefused =
+      error instanceof Error &&
+      (error as Error & { dossierError?: { kind?: string } }).dossierError;
+    if (dossierRefused)
+      return c.json(
+        {
+          error:
+            dossierRefused.kind === "profile-ref-mismatch"
+              ? "profileRef does not match these birth details or engine version; send the profileRef returned for this profile"
+              : "profileRef is required for this follow-up request",
+        },
+        400,
+      );
     console.error(
       "chat endpoint failed:",
       error instanceof Error
