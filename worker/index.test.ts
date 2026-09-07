@@ -269,19 +269,19 @@ describe("Sahadeva MCP", () => {
     const body = (await response.json()) as { response?: string };
     expect(response.status).toBe(200);
     expect(body.response).toBe("Detailed grounded reading.");
-    expect(systemPrompt).toContain("practitioner sequence");
+    // Fallback narrator receives the compact dossier-led prompt (the dossier
+    // already holds pre-synthesized conclusions), with the ledger evidence.
+    expect(systemPrompt).toContain("dossier.answerContract");
+    expect(systemPrompt).toContain("dossier.consultationAnalysis");
+    expect(systemPrompt).toContain("crossTraditionProfile");
+    expect(systemPrompt).toContain("dossier.verification");
     expect(systemPrompt).toContain("focusedJudgment");
     expect(systemPrompt).toContain('"topic":"career"');
     expect(systemPrompt).toContain("supportingEvidence");
     expect(systemPrompt).toContain("opposingEvidence");
-    expect(systemPrompt).toContain("900-1400 words");
-    expect(systemPrompt).toContain("Direct answer in ordinary daily-life language");
-    expect(systemPrompt).toContain("then Technical chart details");
-    expect(systemPrompt).toContain("code has already done 93% of the factual work");
     expect(systemPrompt).toContain('"version":"code-led-conversation-1"');
     expect(systemPrompt).toContain('"factualWorkShare":93');
     expect(systemPrompt).toContain('"consultationProtocol"');
-    expect(systemPrompt).toContain("listen, clarify once when needed, read the evidence, guide");
   }, 15000);
   it("routes explicit web full-profile requests through the complete MCP-equivalent dossier", async () => {
     let systemPrompt = "",
@@ -329,15 +329,13 @@ describe("Sahadeva MCP", () => {
       } as never,
     );
     expect(response.status).toBe(200);
-    expect(systemPrompt).toContain("explicit complete-profile request");
+    // Fallback narrator receives the compact dossier-led prompt; the full
+    // frontier instruction set is reserved for the OpenAI path.
+    expect(systemPrompt).toContain("dossier.answerContract");
     expect(systemPrompt).toContain('"mode":"complete-profile"');
-    expect(systemPrompt).toContain('"completeLifeReading"');
     expect(systemPrompt).toContain('"domainTimingOutlooks"');
-    expect(systemPrompt).toContain("property/home activation never by itself means relocation");
-    expect(systemPrompt).toContain('"doshas"');
-    expect(systemPrompt).toContain('"advancedAnchors"');
-    expect(systemPrompt).toContain("What this means in daily life");
-    expect(systemPrompt).toContain("End with a clearly labelled `## Technical chart details`");
+    expect(systemPrompt).toContain("crossTraditionProfile");
+    expect(systemPrompt).toContain("dossier.verification");
     expect(maxTokens).toBe(7000);
     const payload = (await response.json()) as {
       summary?: {
@@ -2566,6 +2564,208 @@ describe("Sahadeva MCP", () => {
       });
     expect((invalid.body.error as { code: number }).code).toBe(-32602);
     expect((unknown.body.error as { code: number }).code).toBe(-32602);
+  });
+
+  it("shares one dossier core between MCP consult_jyotishya and web chat", async () => {
+    const profile = {
+      name: "Dossier Parity",
+      date: "2000-01-28",
+      time: "08:05",
+      place: "Ravulapalem",
+      latitude: 16.7607,
+      longitude: 81.833,
+      timezone: "Asia/Kolkata",
+      timezoneOffset: 5.5,
+      language: "en",
+      focus: "career",
+      birthTimeAccuracyMinutes: 5,
+    };
+    const consulted = await mcp("tools/call", {
+      name: "consult_jyotishya",
+      arguments: { ...profile, question: "Career direction?" },
+    });
+    const dossier = consulted.body.result?.structuredContent as Record<string, any>;
+    expect(dossier.schemaVersion).toBe("sahadeva-consultation-1");
+    expect(dossier.chartRef).toMatch(/^chart_/);
+    expect(dossier.profileCalculationManifest.status).toBe("full-natal-dossier-calculated");
+    expect(dossier.answerContract.instruction).toContain("first reading");
+    expect(dossier.crossTraditionProfile.selectedTraditions).toEqual(
+      expect.arrayContaining(["parashari", "jaimini", "kp", "lal-kitab"]),
+    );
+    expect(dossier.verification.status).toBe("completed");
+    expect(dossier.coverage.completeForQuestion).toBe(true);
+    // Web chat narrates the same dossier core.
+    const chatEnv = {
+      ENGINE_VERSION: "test",
+      AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      AI_CHAT_MODEL: "@cf/test/chat",
+      AI: {
+        run: async () => ({ response: "Dossier-led reply." }),
+      },
+    } as never;
+    const chat = await app.request(
+      "http://localhost/api/chat",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          profile,
+          messages: [{ role: "user", content: "Career direction?" }],
+        }),
+      },
+      chatEnv,
+    );
+    expect(chat.status).toBe(200);
+    const chatBody = (await chat.json()) as {
+      response?: string;
+      summary?: {
+        profileRef?: string;
+        dossier?: {
+          responseProfile?: string;
+          consultationTopic?: string | null;
+          verification?: { status?: string };
+        } | null;
+      };
+    };
+    expect(chatBody.response).toBe("Dossier-led reply.");
+    expect(chatBody.summary?.profileRef).toBe(dossier.chartRef);
+    expect(chatBody.summary?.dossier?.responseProfile).toBe("full-profile");
+    expect(chatBody.summary?.dossier?.consultationTopic).toBe("career");
+    expect(chatBody.summary?.dossier?.verification?.status).toBe("completed");
+    // Follow-up with the verified ref returns the focused slice.
+    const followUp = await app.request(
+      "http://localhost/api/chat",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          profile,
+          profileRef: dossier.chartRef,
+          messages: [{ role: "user", content: "And money?" }],
+        }),
+      },
+      chatEnv,
+    );
+    expect(followUp.status).toBe(200);
+    const followBody = (await followUp.json()) as {
+      summary?: { dossier?: { responseProfile?: string } | null };
+    };
+    expect(followBody.summary?.dossier?.responseProfile).toBe("focused-follow-up");
+    // A foreign ref is rejected, never silently reused.
+    const refused = await app.request(
+      "http://localhost/api/chat",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          profile,
+          profileRef: "chart_00000000000000000000",
+          messages: [{ role: "user", content: "And money?" }],
+        }),
+      },
+      chatEnv,
+    );
+    expect(refused.status).toBe(400);
+  });
+
+  it("keeps the full frontier prompt with dossier guidance on the OpenAI path", async () => {
+    let capturedSystem = "";
+    const sseBody =
+      'data: {"choices":[{"delta":{"content":"OpenAI dossier reply."}}]}\n\ndata: [DONE]\n\n';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
+      try {
+        const payload = JSON.parse(String(init?.body || "{}")) as {
+          messages?: Array<{ role?: string; content?: string }>;
+        };
+        capturedSystem = payload.messages?.[0]?.content || "";
+      } catch {
+        /* ignore */
+      }
+      return new Response(sseBody, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }) as typeof fetch;
+    try {
+      const response = await app.request(
+        "http://localhost/api/chat",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            profile: {
+              name: "Ananya",
+              date: "2000-01-28",
+              time: "08:05",
+              place: "Ravulapalem",
+              latitude: 16.6123,
+              longitude: 81.9456,
+              timezone: "Asia/Kolkata",
+              timezoneOffset: 5.5,
+              language: "en",
+              focus: "career",
+              birthTimeAccuracyMinutes: 5,
+            },
+            messages: [{ role: "user", content: "Career direction?" }],
+          }),
+        },
+        {
+          ENGINE_VERSION: "test",
+          AI_RATE_LIMITER: { limit: async () => ({ success: true }) },
+          OPENAI_API_KEY: "test-key",
+          OPENAI_CHAT_MODEL: "test-model",
+          AI: { run: async () => ({ response: "unused" }) },
+        } as never,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-sahadeva-ai-provider")).toBe("openai");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    expect(capturedSystem).toContain("practitioner sequence");
+    expect(capturedSystem).toContain("When `dossier` is present");
+    expect(capturedSystem).toContain("dossier.answerContract");
+    expect(capturedSystem).toContain("dossier.consultationAnalysis");
+    expect(capturedSystem).toContain("900-1400 words");
+    expect(capturedSystem).toContain('"version":"code-led-conversation-1"');
+  });
+
+  it("serves a server-computed today brief with bala and running periods", async () => {
+    const response = await app.request(
+      "http://localhost/api/today/brief",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Dossier Parity",
+          date: "2000-01-28",
+          time: "08:05",
+          place: "Ravulapalem",
+          latitude: 16.7607,
+          longitude: 81.833,
+          timezone: "Asia/Kolkata",
+          timezoneOffset: 5.5,
+          language: "en",
+          focus: "general",
+          birthTimeAccuracyMinutes: 5,
+        }),
+      },
+      { ENGINE_VERSION: "test", CALC_RATE_LIMITER: { limit: async () => ({ success: true }) } } as never,
+    );
+    expect(response.status).toBe(200);
+    const brief = (await response.json()) as {
+      schemaVersion?: string;
+      quality?: string;
+      whyToday?: string;
+      taraBala?: { favorable?: boolean } | null;
+      chandraBala?: { houseFromNatalMoon?: number } | null;
+      runningPeriod?: { mahadasha?: string | null };
+    };
+    expect(brief.schemaVersion).toBe("sahadeva-today-brief-1");
+    expect(["good", "mixed", "hard"]).toContain(brief.quality);
+    expect(typeof brief.whyToday).toBe("string");
+    expect(brief.runningPeriod?.mahadasha).toBeTruthy();
   });
 
   it("enforces mcp:calculate on authenticated requests", async () => {

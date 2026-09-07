@@ -101,6 +101,33 @@ type StoredTurn = { id?: string; role: "user" | "assistant"; content: string; su
 type Thread = { id: string; title: string; updatedAt: number; turns: StoredTurn[] };
 const THREADS_KEY = "sahadev.webchat.threads.v2";
 const GUEST_EMAIL_KEY = "sahadeva.guest-consent-email.v1";
+const PROFILE_REF_KEY = "sahadeva.dossier.profileRef.v1";
+
+/** Verified dossier reference for this birth profile (server-verified per question). */
+function dossierKey(profile: Profile): string {
+  return `${PROFILE_REF_KEY}:${profile.date}:${profile.time}:${profile.latitude.toFixed(4)}:${profile.longitude.toFixed(4)}`;
+}
+function loadProfileRef(profile: Profile): string | null {
+  try {
+    return localStorage.getItem(dossierKey(profile));
+  } catch {
+    return null;
+  }
+}
+function saveProfileRef(profile: Profile, ref: string) {
+  try {
+    localStorage.setItem(dossierKey(profile), ref);
+  } catch {
+    /* ignore */
+  }
+}
+function clearProfileRef(profile: Profile) {
+  try {
+    localStorage.removeItem(dossierKey(profile));
+  } catch {
+    /* ignore */
+  }
+}
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function loadThreads(scope: string): Thread[] {
@@ -308,7 +335,7 @@ export function AskScreen() {
     if (activeIdRef.current === id) newChat();
   }
 
-  async function ask(text: string, deep = false) {
+  async function ask(text: string, deep = false, retriedRef = false) {
     if (!profile || !text.trim() || busy) return;
     const question = text.trim();
     let sessionId = activeIdRef.current;
@@ -404,8 +431,12 @@ export function AskScreen() {
           conversationSessionId: sessionId,
           conversationTurnId: userTurnId,
           fullProfile: requestsFullProfile(modelQuestion),
+          profileRef: loadProfileRef(profile),
         },
       );
+      // Retain the verified dossier reference for focused follow-ups. A
+      // server rejection clears it so the next question rebuilds cleanly.
+      if (summary?.profileRef) saveProfileRef(profile, summary.profileRef);
       const intentPoints = await recordResponseIntentCoverage(sessionId, responseTurnId, userTurnId, reply).catch(() => []);
       const finalTurns: Turn[] = [...withUser, { id: responseTurnId, role: "assistant", content: reply, summary, intentPoints, streaming: false }];
       setTurns(finalTurns);
@@ -435,6 +466,19 @@ export function AskScreen() {
           : withUser;
         setTurns(stoppedTurns);
         persistThread(stoppedTurns);
+        return;
+      }
+      if (String((e as Error).message) === "profileRef" && profile && !retriedRef) {
+        // Stale dossier reference (engine update or profile change): drop it
+        // and retry once as a fresh first reading.
+        clearProfileRef(profile);
+        setBusy(false);
+        setAnswerStarted(false);
+        answerAbortRef.current = null;
+        void (async () => {
+          await new Promise((resolve) => window.setTimeout(resolve, 50));
+          ask(text, deep, true);
+        })();
         return;
       }
       const msg = String((e as Error).message) === "rate"

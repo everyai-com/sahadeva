@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./today.css";
 import { useLang, LangToggle, Rich } from "../lang";
 import { useData } from "../data";
@@ -18,7 +18,7 @@ import {
   chandraBala,
   SIGN_LORDS,
 } from "../format";
-import type { JdWindow, Placement } from "../api";
+import { fetchTodayBrief, type JdWindow, type Placement, type TodayBrief } from "../api";
 import { BriefAlert } from "./BriefAlert";
 
 const AXIS_START = 6 * 60; // 6 am
@@ -37,6 +37,23 @@ export function TodayScreen() {
   const { lang, t } = useLang();
   const { profile, today, chart, transit, dasha } = useData();
   const [openChip, setOpenChip] = useState<string | null>(null);
+  const [brief, setBrief] = useState<TodayBrief | null>(null);
+  useEffect(() => {
+    let live = true;
+    setBrief(null);
+    if (profile) {
+      fetchTodayBrief(profile)
+        .then((b) => {
+          if (live) setBrief(b);
+        })
+        .catch(() => {
+          /* the panchanga card below remains the fallback */
+        });
+    }
+    return () => {
+      live = false;
+    };
+  }, [profile?.date, profile?.time, profile?.latitude, profile?.longitude]);
 
   const tz = profile?.timezoneOffset ?? 0;
   const td = today.data;
@@ -51,8 +68,10 @@ export function TodayScreen() {
     natalMoon && transitMoon ? chandraBala(natalMoon.sign, transitMoon.sign) : null;
 
   const favCount = (tara?.favorable ? 1 : 0) + (chandra?.favorable ? 1 : 0);
-  const quality =
-    tara && chandra ? (favCount === 2 ? "good" : favCount === 1 ? "mixed" : "hard") : "good";
+  // Server-computed brief wins when available: same engine as MCP, with the
+  // running sub-period and a one-line "why today feels this way" reading.
+  const quality = brief?.quality
+    ?? (tara && chandra ? (favCount === 2 ? "good" : favCount === 1 ? "mixed" : "hard") : "good");
   const qualLabel =
     quality === "good"
       ? t("Supportive", "అనుకూలం")
@@ -109,32 +128,64 @@ export function TodayScreen() {
                       `మిశ్రమమైన రోజు. ముఖ్యంగా ${rahuRange} సమయంలో ముఖ్యమైన నిర్ణయాలు నెమ్మదిగా తీసుకోండి. సాధారణ పనులను మామూలుగానే కొనసాగించవచ్చు.`,
                     )}
               </p>
-              {tara && chandra && (
-                <details className="why">
-                  <summary>{t("Why this reading?", "ఎందుకు ఇలా?")}</summary>
-                  <div className="whybody">
-                    <span>
-                      {t(
-                        "Two personal checks are run against your birth star.",
-                        "మీ జన్మ నక్షత్రం ఆధారంగా రెండు వ్యక్తిగత పరీక్షలు చేస్తాం.",
-                      )}
-                    </span>
-                    <div className="ev">
+              {brief ? (
+                <div className="whybody">
+                  <p className="verdict-why">{brief.whyToday}</p>
+                  <div className="ev">
+                    {brief.taraBala && (
                       <span className="evchip">
                         {t(
-                          `Tara bala · ${tara.count} · ${tara.favorable ? "favourable" : "guarded"}`,
-                          `తార బల · ${tara.count} · ${tara.favorable ? "అనుకూలం" : "జాగ్రత్త"}`,
+                          `Tara bala · ${brief.taraBala.count} · ${brief.taraBala.favorable ? "favourable" : "guarded"}`,
+                          `తార బల · ${brief.taraBala.count} · ${brief.taraBala.favorable ? "అనుకూలం" : "జాగ్రత్త"}`,
                         )}
                       </span>
+                    )}
+                    {brief.chandraBala && (
                       <span className="evchip">
                         {t(
-                          `Chandra bala · ${chandra.house}th from natal Moon`,
-                          `చంద్ర బల · జన్మ చంద్రుని నుండి ${chandra.house}వ`,
+                          `Chandra bala · ${brief.chandraBala.houseFromNatalMoon}th from natal Moon`,
+                          `చంద్ర బల · జన్మ చంద్రుని నుండి ${brief.chandraBala.houseFromNatalMoon}వ`,
                         )}
                       </span>
-                    </div>
+                    )}
+                    {brief.runningPeriod.pratyantardasha && (
+                      <span className="evchip">
+                        {t(
+                          `${brief.runningPeriod.mahadasha} / ${brief.runningPeriod.antardasha} / ${brief.runningPeriod.pratyantardasha}`,
+                          `${brief.runningPeriod.mahadasha} / ${brief.runningPeriod.antardasha} / ${brief.runningPeriod.pratyantardasha}`,
+                        )}
+                      </span>
+                    )}
                   </div>
-                </details>
+                </div>
+              ) : (
+                tara && chandra && (
+                  <details className="why">
+                    <summary>{t("Why this reading?", "ఎందుకు ఇలా?")}</summary>
+                    <div className="whybody">
+                      <span>
+                        {t(
+                          "Two personal checks are run against your birth star.",
+                          "మీ జన్మ నక్షత్రం ఆధారంగా రెండు వ్యక్తిగత పరీక్షలు చేస్తాం.",
+                        )}
+                      </span>
+                      <div className="ev">
+                        <span className="evchip">
+                          {t(
+                            `Tara bala · ${tara.count} · ${tara.favorable ? "favourable" : "guarded"}`,
+                            `తార బల · ${tara.count} · ${tara.favorable ? "అనుకూలం" : "జాగ్రత్త"}`,
+                          )}
+                        </span>
+                        <span className="evchip">
+                          {t(
+                            `Chandra bala · ${chandra.house}th from natal Moon`,
+                            `చంద్ర బల · జన్మ చంద్రుని నుండి ${chandra.house}వ`,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </details>
+                )
               )}
             </section>
 

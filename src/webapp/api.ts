@@ -155,6 +155,13 @@ export type DashaCalendar = {
 /* ── chat summary (subset) ─────────────────────────────────────────────── */
 
 export type ChatSummary = {
+  profileRef?: string;
+  dossier?: {
+    responseProfile?: string;
+    consultationTopic?: string | null;
+    verification?: { status?: string; contradictions?: unknown[] };
+    coverage?: { completeForQuestion?: boolean; followUpNeeded?: string[] };
+  } | null;
   readingMode?: string;
   conversationAlignment?: { score: number; concernOpen: boolean; recoveryAttempted: boolean } | null;
   anchors?: { lagna?: { signName?: string; degree?: number }; moon?: { signName?: string; degree?: number; nakshatra?: string; pada?: number } };
@@ -224,6 +231,45 @@ export function fetchTransitChart(profile: Profile): Promise<ChartResult> {
     date: now.toISOString().slice(0, 10),
     time: now.toISOString().slice(11, 16),
   });
+}
+
+export type TodayBrief = {
+  schemaVersion: string;
+  date: string;
+  fiveLimbs: TodayPanchanga["fiveLimbs"];
+  festivalFlags: string[];
+  taraBala: {
+    birthNakshatra: string;
+    todayNakshatra: string;
+    count: number;
+    cyclePosition: number;
+    favorable: boolean;
+  } | null;
+  chandraBala: {
+    natalMoonSignName: string;
+    transitMoonSignName: string;
+    houseFromNatalMoon: number;
+    favorable: boolean;
+  } | null;
+  quality: "good" | "mixed" | "hard";
+  whyToday: string;
+  runningPeriod: {
+    mahadasha: string | null;
+    antardasha: string | null;
+    pratyantardasha: string | null;
+    pratyantardashaEnds: string | null;
+    antardashaEnds: string | null;
+    mahadashaEnds: string | null;
+  };
+  keepClear: {
+    rahuKaal: JdWindow;
+    yamaganda: JdWindow;
+    gulikaKaal: JdWindow;
+  };
+};
+
+export async function fetchTodayBrief(profile: Profile): Promise<TodayBrief> {
+  return postJson<TodayBrief>("/api/today/brief", profile);
 }
 
 export async function fetchToday(profile: Profile): Promise<TodayPanchanga> {
@@ -806,7 +852,7 @@ export async function streamChat(
   messages: ChatTurn[],
   onDelta: (cumulativeText: string) => void,
   signal?: AbortSignal,
-  options: { lifeContext?: string; deep?: boolean; conversationSessionId?: string; conversationTurnId?: string; fullProfile?: boolean } = {},
+  options: { lifeContext?: string; deep?: boolean; conversationSessionId?: string; conversationTurnId?: string; fullProfile?: boolean; profileRef?: string | null } = {},
 ): Promise<{ text: string; summary: ChatSummary | null }> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -821,11 +867,23 @@ export async function streamChat(
       lifeContext: options.lifeContext || undefined,
       conversationSessionId: options.conversationSessionId,
       conversationTurnId: options.conversationTurnId,
+      // Dossier continuity: the server verifies this against the birth
+      // details + engine version and returns a focused follow-up slice.
+      profileRef: options.profileRef || undefined,
     }),
     signal,
   });
   if (res.status === 429) throw new Error("rate");
-  if (!res.ok) throw new Error("reply");
+  if (!res.ok) {
+    let code = "reply";
+    try {
+      const j = (await res.json()) as { error?: string };
+      if (j?.error && /profileref/i.test(j.error)) code = "profileRef";
+    } catch {
+      /* ignore */
+    }
+    throw new Error(code);
+  }
 
   const contentType = res.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
