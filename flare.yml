@@ -1,0 +1,17 @@
+jobs:
+  verify:
+    runs-on: linux
+    steps:
+      - run: node --version
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run migrations:verify
+      - run: npm run security:scan
+      - run: npm audit --audit-level=high
+      - run: npm run build
+      - run: npm run budget
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm ci --prefix ios-app
+      - run: npm run mobile:verify
