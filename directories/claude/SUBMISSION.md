@@ -31,7 +31,7 @@ writes (report PDF, outcome records; destructive=false).
   mortality, fertility, legal or financial fact.`
 - Categories: Lifestyle (+ fitting others)
 - Docs URL: https://github.com/everyai-com/sahadeva | Privacy URL:
-  https://magicteams.ai/privacy (must be live)
+  https://sahadeva.magicteams.ai/privacy (must be live)
 - Support: support@magicteams.ai | Icon: upload | Slug: `sahadeva`
 
 **Use cases**: "Today's panchanga for Hyderabad"; "Match two kundlis";

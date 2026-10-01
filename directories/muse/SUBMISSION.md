@@ -14,7 +14,7 @@ Endpoint: https://sahadeva.magicteams.ai/mcp (live, 54 tools, all annotated)
 ### Step 1: Overview
 - Connector name: `Sahadeva` | Company: MagicTeams | Website: https://magicteams.ai
 - Icon: upload | Payments: no | Contact: support@magicteams.ai
-- Privacy: https://magicteams.ai/privacy | Terms: https://magicteams.ai/terms
+- Privacy: https://sahadeva.magicteams.ai/privacy | Terms: https://sahadeva.magicteams.ai/terms
 - Example prompts:
 
 ```text

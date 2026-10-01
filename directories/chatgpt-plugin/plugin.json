@@ -15,10 +15,10 @@
         "large": "./assets/icon-large.png"
       },
       "contactEmail": "support@magicteams.ai",
-      "privacyPolicyUrl": "https://magicteams.ai/privacy",
-      "termsUrl": "https://magicteams.ai/terms",
+      "privacyPolicyUrl": "https://sahadeva.magicteams.ai/privacy",
+      "termsUrl": "https://sahadeva.magicteams.ai/terms",
       "reviewerTestCases": "./TEST_CASES.md",
-      "demoVideoUrl": "TODO-https://example.com/demo.mp4"
+      "demoVideoUrl": "https://pub-79d1c74ec9854bf8b5e433916fa13e3c.r2.dev/sahadeva-demo.mp4"
     }
   }
 }
