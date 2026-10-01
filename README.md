@@ -1,5 +1,7 @@
 # Sahadeva
 
+[![CI](https://flare-actions.everyai-com.workers.dev/v1/badge.svg?repo=everyai-com/sahadeva)](https://flare-actions.everyai-com.workers.dev/dashboard)
+
 A clean-room, Cloudflare-native research build for a transparent South Indian AI Jyotish workspace.
 
 ## Run locally
@@ -57,3 +59,11 @@ The product interface and computation pipeline are functional. The Moon, Panchan
 ## Clean-room boundary
 
 No third-party astrology engine is bundled. Repository research informed the capability map and test strategy only. Production algorithms must be derived from documented specifications and independently validated.
+
+## Continuous integration
+
+Pushes and pull requests run the `verify` pipeline on [Flare Actions](https://github.com/everyai-com/flare-actions) (`flare.yml`): typecheck, unit tests, migration and secret checks, audit, build, bundle budget, Playwright e2e, and the Expo mobile verify. Run completions email all registered users.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
