@@ -13108,6 +13108,33 @@ app.get("/.well-known/openai-apps-challenge", (c) => {
   return c.text(token);
 });
 
+// Directory-required legal pages (Claude/ChatGPT/Muse listings link here).
+const LEGAL_STYLE =
+  "body{font-family:system-ui;max-width:720px;margin:2em auto;padding:0 1em;line-height:1.6;color:#1a1a1a}";
+app.get("/privacy", (c) =>
+  c.html(
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Privacy Policy - Sahadeva</title><style>${LEGAL_STYLE}</style></head><body>` +
+      `<h1>Privacy Policy - Sahadeva</h1><p><strong>Operator:</strong> MagicTeams - support@magicteams.ai<br><strong>Last updated:</strong> 2026-10-01</p>` +
+      `<h2>1. Data we process</h2><p>Birth details you provide (name, date, time, place), your questions, and technical logs (timestamps, tool names, error codes) for reliability and abuse prevention. Request content is processed to compute answers and is not sold. Chart requests may populate a SHA-256-keyed deterministic cache with name and place removed.</p>` +
+      `<h2>2. How we use it</h2><p>To provide panchanga, matching, muhurta, dasha and consultation answers; to enforce rate limits; to debug errors; to prevent abuse.</p>` +
+      `<h2>3. Storage and retention</h2><p>Computed answers return immediately and are not retained as profiles, except outcome records you explicitly save, which are owner-scoped and hashed. Technical logs are retained up to 90 days, then deleted.</p>` +
+      `<h2>4. Sharing</h2><p>We do not sell personal data. Data is shared only with infrastructure providers (hosting, content delivery) under contract as needed to operate the service.</p>` +
+      `<h2>5. Your rights</h2><p>Request access, correction or deletion at support@magicteams.ai. We respond within 30 days.</p>` +
+      `</body></html>`,
+  ),
+);
+app.get("/terms", (c) =>
+  c.html(
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Terms of Service - Sahadeva</title><style>${LEGAL_STYLE}</style></head><body>` +
+      `<h1>Terms of Service - Sahadeva</h1><p><strong>Operator:</strong> MagicTeams - support@magicteams.ai<br><strong>Last updated:</strong> 2026-10-01</p>` +
+      `<h2>1. Service</h2><p>Sahadeva provides Vedic astrology calculations and traditional research material. Content is interpretive, for entertainment and research; it is not medical, mortality, fertility, legal or financial advice. Verify critical decisions with a qualified practitioner.</p>` +
+      `<h2>2. Acceptable use</h2><p>No abuse, scraping, rate-limit evasion, or unlawful use. We may suspend abusive access, including API keys.</p>` +
+      `<h2>3. Payments</h2><p>Public reads are currently free. If paid features launch, pricing, currency and refund terms will be published before charges apply.</p>` +
+      `<h2>4. Liability</h2><p>Service provided as-is. To the extent permitted by law, the operator is not liable for decisions made based on astrological content.</p>` +
+      `</body></html>`,
+  ),
+);
+
 export { app };
 export default {
   fetch: app.fetch,
