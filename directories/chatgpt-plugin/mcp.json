@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "sahadeva": {
+      "type": "streamable-http",
+      "url": "https://sahadeva.magicteams.ai/mcp"
+    }
+  }
+}
