@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "sahadeva",
+  "version": "1.0.0",
+  "description": "Vedic astrology workspace: panchanga, kundli matching (Ashtakoota + Porutham), muhurta, dashas, transits, Lal Kitab sources. 54 tools, free public reads.",
+  "skills": "./skills/",
+  "extensions": {
+    "com.openai": {
+      "mcpServers": ["sahadeva"],
+      "displayName": "Sahadeva",
+      "shortDescription": "Panchanga, kundli matching, muhurta and dashas.",
+      "longDescription": "Sahadeva is a transparent Vedic astrology workspace: daily panchanga with sunrise/sunset, North Indian Ashtakoota and South Indian Porutham matching with Kuja dosha evidence, muhurta search across 11 activities, Vimshottari and alternate dashas, transits, Ashtakavarga, vargas, yogas, and Lal Kitab source exploration. Every tool is annotated; calculations are deterministic with a published safety envelope. Free public reads; outcome-recording tools need an API key. Research preview: no medical, mortality, fertility, legal or financial fact.",
+      "icons": {
+        "small": "./assets/icon-small.png",
+        "large": "./assets/icon-large.png"
+      },
+      "contactEmail": "support@magicteams.ai",
+      "privacyPolicyUrl": "https://magicteams.ai/privacy",
+      "termsUrl": "https://magicteams.ai/terms",
+      "reviewerTestCases": "./TEST_CASES.md",
+      "demoVideoUrl": "TODO-https://example.com/demo.mp4"
+    }
+  }
+}
