@@ -12,3 +12,5 @@ worker-configuration.d.ts
 ios-app/.asc/
 transcript-harvester/vendor/
 *.pdf
+
+.DS_Store

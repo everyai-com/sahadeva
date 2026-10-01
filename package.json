@@ -27,7 +27,7 @@
     "knowledge:lal-kitab": "node scripts/build-lal-kitab-manifest.mjs",
     "knowledge:lal-kitab:sections": "node scripts/build-lal-kitab-section-migration.mjs",
     "migrations:verify": "node scripts/verify-migrations.mjs",
-    "mobile:verify": "npm --prefix ios-app run lint && npm --prefix ios-app exec tsc -- --noEmit && npm --prefix ios-app exec expo export -- --platform web",
+    "mobile:verify": "cd ios-app && npm run lint && npx tsc --noEmit && npx expo export -- --platform web",
     "locations:geonames": "node scripts/import-geonames.mjs",
     "report:sample": "node scripts/generate-client-report-sample.mjs"
   },
