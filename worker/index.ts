@@ -157,6 +157,7 @@ type Env = {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   EXPO_ACCESS_TOKEN?: string;
+  OPENAI_APPS_CHALLENGE_TOKEN?: string;
 };
 const app = new Hono<{ Bindings: Env }>();
 const safetyEnvelope = () => ({
@@ -13088,6 +13089,15 @@ async function scheduled(
     sendExpoReminders(env, nowUtcHour, todayKey),
   ]);
 }
+
+// ChatGPT plugin domain verification: serves the exact portal token as
+// plain text. Set via `wrangler secret put OPENAI_APPS_CHALLENGE_TOKEN`.
+// wrangler.jsonc routes /.well-known/* here (run_worker_first).
+app.get("/.well-known/openai-apps-challenge", (c) => {
+  const token = c.env.OPENAI_APPS_CHALLENGE_TOKEN;
+  if (!token) return c.text("not configured", 404);
+  return c.text(token);
+});
 
 export { app };
 export default {
