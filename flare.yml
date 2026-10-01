@@ -1,6 +1,6 @@
 jobs:
   verify:
-    runs-on: linux
+    runs-on: bigmem
     steps:
       - run: node --version
       - run: npm ci
@@ -11,7 +11,7 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run build
       - run: npm run budget
-      - run: npx playwright install --with-deps chromium
+      - run: if [ "$(uname)" = "Darwin" ]; then npx playwright install chromium; else npx playwright install --with-deps chromium; fi
       - run: npm run test:e2e
       - run: npm ci --prefix ios-app
       - run: npm run mobile:verify
