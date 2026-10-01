@@ -12926,10 +12926,19 @@ app.post("/mcp", async (c) => {
     return c.json(rpcError(null, -32000, "Origin not allowed"), 403);
   const request = await c.req.json<RpcRequest>().catch(() => null);
   if (!request) return c.json(rpcError(null, -32700, "Parse error"), 400);
-  const response = enforceSafetyContract(
-    await handleMcp(request, c.env, keyIdentity),
-    request.params?.name,
-  );
+  let response;
+  try {
+    response = enforceSafetyContract(
+      await handleMcp(request, c.env, keyIdentity),
+      request.params?.name,
+    );
+  } catch (e) {
+    // Never HTTP-500 on bad input: directories fail generic 500s on review.
+    // Surface an actionable JSON-RPC invalid-params error instead.
+    const message =
+      e instanceof Error && e.message ? e.message.slice(0, 300) : "Invalid params";
+    response = rpcError(request.id, -32602, message);
+  }
   if (response === null) return c.body(null, 202);
   const durationMs = performance.now() - requestStartedAt;
   return c.json(response, 200, {
