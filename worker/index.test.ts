@@ -281,10 +281,18 @@ describe("Sahadeva MCP", () => {
     expect(payload.summary?.fullProfile?.timeline?.length).toBeGreaterThan(0);
     expect(payload.summary?.fullProfile?.nextQuestions?.length).toBe(4);
   }, 30000);
-  it("advertises one stable protocol revision everywhere", async () => {
+  it("answers server/discover with a spec-shaped DiscoverResult", async () => {
     const response = await mcp("server/discover");
     expect(response.status).toBe(200);
-    expect(response.body.result?.protocolVersion).toBe("2025-11-25");
+    const result = response.body.result as Record<string, unknown>;
+    expect(result?.resultType).toBe("complete");
+    expect(result?.supportedVersions).toContain("2026-07-28");
+    expect(result?.supportedVersions).toContain("2025-11-25");
+    expect(
+      (result?._meta as Record<string, unknown>)?.[
+        "io.modelcontextprotocol/serverInfo"
+      ],
+    ).toMatchObject({ name: "sahadeva" });
   });
 
   it("publishes a compact, high-signal deterministic tool surface", async () => {
