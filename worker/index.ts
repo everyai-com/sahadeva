@@ -484,6 +484,16 @@ type RpcRequest = {
   params?: { name?: string; arguments?: unknown };
 };
 const MCP_PROTOCOL_VERSION = "2025-11-25";
+// Known MCP protocol versions, oldest first. Clients (directory scanners,
+// desktop hosts) pin a version; negotiate down so older clients stay connected.
+const MCP_KNOWN_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
+function negotiateMcpVersion(clientVersion?: unknown): string {
+  if (typeof clientVersion !== "string") return MCP_PROTOCOL_VERSION;
+  // Newer-than-known clients get our latest; older clients get their version.
+  const eligible = MCP_KNOWN_VERSIONS.filter((v) => v <= clientVersion);
+  if (eligible.length > 0) return eligible[eligible.length - 1];
+  return MCP_KNOWN_VERSIONS[0];
+}
 const mcpTools = [
   {
     name: "search_locations",
@@ -4161,7 +4171,9 @@ async function handleMcp(
     return rpcError(request.id, -32600, "Invalid JSON-RPC request");
   if (request.method === "initialize")
     return rpcResult(request.id, {
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion: negotiateMcpVersion(
+        (request.params as unknown as { protocolVersion?: unknown })?.protocolVersion,
+      ),
       capabilities: {
         tools: { listChanged: false },
         prompts: { listChanged: false },
