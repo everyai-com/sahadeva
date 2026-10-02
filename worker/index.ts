@@ -12906,13 +12906,29 @@ app.post("/api/chat", async (c) => {
   }
 });
 
-app.get("/mcp", (c) =>
-  c.json({
+app.get("/mcp", (c) => {
+  // MCP clients open SSE streams via GET + Accept: text/event-stream.
+  // This server uses the JSON response profile (no SSE), so refuse with 405
+  // per spec instead of returning JSON that breaks SSE parsers.
+  const accept = c.req.header("accept") || "";
+  if (accept.includes("text/event-stream"))
+    return c.text("SSE streams not supported; use POST with application/json", 405, {
+      Allow: "POST",
+      "cache-control": "no-store",
+    });
+  return c.json({
     name: "Sahadeva MCP",
     protocolVersion: MCP_PROTOCOL_VERSION,
     transport: "Streamable HTTP (JSON response profile)",
     tools: publicMcpTools.map((tool) => tool.name),
     expertToolsResource: "sahadeva://expert-tools",
+  });
+});
+// Stateless server: no sessions to terminate.
+app.delete("/mcp", (c) =>
+  c.text("No sessions; use POST with application/json", 405, {
+    Allow: "POST",
+    "cache-control": "no-store",
   }),
 );
 app.post("/mcp", async (c) => {
