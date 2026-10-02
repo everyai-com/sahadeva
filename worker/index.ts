@@ -484,6 +484,16 @@ type RpcRequest = {
   params?: { name?: string; arguments?: unknown };
 };
 const MCP_PROTOCOL_VERSION = "2025-11-25";
+// Known MCP protocol versions, oldest first. Clients (directory scanners,
+// desktop hosts) pin a version; negotiate down so older clients stay connected.
+const MCP_KNOWN_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
+function negotiateMcpVersion(clientVersion?: unknown): string {
+  if (typeof clientVersion !== "string") return MCP_PROTOCOL_VERSION;
+  // Newer-than-known clients get our latest; older clients get their version.
+  const eligible = MCP_KNOWN_VERSIONS.filter((v) => v <= clientVersion);
+  if (eligible.length > 0) return eligible[eligible.length - 1];
+  return MCP_KNOWN_VERSIONS[0];
+}
 const mcpTools = [
   {
     name: "search_locations",
@@ -4161,7 +4171,9 @@ async function handleMcp(
     return rpcError(request.id, -32600, "Invalid JSON-RPC request");
   if (request.method === "initialize")
     return rpcResult(request.id, {
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion: negotiateMcpVersion(
+        (request.params as unknown as { protocolVersion?: unknown })?.protocolVersion,
+      ),
       capabilities: {
         tools: { listChanged: false },
         prompts: { listChanged: false },
@@ -4169,19 +4181,28 @@ async function handleMcp(
       },
       serverInfo: { name: "sahadeva", version: "0.3.0" },
     });
+  // Spec-shaped DiscoverResult (2026-07-28). Modern clients probe this first
+  // and adopt the result; legacy clients fall back to initialize. The server
+  // is stateless, so per-request modern calls work without a handshake.
   if (request.method === "server/discover")
     return rpcResult(request.id, {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      serverInfo: { name: "sahadeva", version: "0.3.0" },
+      resultType: "complete",
+      supportedVersions: ["2026-07-28", ...MCP_KNOWN_VERSIONS.slice().reverse()],
       capabilities: {
         tools: { listChanged: false },
         prompts: { listChanged: false },
         resources: { subscribe: false, listChanged: false },
       },
-      security: {
-        architecture: MCP_SECURITY_CONTRACT.architecture,
-        resource: "sahadeva://security",
+      _meta: {
+        "io.modelcontextprotocol/serverInfo": {
+          name: "sahadeva",
+          version: "0.3.0",
+        },
       },
+      instructions:
+        "Sahadeva is a deterministic Vedic astrology engine. Resolve places first with search_locations, then call calculation tools with explicit dates and coordinates. Outcome-recording tools require an API key.",
+      ttlMs: 3600000,
+      cacheScope: "public",
     });
   if (request.method === "notifications/initialized") return null;
   if (request.method === "ping") return rpcResult(request.id, {});
@@ -12894,15 +12915,43 @@ app.post("/api/chat", async (c) => {
   }
 });
 
-app.get("/mcp", (c) =>
-  c.json({
+app.get("/mcp", (c) => {
+  // MCP clients open SSE streams via GET + Accept: text/event-stream.
+  // This server uses the JSON response profile (no SSE), so refuse with 405
+  // per spec instead of returning JSON that breaks SSE parsers.
+  const accept = c.req.header("accept") || "";
+  if (accept.includes("text/event-stream"))
+    return c.text("SSE streams not supported; use POST with application/json", 405, {
+      Allow: "POST",
+      "cache-control": "no-store",
+    });
+  return c.json({
     name: "Sahadeva MCP",
     protocolVersion: MCP_PROTOCOL_VERSION,
     transport: "Streamable HTTP (JSON response profile)",
     tools: publicMcpTools.map((tool) => tool.name),
     expertToolsResource: "sahadeva://expert-tools",
+  });
+});
+// Stateless server: no sessions to terminate.
+app.delete("/mcp", (c) =>
+  c.text("No sessions; use POST with application/json", 405, {
+    Allow: "POST",
+    "cache-control": "no-store",
   }),
 );
+// CORS preflight for browser-based MCP clients and directory scanners.
+app.options("/mcp", (c) => {
+  const origin = c.req.header("origin");
+  return c.body(null, 204, {
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  });
+});
 app.post("/mcp", async (c) => {
   const requestStartedAt = performance.now();
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
@@ -12918,12 +12967,14 @@ app.post("/mcp", async (c) => {
   }
   c.header("Cache-Control", "no-store");
   c.header("X-Content-Type-Options", "nosniff");
+  // /mcp is a public API consumed by third-party clients (directories,
+  // scanners, desktop hosts) from arbitrary origins. Never gate on Origin;
+  // rate limiting above is the abuse control. Echo the origin for CORS.
+  const origin = c.req.header("origin");
+  c.header("Access-Control-Allow-Origin", origin || "*");
+  c.header("Vary", "Origin");
   if (Number(c.req.header("content-length") || 0) > 32_768)
     return c.json(rpcError(null, -32000, "Request body too large"), 413);
-  const origin = c.req.header("origin");
-  const host = new URL(c.req.url).host;
-  if (origin && new URL(origin).host !== host)
-    return c.json(rpcError(null, -32000, "Origin not allowed"), 403);
   const request = await c.req.json<RpcRequest>().catch(() => null);
   if (!request) return c.json(rpcError(null, -32700, "Parse error"), 400);
   let response;
