@@ -57,6 +57,9 @@ test("the setup flow is keyboard reachable and never overflows the page", async 
 });
 
 test("BTR opens a structured, editable three-event review", async ({ page }) => {
+  // The legacy chat bundle is the slowest page to compile; under CI load
+  // the 30s default trips before the BTR chip mounts (observed live).
+  test.setTimeout(120_000);
   await page.evaluate(() =>
     localStorage.setItem(
       "sahadeva.profile.v1",

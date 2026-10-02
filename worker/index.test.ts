@@ -1168,7 +1168,9 @@ describe("Sahadeva MCP", () => {
     expect(result.valid).toBe(true);
     expect(result.execution.matched).toBe(true);
     expect(result.publicationGate.publishable).toBe(false);
-  });
+    // Full-report generation is the heaviest test in the suite; under CI
+    // load it exceeds vitest's 15s default (flaky timeout observed live).
+  }, 60000);
 
   it("exposes the same bounded convention comparison through MCP and HTTP", async () => {
     const input = {
