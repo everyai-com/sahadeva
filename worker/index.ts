@@ -12931,6 +12931,18 @@ app.delete("/mcp", (c) =>
     "cache-control": "no-store",
   }),
 );
+// CORS preflight for browser-based MCP clients and directory scanners.
+app.options("/mcp", (c) => {
+  const origin = c.req.header("origin");
+  return c.body(null, 204, {
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, Mcp-Session-Id, MCP-Protocol-Version",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  });
+});
 app.post("/mcp", async (c) => {
   const requestStartedAt = performance.now();
   const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
@@ -12946,12 +12958,14 @@ app.post("/mcp", async (c) => {
   }
   c.header("Cache-Control", "no-store");
   c.header("X-Content-Type-Options", "nosniff");
+  // /mcp is a public API consumed by third-party clients (directories,
+  // scanners, desktop hosts) from arbitrary origins. Never gate on Origin;
+  // rate limiting above is the abuse control. Echo the origin for CORS.
+  const origin = c.req.header("origin");
+  c.header("Access-Control-Allow-Origin", origin || "*");
+  c.header("Vary", "Origin");
   if (Number(c.req.header("content-length") || 0) > 32_768)
     return c.json(rpcError(null, -32000, "Request body too large"), 413);
-  const origin = c.req.header("origin");
-  const host = new URL(c.req.url).host;
-  if (origin && new URL(origin).host !== host)
-    return c.json(rpcError(null, -32000, "Origin not allowed"), 403);
   const request = await c.req.json<RpcRequest>().catch(() => null);
   if (!request) return c.json(rpcError(null, -32700, "Parse error"), 400);
   let response;
