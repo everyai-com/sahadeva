@@ -12977,23 +12977,6 @@ app.post("/mcp", async (c) => {
     return c.json(rpcError(null, -32000, "Request body too large"), 413);
   const request = await c.req.json<RpcRequest>().catch(() => null);
   if (!request) return c.json(rpcError(null, -32700, "Parse error"), 400);
-  // TEMP-SCAN-DEBUG: trace directory scanner traffic. Remove after diagnosis.
-  try {
-    const p = request.params as unknown as Record<string, unknown> | undefined;
-    console.log(
-      JSON.stringify({
-        scan: "mcp-req",
-        method: request.method,
-        tool: typeof p?.name === "string" ? p.name : undefined,
-        pv: typeof p?.protocolVersion === "string" ? p.protocolVersion : undefined,
-        auth: Boolean(c.req.header("authorization")),
-        origin: c.req.header("origin") || null,
-        ua: (c.req.header("user-agent") || "").slice(0, 80),
-      }),
-    );
-  } catch {
-    /* logging must never break the handler */
-  }
   let response;
   try {
     response = enforceSafetyContract(
