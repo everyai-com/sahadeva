@@ -6,15 +6,19 @@ import { StatusBar, TabBar } from "../shell";
 import { streamChat, type ChatSummary, type ChatTurn } from "../api";
 import { grahaName, signName, nakName } from "../format";
 import { Markdown } from "../md";
+import { Glyph } from "../glyph";
+import { peekAskPrefill, clearAskPrefill } from "../prefill";
 import type { ReactNode } from "react";
 
-type Turn = ChatTurn & { summary?: ChatSummary | null; streaming?: boolean; error?: string };
+type Turn = ChatTurn & { summary?: ChatSummary | null; streaming?: boolean; error?: string; retry?: string };
 
 // The top life areas people ask about first, shown as selectable cards.
-type Topic = { id: string; en: string; te: string; icon: ReactNode; qEn: string; qTe: string };
+// `glyph` names the canonical Sahadeva life-area icon from the asset library.
+type Topic = { id: string; en: string; te: string; icon: ReactNode; glyph?: string; qEn: string; qTe: string };
 const TOPICS: Topic[] = [
   {
     id: "career",
+    glyph: "career",
     en: "Career & work",
     te: "వృత్తి, ఉద్యోగం",
     icon: <path d="M4 8h16v11H4zM9 8V6a3 3 0 0 1 6 0v2" />,
@@ -23,6 +27,7 @@ const TOPICS: Topic[] = [
   },
   {
     id: "marriage",
+    glyph: "marriage",
     en: "Marriage & love",
     te: "వివాహం, ప్రేమ",
     icon: <path d="M12 20s-7-4.3-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.7-7 9-7 9Z" />,
@@ -31,6 +36,7 @@ const TOPICS: Topic[] = [
   },
   {
     id: "education",
+    glyph: "education",
     en: "Education",
     te: "చదువు",
     icon: <path d="M3 8l9-4 9 4-9 4-9-4Zm3 3v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5" />,
@@ -39,6 +45,7 @@ const TOPICS: Topic[] = [
   },
   {
     id: "health",
+    glyph: "health",
     en: "Health",
     te: "ఆరోగ్యం",
     icon: <path d="M20 8.5a4.5 4.5 0 0 0-8-2.8A4.5 4.5 0 0 0 4 8.5c0 4.5 8 10 8 10s8-5.5 8-10ZM8 11h2l1.5-3 2 5 1.5-2H18" />,
@@ -47,6 +54,7 @@ const TOPICS: Topic[] = [
   },
   {
     id: "wealth",
+    glyph: "money",
     en: "Money & wealth",
     te: "డబ్బు, సంపద",
     icon: <path d="M12 3v18M8 7h6a2.5 2.5 0 0 1 0 5H9a2.5 2.5 0 0 0 0 5h7" />,
@@ -117,7 +125,10 @@ export function AskScreen() {
   const { lang, t } = useLang();
   const { profile } = useData();
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [input, setInput] = useState("");
+  // A question handed over from another screen ("Ask about this house") is
+  // placed in the box for the person to review and send.
+  const [input, setInput] = useState(peekAskPrefill);
+  useEffect(clearAskPrefill, []);
   const [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false);
   const [threads, setThreads] = useState<Thread[]>(() => loadThreads());
@@ -201,7 +212,9 @@ export function AskScreen() {
     const style = lang === "te" ? STYLE_TE : STYLE_EN;
     // History shown to the user stays clean; the model gets a brevity instruction
     // appended only to the current question.
-    const base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
+    let base: Turn[] = turns.filter((x) => !x.streaming && !x.error);
+    // A trailing unanswered question is left over from a failed attempt; a retry replaces it.
+    if (base.length && base[base.length - 1].role === "user") base = base.slice(0, -1);
     const withUser: Turn[] = [...base, { role: "user", content: question }];
 
     // Greetings / small talk: reply conversationally, don't run a reading.
@@ -240,7 +253,7 @@ export function AskScreen() {
       const msg = String((e as Error).message) === "rate"
         ? t("Too many questions just now — try again in a moment.", "ఇప్పుడే చాలా ప్రశ్నలు — కొద్ది సేపటిలో మళ్లీ ప్రయత్నించండి.")
         : t("The assistant is unavailable right now. Your calculated chart is unaffected.", "సహాయకుడు ప్రస్తుతం అందుబాటులో లేడు. మీ జాతకం ప్రభావితం కాలేదు.");
-      setTurns([...withUser, { role: "assistant", content: "", streaming: false, error: msg }]);
+      setTurns([...withUser, { role: "assistant", content: "", streaming: false, error: msg, retry: question }]);
     } finally {
       setBusy(false);
     }
@@ -274,6 +287,8 @@ export function AskScreen() {
   useEffect(() => () => recognitionRef.current?.stop?.(), []);
 
   const firstName = profile?.name ? profile.name.split(" ")[0] : "";
+  const speechSupported =
+    typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
   return (
     <>
@@ -309,7 +324,7 @@ export function AskScreen() {
               {TOPICS.map((tp) => (
                 <button key={tp.id} className="topiccard" type="button" onClick={() => ask(lang === "te" ? tp.qTe : tp.qEn)}>
                   <span className="tic">
-                    <svg viewBox="0 0 24 24">{tp.icon}</svg>
+                    {tp.glyph ? <Glyph family="life-area" id={tp.glyph} size={20} /> : <svg viewBox="0 0 24 24">{tp.icon}</svg>}
                   </span>
                   <span className="tlbl">{lang === "te" ? tp.te : tp.en}</span>
                 </button>
@@ -323,7 +338,7 @@ export function AskScreen() {
                 {turn.content}
               </div>
             ) : (
-              <Answer key={i} turn={turn} onFollowUp={ask} />
+              <Answer key={i} turn={turn} onFollowUp={ask} busy={busy} />
             ),
           )
         )}
@@ -349,18 +364,21 @@ export function AskScreen() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") ask(input);
+                // Ignore Enter while an IME (e.g. a Telugu keyboard) is still composing.
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) ask(input);
               }}
               autoComplete="off"
             />
           </label>
-          <button className="iconbtn" type="button" aria-pressed={listening} aria-label={t("Speak your question", "మీ ప్రశ్న చెప్పండి")} onClick={toggleMic}>
-            <svg viewBox="0 0 24 24">
-              <rect x="9" y="3" width="6" height="11" rx="3" />
-              <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
-            </svg>
-          </button>
-          <button className="iconbtn sendbtn" type="button" aria-label={t("Send", "పంపు")} onClick={() => ask(input)}>
+          {speechSupported && (
+            <button className="iconbtn" type="button" aria-pressed={listening} aria-label={t("Speak your question", "మీ ప్రశ్న చెప్పండి")} onClick={toggleMic}>
+              <svg viewBox="0 0 24 24">
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
+              </svg>
+            </button>
+          )}
+          <button className="iconbtn sendbtn" type="button" aria-label={t("Send", "పంపు")} disabled={busy || !input.trim()} onClick={() => ask(input)}>
             <svg viewBox="0 0 24 24">
               <path d="M5 12h13M12 5l7 7-7 7" />
             </svg>
@@ -405,7 +423,7 @@ export function AskScreen() {
   );
 }
 
-function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => void }) {
+function Answer({ turn, onFollowUp, busy }: { turn: Turn; onFollowUp: (q: string) => void; busy: boolean }) {
   const { lang, t } = useLang();
   if (turn.streaming && !turn.content) {
     return (
@@ -421,6 +439,11 @@ function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => v
     return (
       <article className="answer">
         <p className="averdict">{turn.error}</p>
+        {turn.retry && (
+          <button className="fup aretry" type="button" disabled={busy} onClick={() => onFollowUp(turn.retry!)}>
+            {t("Try again", "మళ్ళీ ప్రయత్నించండి")}
+          </button>
+        )}
       </article>
     );
   }
@@ -476,8 +499,8 @@ function Answer({ turn, onFollowUp }: { turn: Turn; onFollowUp: (q: string) => v
 
       <p className="limitnote">
         {t(
-          "Sahadev does not predict outcomes. It reports what the classical rules say and where they disagree.",
-          "సహదేవ్ ఫలితాలను జోస్యం చెప్పదు. శాస్త్ర నియమాలు ఏమి చెబుతున్నాయో, అవి ఎక్కడ విభేదిస్తున్నాయో మాత్రమే చెబుతుంది.",
+          "Sahadeva does not predict outcomes. It reports what the classical rules say and where they disagree.",
+          "సహదేవ ఫలితాలను జోస్యం చెప్పదు. శాస్త్ర నియమాలు ఏమి చెబుతున్నాయో, అవి ఎక్కడ విభేదిస్తున్నాయో మాత్రమే చెబుతుంది.",
         )}
       </p>
     </article>

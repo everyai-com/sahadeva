@@ -51,3 +51,5 @@
 .dasha-screen .later { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border); }
 .dasha-screen .later .lrow { display: flex; justify-content: space-between; padding: 8px 0; font-size: var(--text-base); color: var(--muted); }
 .dasha-screen .later .lrow span { font-family: var(--font-mono); font-size: var(--text-sm); }
+.dasha-screen .pname .dglyph { display: inline-block; margin-right: 8px; vertical-align: -3px; color: var(--accent); }
+.dasha-screen .per.past .pname .dglyph { color: var(--muted); }

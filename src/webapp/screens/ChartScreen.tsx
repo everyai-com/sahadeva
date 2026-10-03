@@ -1,3 +1,6 @@
+import { ErrorNote } from "../states";
+import { Glyph } from "../glyph";
+import { prefillAsk } from "../prefill";
 import { useState } from "react";
 import "./chart.css";
 import { useLang, LangToggle } from "../lang";
@@ -43,7 +46,7 @@ type Cell = { planet: string; deg: string; flags: string };
 
 export function ChartScreen() {
   const { lang, t } = useLang();
-  const { profile, chart } = useData();
+  const { profile, chart, reload } = useData();
   const [varga, setVarga] = useState<"d1" | "d9">("d1");
   const [openHouse, setOpenHouse] = useState<{ sign: number; house: number } | null>(null);
 
@@ -116,7 +119,7 @@ export function ChartScreen() {
           </button>
         </div>
 
-        {chart.status === "error" && <p className="muted small">{t("The chart could not be calculated.", "జాతకం లెక్కించలేకపోయాం.")}</p>}
+        {chart.status === "error" && <ErrorNote error={chart.error} what={t("The chart could not be calculated.", "జాతకం లెక్కించలేకపోయాం.")} onRetry={reload} />}
 
         {data && (
           <>
@@ -175,9 +178,12 @@ export function ChartScreen() {
               <p className="sectitle">{t("Short names used in the squares", "గడులలో వాడిన సంక్షిప్త పేర్లు")}</p>
               <div className="lgrid">
                 {["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"].map((g) => (
-                  <div key={g}>
-                    <b>{grahaAbbr(g)}</b>
-                    {grahaName(g, lang)}
+                  <div key={g} className="lcell">
+                    <Glyph family="graha" id={g} size={22} />
+                    <span>
+                      <b>{grahaAbbr(g)}</b>
+                      {grahaName(g, lang)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -199,7 +205,7 @@ export function ChartScreen() {
 
         {/* bottom sheet */}
         <div className={`scrim${openHouse ? " on" : ""}`} onClick={() => setOpenHouse(null)} />
-        <aside className={`sheet${openHouse ? " on" : ""}`} role="dialog" aria-modal="true">
+        <aside className={`sheet${openHouse ? " on" : ""}`} role="dialog" aria-modal="true" aria-label={house && openHouse ? t(`House ${openHouse.house} — ${house.t}`, `${openHouse.house}వ భావం — ${house.tTe}`) : undefined}>
           <div className="grabber" aria-hidden="true" />
           {house && sheetSign && openHouse && (
             <>
@@ -221,6 +227,7 @@ export function ChartScreen() {
                     const dg = dignityByName.get(p.name);
                     return (
                       <div className="prow" key={i}>
+                        <Glyph family="graha" id={p.name} size={24} className="pglyph" />
                         <span className="pn">
                           {grahaName(p.name, lang)}
                           <span>{p.name}</span>
@@ -237,7 +244,19 @@ export function ChartScreen() {
                 <button className="btn" type="button" onClick={() => setOpenHouse(null)}>
                   {t("Close", "మూసివేయి")}
                 </button>
-                <button className="btn" type="button" onClick={() => navigate("ask")}>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => {
+                    prefillAsk(
+                      t(
+                        `What does my chart say about house ${openHouse.house} — ${house.t.toLowerCase()}?`,
+                        `నా జాతకంలో ${openHouse.house}వ భావం — ${house.tTe} — గురించి ఏం చెబుతుంది?`,
+                      ),
+                    );
+                    navigate("ask");
+                  }}
+                >
                   {t("Ask about this house", "ఈ భావం గురించి అడగండి")}
                 </button>
               </div>

@@ -19,6 +19,9 @@ import {
   SIGN_LORDS,
 } from "../format";
 import type { JdWindow, Placement } from "../api";
+import { Glyph, type GlyphFamily } from "../glyph";
+import { ErrorNote } from "../states";
+import { prefillAsk } from "../prefill";
 
 const AXIS_START = 6 * 60; // 6 am
 const AXIS_SPAN = 16 * 60; // to 10 pm
@@ -34,7 +37,7 @@ function block(win: JdWindow | undefined, tzOffset: number) {
 
 export function TodayScreen() {
   const { lang, t } = useLang();
-  const { profile, today, chart, transit, dasha } = useData();
+  const { profile, today, chart, transit, dasha, reload } = useData();
   const [openChip, setOpenChip] = useState<string | null>(null);
 
   const tz = profile?.timezoneOffset ?? 0;
@@ -50,14 +53,17 @@ export function TodayScreen() {
     natalMoon && transitMoon ? chandraBala(natalMoon.sign, transitMoon.sign) : null;
 
   const favCount = (tara?.favorable ? 1 : 0) + (chandra?.favorable ? 1 : 0);
+  // No personal verdict until both checks against the birth star are computed.
   const quality =
-    tara && chandra ? (favCount === 2 ? "good" : favCount === 1 ? "mixed" : "hard") : "good";
+    tara && chandra ? (favCount === 2 ? "good" : favCount === 1 ? "mixed" : "hard") : "plain";
   const qualLabel =
     quality === "good"
       ? t("Supportive", "అనుకూలం")
       : quality === "mixed"
         ? t("Mixed", "మిశ్రమం")
-        : t("Demanding", "కఠినం");
+        : quality === "hard"
+          ? t("Demanding", "కఠినం")
+          : t("Today's timings", "ఈ రోజు సమయాలు");
 
   const rahu = td?.inauspicious.rahuKaal;
   const rahuRange = rahu ? windowRange(rahu.startIso, rahu.endIso, tz) : "—";
@@ -89,8 +95,13 @@ export function TodayScreen() {
           <LangToggle />
         </header>
 
+        {today.status === "loading" && <div className="skeleton" aria-busy="true" aria-label={t("Loading", "లోడ్ అవుతోంది")} />}
         {today.status === "error" && (
-          <p className="muted small">{t("Today's timings could not be loaded.", "ఈ రోజు సమయాలు లోడ్ కాలేదు.")}</p>
+          <ErrorNote
+            error={today.error}
+            what={t("Today's timings could not be loaded.", "ఈ రోజు సమయాలు లోడ్ కాలేదు.")}
+            onRetry={reload}
+          />
         )}
 
         {td && (
@@ -113,10 +124,20 @@ export function TodayScreen() {
                       `A supportive day for you. Keep ${rahuRange} clear of anything you have to sign, start or hand over.`,
                       `మీకు అనుకూలమైన రోజు. ${rahuRange} మధ్య సంతకం చేయవలసినవి, కొత్తగా మొదలుపెట్టేవి పక్కన పెట్టండి.`,
                     )
-                  : t(
-                      `A mixed day. Keep ${rahuRange} clear of anything you have to sign, start or hand over.`,
-                      `మిశ్రమమైన రోజు. ${rahuRange} మధ్య సంతకం చేయవలసినవి పక్కన పెట్టండి.`,
-                    )}
+                  : quality === "mixed"
+                    ? t(
+                        `A mixed day. Keep ${rahuRange} clear of anything you have to sign, start or hand over.`,
+                        `మిశ్రమమైన రోజు. ${rahuRange} మధ్య సంతకం చేయవలసినవి పక్కన పెట్టండి.`,
+                      )
+                    : quality === "hard"
+                      ? t(
+                          `A day to go gently — routine work over big launches. Keep ${rahuRange} clear of anything you have to sign, start or hand over.`,
+                          `నెమ్మదిగా సాగవలసిన రోజు — కొత్త ప్రారంభాల కంటే రోజువారీ పనులు మేలు. ${rahuRange} మధ్య సంతకం చేయవలసినవి, కొత్తగా మొదలుపెట్టేవి పక్కన పెట్టండి.`,
+                        )
+                      : t(
+                          `Keep ${rahuRange} clear of anything you have to sign, start or hand over.`,
+                          `${rahuRange} మధ్య సంతకం చేయవలసినవి, కొత్తగా మొదలుపెట్టేవి పక్కన పెట్టండి.`,
+                        )}
               </p>
               {tara && chandra && (
                 <details className="why">
@@ -151,24 +172,31 @@ export function TodayScreen() {
               <p className="sectitle">{t("Times to keep clear today", "ఈ రోజు ఖాళీగా ఉంచవలసిన సమయాలు")}</p>
               <DayBar td={td} tz={tz} />
               <div style={{ marginTop: "var(--space-4)" }}>
-                <WindowRow
-                  name={t("Most-watched window", "అందరూ చూసే సమయం")}
-                  sub="Rahu kalam · రాహు కాలం · ராகு காலம்"
-                  win={td.inauspicious.rahuKaal}
-                  tz={tz}
-                />
-                <WindowRow
-                  name={t("Midday window", "మధ్యాహ్న సమయం")}
-                  sub="Gulika kalam · గుళిక కాలం · குளிகை"
-                  win={td.inauspicious.gulikaKaal}
-                  tz={tz}
-                />
-                <WindowRow
-                  name={t("Death-lord window", "యమగండం")}
-                  sub="Yamagandam · యమగండం · யமகண்டம்"
-                  win={td.inauspicious.yamaganda}
-                  tz={tz}
-                />
+                {[
+                  {
+                    id: "rahu-kala",
+                    name: t("Rahu kalam", "రాహు కాలం"),
+                    sub: t("Traditionally kept free of new starts, signing and travel", "కొత్త పనులు, సంతకాలు, ప్రయాణాలకు సాంప్రదాయంగా వదిలే సమయం"),
+                    win: td.inauspicious.rahuKaal,
+                  },
+                  {
+                    id: "yamagandam",
+                    name: t("Yamagandam", "యమగండం"),
+                    sub: t("Traditionally avoided for journeys and new ventures", "ప్రయాణాలు, కొత్త ప్రయత్నాలకు సాంప్రదాయంగా వదిలే సమయం"),
+                    win: td.inauspicious.yamaganda,
+                  },
+                  {
+                    id: "gulika",
+                    name: t("Gulika kalam", "గుళిక కాలం"),
+                    sub: t("Traditionally avoided for auspicious beginnings", "శుభ కార్యాల ఆరంభానికి సాంప్రదాయంగా వదిలే సమయం"),
+                    win: td.inauspicious.gulikaKaal,
+                  },
+                ]
+                  .filter((w) => w.win)
+                  .sort((x, y) => Date.parse(x.win.startIso) - Date.parse(y.win.startIso))
+                  .map((w) => (
+                    <WindowRow key={w.id} glyph={w.id} name={w.name} sub={w.sub} win={w.win} tz={tz} />
+                  ))}
               </div>
             </section>
 
@@ -179,6 +207,7 @@ export function TodayScreen() {
                   id="tithi"
                   open={openChip}
                   setOpen={setOpenChip}
+                  glyph={["tithi", td.fiveLimbs.tithi, td.fiveLimbs.paksha]}
                   cen={t(`${td.fiveLimbs.paksha === "Krishna" ? "Waning" : "Waxing"} moon`, td.fiveLimbs.paksha === "Krishna" ? "క్షీణ చంద్రుడు" : "వృద్ధి చంద్రుడు")}
                   ctr={`${td.fiveLimbs.tithi} · ${td.fiveLimbs.paksha}`}
                 />
@@ -186,6 +215,7 @@ export function TodayScreen() {
                   id="nak"
                   open={openChip}
                   setOpen={setOpenChip}
+                  glyph={["nakshatra", td.fiveLimbs.nakshatra]}
                   cen={t("Moon's star", "చంద్రుని నక్షత్రం")}
                   ctr={nakName(td.fiveLimbs.nakshatra, lang)}
                 />
@@ -193,6 +223,7 @@ export function TodayScreen() {
                   id="yoga"
                   open={openChip}
                   setOpen={setOpenChip}
+                  glyph={["yoga", td.fiveLimbs.yoga]}
                   cen={t("Sun–Moon join", "సూర్య–చంద్ర కలయిక")}
                   ctr={td.fiveLimbs.yoga}
                 />
@@ -200,6 +231,7 @@ export function TodayScreen() {
                   id="karana"
                   open={openChip}
                   setOpen={setOpenChip}
+                  glyph={["karana", td.fiveLimbs.karana]}
                   cen={t("Half-day sign", "అర్ధ దిన సంకేతం")}
                   ctr={td.fiveLimbs.karana}
                 />
@@ -310,8 +342,8 @@ export function TodayScreen() {
                   <TRow label={t("Season · half-year", "ఋతువు · అయనం")} value={`${td.calendar.ritu} · ${td.calendar.ayana}`} />
                   <p className="unavail">
                     {t(
-                      "Not shown: durmuhurtam, varjyam and amrita kalam. Sahadev has the calculation but not a reviewed rule for them yet, so it will not guess.",
-                      "చూపించనివి: దుర్ముహూర్తం, వర్జ్యం, అమృత కాలం. సహదేవ్ దగ్గర లెక్క ఉంది, కానీ వీటికి సమీక్షించిన నియమం ఇంకా లేదు — కాబట్టి ఊహించి చెప్పదు.",
+                      "Not shown: durmuhurtam, varjyam and amrita kalam. Sahadeva has the calculation but not a reviewed rule for them yet, so it will not guess.",
+                      "చూపించనివి: దుర్ముహూర్తం, వర్జ్యం, అమృత కాలం. సహదేవ దగ్గర లెక్క ఉంది, కానీ వీటికి సమీక్షించిన నియమం ఇంకా లేదు — కాబట్టి ఊహించి చెప్పదు.",
                     )}
                   </p>
                 </div>
@@ -322,7 +354,10 @@ export function TodayScreen() {
               <button
                 className="btn btn-primary btn-full"
                 type="button"
-                onClick={() => navigate("ask")}
+                onClick={() => {
+                  prefillAsk(t("What should I keep in mind today?", "ఈ రోజు నేను ఏమి గుర్తుంచుకోవాలి?"));
+                  navigate("ask");
+                }}
               >
                 {t("Ask about today", "ఈ రోజు గురించి అడగండి")}
               </button>
@@ -369,11 +404,17 @@ function DayBar({ td, tz }: { td: NonNullable<ReturnType<typeof useData>["today"
   );
 }
 
-function WindowRow({ name, sub, win, tz }: { name: string; sub: string; win: JdWindow; tz: number }) {
+function WindowRow({ glyph, name, sub, win, tz }: { glyph: string; name: string; sub: string; win: JdWindow; tz: number }) {
+  const { t } = useLang();
+  const now = Date.now();
+  const state = now >= Date.parse(win.endIso) ? "past" : now >= Date.parse(win.startIso) ? "now" : "next";
   return (
-    <div className="wrow">
+    <div className={`wrow wrow-${state}`}>
+      <Glyph family="timing" id={glyph} size={22} className="wglyph" />
       <span className="wname">
         {name}
+        {state === "now" && <em className="wnow">{t("now", "ఇప్పుడు")}</em>}
+        {state === "past" && <em className="wpast">{t("passed", "ముగిసింది")}</em>}
         <span>{sub}</span>
       </span>
       <span className="wtime">{windowRange(win.startIso, win.endIso, tz)}</span>
@@ -387,12 +428,14 @@ function Chip({
   setOpen,
   cen,
   ctr,
+  glyph,
 }: {
   id: string;
   open: string | null;
   setOpen: (v: string | null) => void;
   cen: string;
   ctr: string;
+  glyph?: [GlyphFamily, string, string?];
 }) {
   return (
     <button
@@ -401,6 +444,7 @@ function Chip({
       aria-expanded={open === id}
       onClick={() => setOpen(open === id ? null : id)}
     >
+      {glyph && <Glyph family={glyph[0]} id={glyph[1]} paksha={glyph[2]} size={24} className="cglyph" />}
       <span className="cen">{cen}</span>
       <span className="ctr">{ctr}</span>
     </button>

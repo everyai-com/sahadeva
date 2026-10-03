@@ -1,0 +1,6 @@
+Figtree, Fraunces and Anek Telugu are distributed under the SIL Open Font License 1.1
+(https://openfontlicense.org). Files are the Google Fonts woff2 subsets:
+- Figtree-latin.woff2 (Erik Kennedy)
+- Fraunces-latin.woff2 (Undercase Type)
+- AnekTelugu-telugu.woff2 (Ek Type)
+Noto Sans Telugu: see NotoSansTelugu-OFL.txt.

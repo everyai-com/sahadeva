@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "security:scan": "node scripts/check-secrets.mjs",
     "budget": "node scripts/check-bundle-budget.mjs",
+    "assets:sync": "node scripts/sync-asset-library.mjs",
     "verify": "npm run check && npm test && npm run security:scan && npm run build && npm run budget",
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types",

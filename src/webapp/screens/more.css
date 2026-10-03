@@ -29,7 +29,7 @@
 .more-screen .edit:hover { background: var(--border-soft); }
 
 .more-screen .navlist { margin-top: var(--space-6); border-top: 1px solid var(--border-soft); }
-.more-screen .navrow2 { display: flex; align-items: center; gap: var(--space-4); width: 100%; padding: 16px 4px; border-bottom: 1px solid var(--border-soft); background: transparent; transition: background var(--motion-fast) var(--ease-standard); border-radius: var(--radius-sm); }
+.more-screen .navrow2 { display: flex; align-items: center; gap: var(--space-4); width: 100%; padding: 16px 4px; border: 0; border-bottom: 1px solid var(--border-soft); background: transparent; transition: background var(--motion-fast) var(--ease-standard); border-radius: var(--radius-sm); }
 .more-screen .navrow2:hover { background: var(--border-soft); }
 .more-screen .navrow2 .ic { flex: 0 0 auto; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
 .more-screen .navrow2 .ic svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }

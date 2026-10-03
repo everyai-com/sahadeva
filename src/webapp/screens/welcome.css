@@ -11,3 +11,6 @@
 .welcome-screen .wbtn .native { font-size: 21px; }
 .welcome-screen .wbtn .roman { font-size: var(--text-sm); color: var(--muted); font-weight: 500; }
 .welcome-screen .wnote { margin-top: var(--space-6); font-size: var(--text-sm); color: var(--meta); line-height: 1.55; }
+.welcome-screen .wmark { display: block; width: 72px; height: 72px; margin: 0 auto 14px; background: url("/glyphs/mark.svg") center / contain no-repeat; }
+/* Tracking breaks Telugu conjuncts; keep it on the Latin name only. */
+.welcome-screen .brand [lang=te] { letter-spacing: 0; font-family: var(--font-body); }

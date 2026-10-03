@@ -1,3 +1,4 @@
+import { errorText } from "../states";
 import { useEffect, useState } from "react";
 import "./match.css";
 import { useLang, LangToggle } from "../lang";
@@ -83,7 +84,7 @@ export function MatchScreen() {
       const c = await fetchCompatibility(profile, partner);
       setResult(c);
     } catch (e) {
-      setError(String((e as Error).message));
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -239,8 +240,8 @@ function Results({
         </div>
         <p className="withheld">
           {t(
-            "There is no single number here on purpose. The South Indian tradition reports each porutham separately and does not roll them into one score — so Sahadev does not either.",
-            "ఇక్కడ ఒకే ఒక సంఖ్య ఇవ్వకపోవడం ఉద్దేశపూర్వకమే. దక్షిణ భారత సంప్రదాయం ప్రతి పొరుత్తాన్ని విడిగా చెబుతుంది, అన్నిటినీ కలిపి ఒకే స్కోరుగా ఇవ్వదు — కాబట్టి సహదేవ్ కూడా ఇవ్వదు.",
+            "There is no single number here on purpose. The South Indian tradition reports each porutham separately and does not roll them into one score — so Sahadeva does not either.",
+            "ఇక్కడ ఒకే ఒక సంఖ్య ఇవ్వకపోవడం ఉద్దేశపూర్వకమే. దక్షిణ భారత సంప్రదాయం ప్రతి పొరుత్తాన్ని విడిగా చెబుతుంది, అన్నిటినీ కలిపి ఒకే స్కోరుగా ఇవ్వదు — కాబట్టి సహదేవ కూడా ఇవ్వదు.",
           )}
         </p>
       </section>

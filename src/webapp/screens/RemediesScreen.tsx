@@ -1,3 +1,5 @@
+import { ErrorNote } from "../states";
+import { Glyph, type GlyphFamily } from "../glyph";
 import { useEffect, useState } from "react";
 import "./remedies.css";
 import { useLang, LangToggle } from "../lang";
@@ -14,15 +16,16 @@ const TOPICS: Array<{ id: string; en: string; te: string }> = [
   { id: "spirituality", en: "Spirituality", te: "ఆధ్యాత్మికం" },
 ];
 
-const FAMILY_LABEL: Record<string, { en: string; te: string }> = {
-  mantra: { en: "Mantra", te: "మంత్రం" },
-  gemstone: { en: "Gemstone", te: "రత్నం" },
-  fasting: { en: "Fasting or vrata", te: "ఉపవాసం లేదా వ్రతం" },
-  worship: { en: "Homa or worship", te: "హోమం లేదా పూజ" },
-  ritual: { en: "Homa or ritual", te: "హోమం లేదా ఆచారం" },
-  pilgrimage: { en: "Pilgrimage", te: "తీర్థయాత్ర" },
-  muhurta: { en: "Muhurta for a specific act", te: "ఒక నిర్దిష్ట పనికి ముహూర్తం" },
-  charity: { en: "Charity with a named material", te: "నిర్దిష్ట వస్తువుతో దానం" },
+// `glyph` is the matching Sahadeva remedy / timing icon from the asset library.
+const FAMILY_LABEL: Record<string, { en: string; te: string; glyph: [GlyphFamily, string] }> = {
+  mantra: { en: "Mantra", te: "మంత్రం", glyph: ["remedy", "mantra"] },
+  gemstone: { en: "Gemstone", te: "రత్నం", glyph: ["remedy", "gemstone"] },
+  fasting: { en: "Fasting or vrata", te: "ఉపవాసం లేదా వ్రతం", glyph: ["remedy", "vrata"] },
+  worship: { en: "Homa or worship", te: "హోమం లేదా పూజ", glyph: ["remedy", "puja"] },
+  ritual: { en: "Homa or ritual", te: "హోమం లేదా ఆచారం", glyph: ["remedy", "homa"] },
+  pilgrimage: { en: "Pilgrimage", te: "తీర్థయాత్ర", glyph: ["remedy", "temple"] },
+  muhurta: { en: "Muhurta for a specific act", te: "ఒక నిర్దిష్ట పనికి ముహూర్తం", glyph: ["timing", "abhijit"] },
+  charity: { en: "Charity with a named material", te: "నిర్దిష్ట వస్తువుతో దానం", glyph: ["remedy", "dana"] },
 };
 const SUPERVISION_LABEL: Record<string, { en: string; te: string }> = {
   "qualified-teacher": { en: "guru", te: "గురువు" },
@@ -51,6 +54,8 @@ export function RemediesScreen() {
   const [topic, setTopic] = useState("career");
   const [data, setData] = useState<RemedyProtocol | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [failure, setFailure] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
   const [, force] = useState(0);
   const [note, setNote] = useState<string>(() => {
     try {
@@ -68,11 +73,11 @@ export function RemediesScreen() {
     setData(null);
     fetchRemedies(profile, topic, PREFS)
       .then((r) => alive && (setData(r), setStatus("ready")))
-      .catch(() => alive && setStatus("error"));
+      .catch((e) => alive && (setFailure(e), setStatus("error")));
     return () => {
       alive = false;
     };
-  }, [profile, topic]);
+  }, [profile, topic, attempt]);
 
   const practices = (data?.eligiblePractices ?? []).slice(0, 4);
   // Only the gated families (mantra, gemstone, fasting, worship/ritual, pilgrimage,
@@ -116,7 +121,7 @@ export function RemediesScreen() {
         </div>
 
         {status === "loading" && <p className="muted small">{t("Calculating safe practices…", "సురక్షిత ఆచరణలు లెక్కిస్తోంది…")}</p>}
-        {status === "error" && <p className="muted small">{t("Remedies could not be calculated.", "పరిహారాలు లెక్కించలేకపోయాం.")}</p>}
+        {status === "error" && <ErrorNote error={failure} what={t("Remedies could not be calculated.", "పరిహారాలు లెక్కించలేకపోయాం.")} onRetry={() => setAttempt((n) => n + 1)} />}
 
         {status === "ready" && data && (
           <>
@@ -124,8 +129,8 @@ export function RemediesScreen() {
               <h3>{t("Why these, and nothing more", "ఈవే ఎందుకు, ఇంకేమీ ఎందుకు కాదు")}</h3>
               <p>
                 {t(
-                  "Support is optional, and only the lowest-burden kind is appropriate. Sahadev will not escalate to a ritual you did not need.",
-                  "పరిహారం ఐచ్ఛికం మాత్రమే, అందులోనూ అతి తక్కువ భారం ఉన్నదే సరిపోతుంది. మీకు అవసరం లేని పూజకు సహదేవ్ మిమ్మల్ని నెట్టదు.",
+                  "Support is optional, and only the lowest-burden kind is appropriate. Sahadeva will not escalate to a ritual you did not need.",
+                  "పరిహారం ఐచ్ఛికం మాత్రమే, అందులోనూ అతి తక్కువ భారం ఉన్నదే సరిపోతుంది. మీకు అవసరం లేని పూజకు సహదేవ మిమ్మల్ని నెట్టదు.",
                 )}
               </p>
               <div className="whyev">
@@ -196,6 +201,7 @@ export function RemediesScreen() {
                   const sv = SUPERVISION_LABEL[f.supervision] || SUPERVISION_LABEL.none;
                   return (
                     <div className="hrow" key={f.family}>
+                      {fl && <Glyph family={fl.glyph[0]} id={fl.glyph[1]} size={22} className="hglyph" />}
                       <span className="hn">
                         {fl ? (lang === "te" ? fl.te : fl.en) : f.family}
                         <span>{f.reasons?.[0] || f.requiredReview?.[0] || t("Needs independent review before use.", "వాడకముందు స్వతంత్ర సమీక్ష అవసరం.")}</span>
@@ -254,7 +260,7 @@ export function RemediesScreen() {
             </section>
 
             <div className="warnbox">
-              <p>{t("Sahadev will not:", "సహదేవ్ ఇవి చేయదు:")}</p>
+              <p>{t("Sahadeva will not:", "సహదేవ ఇవి చేయదు:")}</p>
               <ul>
                 <li>{t("replace medical, legal, financial or mental-health care;", "వైద్య, న్యాయ, ఆర్థిక లేదా మానసిక ఆరోగ్య సంరక్షణకు బదులు కాదు;")}</li>
                 <li>{t("sell you a gemstone or a costly ritual;", "మీకు రత్నం లేదా ఖరీదైన పూజ అమ్మదు;")}</li>

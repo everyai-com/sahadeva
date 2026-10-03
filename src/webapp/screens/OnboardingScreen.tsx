@@ -171,7 +171,7 @@ export function OnboardingScreen() {
           {step === 1 && (
             <section>
               <h2>{t("What is your name, and when were you born?", "మీ పేరు ఏమిటి, మీరు ఎప్పుడు పుట్టారు?")}</h2>
-              <p className="qlead">{t("Your date of birth fixes almost everything Sahadev reads.", "సహదేవ్ చదివే దాదాపు ప్రతిదానికీ మీ పుట్టిన తేదీయే ఆధారం.")}</p>
+              <p className="qlead">{t("Your date of birth fixes almost everything Sahadeva reads.", "సహదేవ చదివే దాదాపు ప్రతిదానికీ మీ పుట్టిన తేదీయే ఆధారం.")}</p>
               <input
                 className="tinput"
                 type="text"
@@ -198,7 +198,7 @@ export function OnboardingScreen() {
           {step === 2 && (
             <section>
               <h2>{t("What time were you born?", "మీరు ఏ సమయంలో పుట్టారు?")}</h2>
-              <p className="qlead">{t("Most people do not know this exactly. That is fine — say so and Sahadev works around it.", "చాలామందికి ఇది కచ్చితంగా తెలియదు. ఫరవాలేదు — అలా చెబితే సహదేవ్ దాన్ని దృష్టిలో ఉంచుకునే పని చేస్తుంది.")}</p>
+              <p className="qlead">{t("Most people do not know this exactly. That is fine — say so and Sahadeva works around it.", "చాలామందికి ఇది కచ్చితంగా తెలియదు. ఫరవాలేదు — అలా చెబితే సహదేవ దాన్ని దృష్టిలో ఉంచుకునే పని చేస్తుంది.")}</p>
               <div className="wheel" style={{ opacity: branchOpen ? 0.4 : 1 }}>
                 <div className="wband" aria-hidden="true" />
                 <WheelCol items={range(1, 12).map(String)} index={h - 1} onChange={(i) => setH(i + 1)} />
@@ -217,7 +217,7 @@ export function OnboardingScreen() {
                   sub={t("Your star and life periods stay accurate; the ascendant is provisional.", "మీ నక్షత్రం, జీవిత దశలు కచ్చితంగానే ఉంటాయి; లగ్నాన్ని తాత్కాలికంగా తీసుకుంటాం.")} />
                 <ConfOpt cur={conf} setConf={setConf} value="none"
                   title={t("No idea at all", "అస్సలు తెలియదు")}
-                  sub={t("Sahadev uses sunrise and marks every house-based reading as unconfirmed.", "సహదేవ్ సూర్యోదయాన్ని వాడి, భావ ఆధారిత ప్రతి విషయాన్నీ నిర్ధారించబడలేదని గుర్తు పెడుతుంది.")} />
+                  sub={t("Sahadeva uses sunrise and marks every house-based reading as unconfirmed.", "సహదేవ సూర్యోదయాన్ని వాడి, భావ ఆధారిత ప్రతి విషయాన్నీ నిర్ధారించబడలేదని గుర్తు పెడుతుంది.")} />
               </div>
             </section>
           )}
@@ -322,7 +322,7 @@ export function OnboardingScreen() {
                     ? t("Birth time is approximate within about two hours. Your star and life periods are unaffected.", "జనన సమయం సుమారు రెండు గంటల లోపు కచ్చితత్వంతో ఉంది. మీ నక్షత్రం, జీవిత దశలు ప్రభావితం కావు.")
                     : conf === "part"
                       ? t("Only the part of day is known. The ascendant is provisional until you confirm a time.", "పగటి భాగం మాత్రమే తెలుసు. సమయం నిర్ధారించే వరకు లగ్నం తాత్కాలికం.")
-                      : t("No birth time known. Sahadev uses sunrise as a stand-in and marks every house-based reading as unconfirmed.", "జనన సమయం తెలియదు. సహదేవ్ సూర్యోదయాన్ని బదులుగా వాడి, భావ ఆధారిత ప్రతి విషయాన్నీ నిర్ధారించబడలేదని గుర్తు పెడుతుంది.")}
+                      : t("No birth time known. Sahadeva uses sunrise as a stand-in and marks every house-based reading as unconfirmed.", "జనన సమయం తెలియదు. సహదేవ సూర్యోదయాన్ని బదులుగా వాడి, భావ ఆధారిత ప్రతి విషయాన్నీ నిర్ధారించబడలేదని గుర్తు పెడుతుంది.")}
               </p>
             </section>
           )}

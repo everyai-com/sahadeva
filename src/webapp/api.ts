@@ -1,4 +1,4 @@
-// Typed fetch wrappers + response types for the Sahadev web app.
+// Typed fetch wrappers + response types for the Sahadeva web app.
 // Only the fields the UI actually renders are typed; the backend returns more.
 
 export type Lang = "en" | "te";
@@ -156,7 +156,8 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     } catch {
       /* ignore */
     }
-    throw new Error(msg);
+    // Prefix with the status so the UI can tell rate limits from real failures.
+    throw new Error(`${res.status}: ${msg}`);
   }
   return (await res.json()) as T;
 }
@@ -184,7 +185,7 @@ export async function fetchToday(profile: Profile): Promise<TodayPanchanga> {
   });
   if (profile.timezone) qs.set("tz", profile.timezone);
   const res = await fetch(`/api/panchanga/today?${qs.toString()}`);
-  if (!res.ok) throw new Error(`Panchanga failed (${res.status})`);
+  if (!res.ok) throw new Error(`${res.status}: Panchanga failed`);
   return (await res.json()) as TodayPanchanga;
 }
 

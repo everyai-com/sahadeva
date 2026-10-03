@@ -19,7 +19,10 @@ export function WelcomeScreen({ onChosen }: { onChosen: (l: Lang) => void }) {
     <>
       <StatusBar />
       <div className="welcome-screen">
-        <p className="brand">Sahadev · సహదేవ్</p>
+        <span className="wmark" aria-hidden="true" />
+        <p className="brand">
+          Sahadeva · <span lang="te">సహదేవ</span>
+        </p>
         <h1>Namaste</h1>
         <p className="wsub">
           A transparent Jyotish reading of your chart.

@@ -1,3 +1,5 @@
+import { ErrorNote } from "../states";
+import { Glyph } from "../glyph";
 import { useState } from "react";
 import "./dasha.css";
 import { useLang, LangToggle } from "../lang";
@@ -37,7 +39,7 @@ function state(node: { startIso: string; endIso: string }): "past" | "active" | 
 
 export function DashaScreen() {
   const { lang, t } = useLang();
-  const { profile, dasha } = useData();
+  const { profile, dasha, reload } = useData();
   const [open, setOpen] = useState<string | null>(null);
   const [recall, setRecall] = useState<string | null>(null);
 
@@ -62,7 +64,7 @@ export function DashaScreen() {
           <LangToggle />
         </header>
 
-        {dasha.status === "error" && <p className="muted small">{t("The dasha timeline could not be calculated.", "దశలు లెక్కించలేకపోయాం.")}</p>}
+        {dasha.status === "error" && <ErrorNote error={dasha.error} what={t("The dasha timeline could not be calculated.", "దశలు లెక్కించలేకపోయాం.")} onRetry={reload} />}
 
         {active && (
           <section className="nowcard">
@@ -108,6 +110,7 @@ export function DashaScreen() {
                     >
                       <span className="prow1">
                         <span className="pname">
+                          <Glyph family="graha" id={node.lord} size={22} className="dglyph" />
                           {grahaName(node.lord, lang)}
                           <span>{grahaTr(node.lord)}</span>
                         </span>
@@ -207,7 +210,7 @@ function RecallBox({ lord, open, setOpen }: { lord: string; open: string | null;
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={t("Write what this stretch was really like. Sahadev keeps it beside the dates.", "ఈ కాలం నిజంగా ఎలా గడిచిందో రాయండి. సహదేవ్ దాన్ని తేదీల పక్కనే ఉంచుతుంది.")}
+          placeholder={t("Write what this stretch was really like. Sahadeva keeps it beside the dates.", "ఈ కాలం నిజంగా ఎలా గడిచిందో రాయండి. సహదేవ దాన్ని తేదీల పక్కనే ఉంచుతుంది.")}
           aria-label={lord}
         />
         <div className="ra">

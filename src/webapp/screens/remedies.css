@@ -55,3 +55,5 @@
 .remedies-screen .warnbox p { font-size: var(--text-base); line-height: 1.65; color: var(--muted); }
 .remedies-screen .warnbox ul { margin: var(--space-3) 0 0; padding-left: 18px; }
 .remedies-screen .warnbox li { font-size: var(--text-base); line-height: 1.6; color: var(--muted); margin-top: 6px; }
+.remedies-screen .hrow .hglyph { color: var(--copper); align-self: center; }
+.remedies-screen .hrow .hn { flex: 1 1 auto; }

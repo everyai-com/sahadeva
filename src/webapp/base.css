@@ -1,30 +1,63 @@
 /* ============================================================================
-   Sahadev web app — shared design system.
+   Sahadeva web app — shared design system.
    Ported verbatim from the Web-Prototype screens so the React app matches the
    prototypes pixel for pixel. Screen-specific rules live in ./screens/*.css,
    each scoped under a screen-root class to avoid collisions.
    ============================================================================ */
+/* Self-hosted faces (OFL). The CSP is `font-src 'self'`, so third-party font
+   CSS can never load in production — these files are the only web fonts. */
+@font-face {
+  font-family: "Figtree";
+  src: url("/fonts/Figtree-latin.woff2") format("woff2");
+  font-weight: 300 900;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Anek Telugu";
+  src: url("/fonts/AnekTelugu-telugu.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+  unicode-range: U+0951-0952, U+0964-0965, U+0C00-0C7F, U+1CDA, U+1CF2, U+200C-200D, U+25CC;
+}
+
+/* Sahadeva design language (everyai-com/sahadeva-asset-library design/tokens.css):
+   warm paper, cultural ink, indigo for interaction, copper/gold only for
+   heritage or source. Neither colour means "good" or "bad". */
 :root {
-  --bg: #ffffff;
-  --surface: #f5f5f7;
-  --surface-warm: #fbfbfd;
-  --fg: #1d1d1f;
-  --fg-2: #424245;
-  --muted: #6e6e73;
-  --meta: #86868b;
-  --border: #d2d2d7;
-  --border-soft: #e8e8ed;
-  --accent: #0071e3;
+  color-scheme: light;
+  --bg: #fbfaf6;
+  --surface: #f1f0ec;
+  --surface-warm: #f7f6f2;
+  --canvas: #ecebe6;
+  --fg: #20201e;
+  --fg-2: #45443f;
+  --muted: #64635e;
+  --meta: #75736c;
+  --border: #dcdad3;
+  --border-soft: #e7e5df;
+  --accent: #665f8e;
   --accent-on: #ffffff;
-  --accent-hover: #0077ed;
-  --accent-active: #0066cc;
-  --success: #16a34a;
-  --warn:    #eab308;
-  --danger:  #dc2626;
+  --accent-hover: #58517f;
+  --accent-active: #4d4770;
+  --accent-soft: color-mix(in oklab, var(--accent), transparent 88%);
+  --ink: #242532;
+  --copper: #b87327;
+  --gold: #a98b52;
+  --success: #367c50;
+  --warn:    #b8812a;
+  --danger:  #a83f34;
   --font-display:
-    "SF Pro Display", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    "Fraunces", "Anek Telugu", "Noto Sans Telugu", "Iowan Old Style", Georgia, serif;
   --font-body:
-    "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    "Figtree", "Anek Telugu", "Noto Sans Telugu", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono:
     "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
   --text-xs:   12px;
@@ -35,9 +68,9 @@
   --text-2xl:  40px;
   --text-3xl:  56px;
   --text-4xl:  80px;
-  --leading-body:  1.47;
-  --leading-tight: 1.05;
-  --tracking-display: -0.015em;
+  --leading-body:  1.5;
+  --leading-tight: 1.08;
+  --tracking-display: -0.01em;
   --space-1:  4px;
   --space-2:  8px;
   --space-3:  12px;
@@ -51,11 +84,11 @@
   --section-y-phone:   40px;
   --radius-sm:   8px;
   --radius-md:   12px;
-  --radius-lg:   18px;
+  --radius-lg:   16px;
   --radius-pill: 980px;
   --elev-flat:   none;
   --elev-ring:   0 0 0 1px var(--border);
-  --elev-raised: 0 12px 32px rgba(0, 0, 0, 0.08);
+  --elev-raised: 0 18px 46px rgb(36 37 50 / 8%);
   --focus-ring: 0 0 0 4px color-mix(in oklab, var(--accent), transparent 65%);
   --motion-fast:   150ms;
   --motion-base:   220ms;
@@ -64,13 +97,44 @@
   --container-gutter-desktop: 22px;
   --container-gutter-tablet:  18px;
   --container-gutter-phone:   16px;
+  --rail: 92px;
+  --reading: 720px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #171716;
+    --surface: #23231f;
+    --surface-warm: #1d1d1b;
+    --canvas: #101010;
+    --fg: #f2f1ed;
+    --fg-2: #d0cec7;
+    --muted: #aaa9a3;
+    --meta: #92918b;
+    --border: #3a3a36;
+    --border-soft: #2c2c29;
+    --accent: #a39bce;
+    --accent-on: #15141c;
+    --accent-hover: #b3acd9;
+    --accent-active: #9189bd;
+    --ink: #f2f1ed;
+    --copper: #d39958;
+    --gold: #c6a669;
+    --success: #6fb589;
+    --warn:    #d9a24a;
+    --danger:  #e07a6c;
+    --elev-raised: 0 18px 46px rgb(0 0 0 / 45%);
+  }
 }
 
 .sahadev-web *,
 .sahadev-web *::before,
 .sahadev-web *::after { box-sizing: border-box; }
 
-/* App root fills the viewport and centres the phone, like the prototype body. */
+html, body { margin: 0; background: var(--canvas); }
+
+/* App root fills the viewport. Phones get a full-bleed app; wider screens get
+   a framed app window with a navigation rail (see the media queries below). */
 .sahadev-web {
   margin: 0;
   color: var(--fg);
@@ -78,12 +142,13 @@
   font-size: 17px;
   line-height: var(--leading-body);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   display: flex;
   justify-content: center;
-  padding: 24px 16px 40px;
+  padding: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  background: var(--surface);
+  background: var(--canvas);
 }
 .sahadev-web button { font: inherit; cursor: pointer; color: inherit; text-align: left; }
 .sahadev-web a { color: inherit; text-decoration: none; }
@@ -113,43 +178,25 @@
 .sahadev-web :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: var(--focus-ring); }
 .sahadev-web summary::-webkit-details-marker { display: none; }
 
-/* ── phone shell ─────────────────────────────────────────────────────────── */
+/* ── app shell ───────────────────────────────────────────────────────────── */
 .phone {
-  width: 393px;
-  height: 852px;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 46px;
-  box-shadow: var(--elev-raised);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
 }
-.island {
-  position: absolute;
-  top: 11px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 118px;
-  height: 34px;
-  border-radius: var(--radius-pill);
-  background: var(--fg);
-  z-index: 5;
-}
+/* Legacy prototype ornament; the real device draws its own status bar. */
+.island { display: none; }
+/* Safe-area spacer that keeps content clear of the notch / status bar. */
 .statusbar {
   flex: 0 0 auto;
-  height: 54px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 0 28px 6px;
-  font-size: 14px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  height: calc(env(safe-area-inset-top, 0px) + 10px);
 }
-.statusbar .sbr { display: flex; align-items: center; gap: 6px; }
-.statusbar svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+.statusbar > * { display: none; }
 
 /* main scroll region (chart/today/etc. call it .screen; ask calls it .thread) */
 .screen {
@@ -166,9 +213,9 @@
   flex: 0 0 auto;
   display: flex;
   gap: 2px;
-  padding: 6px 10px 22px;
+  padding: 6px 10px calc(env(safe-area-inset-bottom, 0px) + 8px);
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: color-mix(in oklab, var(--bg), var(--surface) 55%);
 }
 .tab {
   flex: 1;
@@ -184,13 +231,20 @@
   color: var(--muted);
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
+  font-weight: 500;
   text-align: center;
+  position: relative;
   transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
 .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; }
 .tab:hover { background: var(--border-soft); color: var(--fg); }
-.tab[aria-current=page] { color: var(--fg); }
+.tab[aria-current=page] { color: var(--accent); font-weight: 650; }
+.tab[aria-current=page]::before {
+  content: ""; position: absolute; top: 2px; left: 50%; width: 22px; height: 3px;
+  margin-left: -11px; border-radius: 3px; background: currentColor;
+}
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.railbrand { display: none; }
 
 /* top bar with back button (chart/dasha/match/remedies) */
 .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: var(--space-3); padding: 0 16px 8px; }
@@ -254,7 +308,76 @@
   .sahadev-web *::before,
   .sahadev-web *::after { animation-duration: 0ms !important; transition-duration: 0ms !important; }
 }
-@media (max-width: 440px) {
-  .sahadev-web { padding: 0; }
-  .phone { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
+/* ── wider screens: framed app window, navigation rail, reading column ──── */
+@media (min-width: 760px) {
+  .sahadev-web { padding: 24px; align-items: center; }
+  .phone {
+    width: min(1080px, 100%);
+    height: calc(100dvh - 48px);
+    max-height: 1100px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    box-shadow: var(--elev-raised);
+  }
+  .phone:has(> .tabbar) { padding-left: var(--rail); }
+  .phone > .tabbar {
+    position: absolute; top: 0; bottom: 0; left: 0; width: var(--rail);
+    flex-direction: column; justify-content: flex-start; gap: 6px;
+    padding: 20px 10px; border-top: 0; border-right: 1px solid var(--border);
+  }
+  .phone > .tabbar .tab { flex: 0 0 auto; min-height: 64px; }
+  .phone > .tabbar .tab[aria-current=page] { background: var(--accent-soft); }
+  .phone > .tabbar .tab[aria-current=page]::before { display: none; }
+  .phone > .tabbar .railbrand {
+    display: block; width: 40px; height: 40px; margin: 0 auto 14px;
+    background: url("/glyphs/mark.svg") center / contain no-repeat;
+  }
+  /* Keep every column at a comfortable reading width. */
+  .phone > :not(.tabbar, .statusbar, .histdrawer, .histscrim, .authscrim, .authsheet) {
+    width: 100%;
+    max-width: calc(var(--reading) + 48px);
+    margin-inline: auto;
+  }
+  .statusbar { height: 18px; }
 }
+
+/* ── shared states (error / loading) ─────────────────────────────────────── */
+.statenote {
+  margin: var(--space-2) 0 var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.statenote .statewhat { font-weight: 600; }
+.statenote .statewhy { margin-top: 4px; color: var(--muted); font-size: var(--text-sm); line-height: 1.55; }
+.statenote .stateretry {
+  margin-top: var(--space-3); min-height: 44px; padding: 0 var(--space-4);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg); color: var(--accent); font-weight: 600;
+}
+.statenote .stateretry:hover { border-color: var(--accent); }
+.skeleton {
+  height: 168px; border-radius: var(--radius-lg); margin-bottom: var(--space-4);
+  background: linear-gradient(90deg, var(--surface) 25%, var(--border-soft) 50%, var(--surface) 75%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* ── Sahadeva glyphs: tintable CSS-mask icons from the asset library ───── */
+.glyph {
+  display: inline-block;
+  flex: 0 0 auto;
+  background-color: currentColor;
+  -webkit-mask: var(--glyph) center / contain no-repeat;
+  mask: var(--glyph) center / contain no-repeat;
+  vertical-align: middle;
+}
+@media (forced-colors: active) {
+  .glyph { background-color: CanvasText; forced-color-adjust: none; }
+}
+/* Letter-spacing splits Telugu conjuncts apart, so Telugu text is never tracked
+   (overrides the tracked mono labels used across the screens). */
+.sahadev-web[lang=te] *,
+.sahadev-web [lang=te] { letter-spacing: 0 !important; }

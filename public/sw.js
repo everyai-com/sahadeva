@@ -1,4 +1,4 @@
-const CACHE = "sahadeva-shell-v1";
+const CACHE = "sahadeva-shell-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) =>

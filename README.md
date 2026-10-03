@@ -39,7 +39,17 @@ For evidence-first use across AI clients, the MCP now publishes `sahadeva://pred
 
 The primary consultation also supports a compact cross-tradition whole-person profile and consent-aware remedy selection. Its security contract is published at `sahadeva://security`; production profile references are keyed opaque identifiers, restricted knowledge remains server-side, and retrieved text is explicitly untrusted data. See [MCP AI orchestration and security](./MCP_AI_ORCHESTRATION_AND_SECURITY.md).
 
-Workers AI has a limited daily free allocation. Sahadeva therefore describes hosted narration as optional and allowance-backed, not unlimited free inference.
+Workers AI has a limited daily free allocation. Sahadeva therefore describes hosted narration as optional and allowance-backed, not unlimited free inference. When no language model is reachable, `/api/chat` does not fail: it answers with `model: "sahadeva-evidence-composer"` and `degraded: true`, composing a plain answer (bilingual) directly from the same calculated evidence packet — focused judgment, practical next steps and current Dasha — without adding any claim (`shared/evidenceAnswer.ts`).
+
+## Design language and assets
+
+The web app uses the Sahadeva design language from [`everyai-com/sahadeva-asset-library`](https://github.com/everyai-com/sahadeva-asset-library): warm paper and cultural-ink tokens with automatic dark mode, self-hosted Figtree / Fraunces / Anek Telugu fonts (no third-party font requests), and the canonical Navagraha, Rāśi, Nakṣatra, Pañcāṅga, life-area, remedy and daily-timing glyphs. Glyphs are vendored into `public/glyphs` and rendered as tintable CSS masks through `src/webapp/glyph.tsx`; brand icons replace the old placeholder PWA icons. To refresh them from a sibling checkout of the library:
+
+```bash
+npm run assets:sync -- ../sahadeva-asset-library
+```
+
+The synced commit is recorded in `public/glyphs/SOURCE.json`.
 
 ## Verify
 

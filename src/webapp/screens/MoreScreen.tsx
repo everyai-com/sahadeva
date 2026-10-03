@@ -105,7 +105,7 @@ export function MoreScreen() {
       <main className="screen more-screen" id="content">
         <header className="shead headrow">
           <span>
-            <p className="eyebrow">{t("Sahadev", "సహదేవ్")}</p>
+            <p className="eyebrow">{t("Sahadeva", "సహదేవ")}</p>
             <h2>{t("More", "మరిన్ని")}</h2>
           </span>
           <LangToggle />

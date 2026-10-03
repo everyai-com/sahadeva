@@ -124,3 +124,6 @@
 .ask-screen .wave i:nth-child(5) { height: 20px; animation-delay: 480ms; }
 .ask-screen .wave i:nth-child(6) { height: 9px; animation-delay: 600ms; }
 @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.ask-screen .sendbtn:disabled { opacity: 0.45; cursor: default; }
+.ask-screen .aretry { color: var(--accent); font-weight: 600; border-bottom: 0; }
+.ask-screen .topiccard .tic { color: var(--accent); }
