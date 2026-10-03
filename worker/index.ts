@@ -29,6 +29,7 @@ import {
 } from "../shared/locations";
 import { buildFullLifeReport } from "../shared/fullLifeReport";
 import { buildEverydayReading } from "../shared/everydayReading";
+import { composeEvidenceAnswer } from "../shared/evidenceAnswer";
 import { calculateCompatibility } from "../shared/compatibility";
 import { buildDailyPanchanga } from "../shared/dailyPanchanga";
 import {
@@ -12829,17 +12830,43 @@ app.post("/api/chat", async (c) => {
         ? configuredModel
         : "@cf/meta/llama-4-scout-17b-16e-instruct";
       provider = "cloudflare-workers-ai";
-      aiStream = (await c.env.AI.run(
-        model as Parameters<Ai["run"]>[0],
-        {
-          messages: chatMessages,
-          // Telugu output is token-dense; too small a cap yields an empty reply.
-          max_tokens: fullProfileRequested ? 7000 : deepMobile ? 3600 : 2800,
-          temperature: 0.4,
-          stream: true,
-        } as never,
-      )) as ReadableStream<Uint8Array> | Record<string, unknown>;
+      try {
+        aiStream = (await c.env.AI.run(
+          model as Parameters<Ai["run"]>[0],
+          {
+            messages: chatMessages,
+            // Telugu output is token-dense; too small a cap yields an empty reply.
+            max_tokens: fullProfileRequested ? 7000 : deepMobile ? 3600 : 2800,
+            temperature: 0.4,
+            stream: true,
+          } as never,
+        )) as ReadableStream<Uint8Array> | Record<string, unknown>;
+      } catch (aiError) {
+        // Outage or spent daily allowance: degrade to the evidence composer below.
+        console.error(
+          "workers ai chat failed, using evidence composer:",
+          aiError instanceof Error ? aiError.message : "unknown",
+        );
+        aiStream = null;
+      }
     }
+
+    // No language model reachable: answer from the calculated evidence alone
+    // rather than leaving the person at a dead end.
+    const evidenceOnlyReply = () =>
+      c.json({
+        response: composeEvidenceAnswer({
+          language: parsed.data.language,
+          reading,
+          focusedJudgment,
+          currentTiming: evidence.currentTiming,
+        }),
+        model: "sahadeva-evidence-composer",
+        degraded: true,
+        summary,
+        safety: safetyEnvelope(),
+      });
+    if (!aiStream) return evidenceOnlyReply();
 
     // Stream protocol: one JSON line with the summary, then a record
     // separator (U+001E), then plain reply text as it is generated.
@@ -12847,7 +12874,7 @@ app.post("/api/chat", async (c) => {
     const head = encoder.encode(`${JSON.stringify({ summary, model })}`);
     if (!(aiStream instanceof ReadableStream)) {
       const response = narrationText(aiStream).trim();
-      if (!response) throw new Error("Workers AI returned no chat text");
+      if (!response) return evidenceOnlyReply();
       return c.json({ response, model, summary, safety: safetyEnvelope() });
     }
     const out = new ReadableStream<Uint8Array>({
