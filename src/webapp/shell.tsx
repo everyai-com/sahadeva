@@ -22,6 +22,13 @@ const TAB_ICONS: Record<string, ReactNode> = {
       <path d="M4 5h16v11H9l-5 4V5Z" />
     </svg>
   ),
+  calendar: (
+    <svg viewBox="0 0 24 24">
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+      <path d="M14.5 13.2a2.6 2.6 0 1 0 0 4.6 3 3 0 0 1 0-4.6Z" />
+    </svg>
+  ),
   chart: (
     <svg viewBox="0 0 24 24">
       <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
@@ -35,11 +42,12 @@ const TAB_ICONS: Record<string, ReactNode> = {
 };
 
 /** Bottom tab bar. `current` marks which of the four tabs is active. */
-export function TabBar({ current }: { current: "today" | "ask" | "chart" | "more" }) {
+export function TabBar({ current }: { current: "today" | "ask" | "calendar" | "chart" | "more" }) {
   const { t } = useLang();
-  const tabs: Array<{ id: "today" | "ask" | "chart" | "more"; route: Route; label: string }> = [
+  const tabs: Array<{ id: "today" | "ask" | "calendar" | "chart" | "more"; route: Route; label: string }> = [
     { id: "today", route: "today", label: t("Today", "ఈ రోజు") },
     { id: "ask", route: "ask", label: t("Ask", "అడగండి") },
+    { id: "calendar", route: "calendar", label: t("Panchangam", "పంచాంగం") },
     { id: "chart", route: "chart", label: t("Chart", "జాతకం") },
     { id: "more", route: "more", label: t("More", "మరిన్ని") },
   ];

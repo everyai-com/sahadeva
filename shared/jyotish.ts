@@ -36,7 +36,7 @@ const DASHA_LORDS = [
   "Mercury",
 ];
 const DASHA_YEARS = [7, 20, 6, 10, 7, 18, 16, 19, 17];
-const YOGAS = [
+export const YOGAS = [
   "Vishkambha",
   "Priti",
   "Ayushman",
@@ -65,7 +65,7 @@ const YOGAS = [
   "Indra",
   "Vaidhriti",
 ];
-const TITHIS = [
+export const TITHIS = [
   "Pratipada",
   "Dwitiya",
   "Tritiya",
@@ -195,7 +195,7 @@ function tropicalLongitudeAt(name: Exclude<GrahaName, "Lagna">, jd: number) {
   return vsop87ApparentPosition(name, jd).longitude;
 }
 
-function coreLongitudes(jd: number) {
+export function coreLongitudes(jd: number) {
   const sun = vsop87ApparentPosition("Sun", jd).longitude,
     moon = ACTIVE_LUNAR_MODEL.position(jd).longitude,
     ayanamsa = lahiriAyanamsa(jd);

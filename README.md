@@ -41,6 +41,15 @@ The primary consultation also supports a compact cross-tradition whole-person pr
 
 Workers AI has a limited daily free allocation. Sahadeva therefore describes hosted narration as optional and allowance-backed, not unlimited free inference. When no language model is reachable, `/api/chat` does not fail: it answers with `model: "sahadeva-evidence-composer"` and `degraded: true`, composing a plain answer (bilingual) directly from the same calculated evidence packet — focused judgment, practical next steps and current Dasha — without adding any claim (`shared/evidenceAnswer.ts`).
 
+## Panchangam calendar
+
+The **Panchangam** tab is a month calendar plus a full day view for the birth place or the device's current location: sunrise to next-sunrise limbs (tithi, nakshatra, yoga, karana) with exact end times, amanta lunar month with adhika detection, ritu and ayana, Sankranti instants, moonrise/moonset on the local date, Rahu kalam / Yamagandam / Gulika, Abhijit and Brahma muhurtam, day and night Choghadiya, all 24 horas, personal tara bala, and major Telugu festivals. Festivals are dated by their traditional time of day (sunrise, midday, afternoon, dusk or midnight tithi); regional and sectarian refinements are not applied and the basis is shown with every date.
+
+- `GET /api/panchanga/month?lat&lon&tz&tzOffset&year&month` — one month (1800–2050), edge-cached.
+- `GET /api/panchanga/day?lat&lon&tz&tzOffset&date=YYYY-MM-DD` — the daily panchanga plus the limb timeline, masa and observances (`/api/panchanga/today` is the same without `date`).
+
+The calendar engine (`shared/panchangaCalendar.ts`) needs only the Sun and Moon: limb boundaries come from 6-hourly sampling refined by a secant solve and agree with the chart engine's bisection to within seconds; a month costs well under a second of CPU. Durmuhurtam, varjyam and amrita kalam stay unavailable until their rule tables pass source review.
+
 ## Design language and assets
 
 The web app uses the Sahadeva design language from [`everyai-com/sahadeva-asset-library`](https://github.com/everyai-com/sahadeva-asset-library): warm paper and cultural-ink tokens with automatic dark mode, self-hosted Figtree / Fraunces / Anek Telugu fonts (no third-party font requests), and the canonical Navagraha, Rāśi, Nakṣatra, Pañcāṅga, life-area, remedy and daily-timing glyphs. Glyphs are vendored into `public/glyphs` and rendered as tintable CSS masks through `src/webapp/glyph.tsx`; brand icons replace the old placeholder PWA icons. To refresh them from a sibling checkout of the library:

@@ -49,7 +49,7 @@ function gmst(jd: number) {
   );
 }
 
-function sunAltitude(
+export function sunAltitude(
   jd: number,
   latitude: number,
   longitude: number,
@@ -70,7 +70,7 @@ function sunAltitude(
   );
 }
 
-function moonAltitude(
+export function moonAltitude(
   jd: number,
   latitude: number,
   longitude: number,

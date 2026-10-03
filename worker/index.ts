@@ -30,6 +30,7 @@ import {
 import { buildFullLifeReport } from "../shared/fullLifeReport";
 import { buildEverydayReading } from "../shared/everydayReading";
 import { composeEvidenceAnswer } from "../shared/evidenceAnswer";
+import { buildCalendarMonth, buildCalendarRange, OBSERVANCE_BASIS, offsetFor } from "../shared/panchangaCalendar";
 import { calculateCompatibility } from "../shared/compatibility";
 import { buildDailyPanchanga } from "../shared/dailyPanchanga";
 import {
@@ -8865,9 +8866,10 @@ app.delete("/api/push/expo", async (c) => {
   return c.json({ ok: true });
 });
 
-app.get("/api/panchanga/today", async (c) => {
-  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
-  if (limited) return limited;
+const CALENDAR_YEAR_RANGE = { min: 1800, max: 2050 }; // the engine's validated ephemeris span
+
+/** Shared query parsing for the panchanga calendar endpoints. */
+function panchangaLocation(c: Context<{ Bindings: Env }>) {
   const latitude = Number(c.req.query("lat")),
     longitude = Number(c.req.query("lon")),
     timezoneOffset = Number(c.req.query("tzOffset")),
@@ -8876,13 +8878,58 @@ app.get("/api/panchanga/today", async (c) => {
   if (
     !Number.isFinite(latitude) ||
     !Number.isFinite(longitude) ||
-    !Number.isFinite(timezoneOffset)
+    !Number.isFinite(timezoneOffset) ||
+    Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180 ||
+    Math.abs(timezoneOffset) > 14
   )
-    return c.json({ error: "lat, lon and tzOffset are required" }, 400);
-  const dayIso = (offsetDays: number) =>
-    new Date(Date.now() + (timezoneOffset * 3600 + offsetDays * 86400) * 1000)
-      .toISOString()
-      .slice(0, 10);
+    return null;
+  return { latitude, longitude, timezoneOffset, timezone, language };
+}
+
+/** Deterministic results are cached at the edge by their normalized URL. */
+async function cachedJson(
+  c: Context<{ Bindings: Env }>,
+  key: string,
+  maxAgeSeconds: number,
+  build: () => unknown,
+) {
+  const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;
+  const request = new Request(`https://panchanga.cache/${key}`);
+  try {
+    const hit = await cache?.match(request);
+    if (hit) return new Response(hit.body, hit);
+  } catch {
+    /* cache unavailable: compute */
+  }
+  const response = c.json(build(), 200, { "cache-control": `public, max-age=${maxAgeSeconds}` });
+  try {
+    if (cache) c.executionCtx.waitUntil(cache.put(request, response.clone()));
+  } catch {
+    /* no execution context in tests */
+  }
+  return response;
+}
+
+const panchangaDay = async (c: Context<{ Bindings: Env }>) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const location = panchangaLocation(c);
+  if (!location) return c.json({ error: "lat, lon and tzOffset are required" }, 400);
+  const { latitude, longitude, timezoneOffset, timezone, language } = location;
+  const requested = c.req.query("date");
+  if (requested !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(requested))
+    return c.json({ error: "date must be YYYY-MM-DD" }, 400);
+  const todayLocal = new Date(
+    Date.now() + offsetFor(new Date().toISOString().slice(0, 10), timezone, timezoneOffset) * 3600000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  const date = requested || todayLocal;
+  const year = Number(date.slice(0, 4));
+  if (year < CALENDAR_YEAR_RANGE.min || year > CALENDAR_YEAR_RANGE.max || Number.isNaN(Date.parse(date)))
+    return c.json({ error: `date must fall between ${CALENDAR_YEAR_RANGE.min} and ${CALENDAR_YEAR_RANGE.max}` }, 400);
+  const nextDate = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
   const base = {
     name: "Today",
     time: "12:00",
@@ -8896,8 +8943,8 @@ app.get("/api/panchanga/today", async (c) => {
     focus: "general" as const,
     birthTimeAccuracyMinutes: 0,
   };
-  const parsedToday = birthInputSchema.safeParse({ ...base, date: dayIso(0) }),
-    parsedNext = birthInputSchema.safeParse({ ...base, date: dayIso(1) });
+  const parsedToday = birthInputSchema.safeParse({ ...base, date }),
+    parsedNext = birthInputSchema.safeParse({ ...base, date: nextDate });
   if (!parsedToday.success || !parsedNext.success)
     return c.json({ error: "Invalid location details" }, 400);
   try {
@@ -8905,7 +8952,78 @@ app.get("/api/panchanga/today", async (c) => {
       calculateChart(parsedToday.data),
       calculateChart(parsedNext.data),
     );
-    return c.json(result, 200, { "cache-control": "public, max-age=600" });
+    if (result.status !== "computed") return c.json(result, 200, { "cache-control": "public, max-age=600" });
+    // Sunrise-to-sunrise limb timeline, lunar month and observances for the day.
+    const [day] = buildCalendarRange({
+      startDate: date,
+      days: 1,
+      latitude,
+      longitude,
+      timezone,
+      timezoneOffset,
+      detailed: true,
+    });
+    return c.json(
+      {
+        ...result,
+        calendar: {
+          ...result.calendar,
+          masa: {
+            amanta: { status: "computed", name: day.masa.amanta, adhika: day.masa.adhika },
+            purnimanta: day.masa.purnimanta
+              ? { status: "computed", name: day.masa.purnimanta }
+              : { status: "unavailable", reason: "Purnimanta naming of an adhika month is regional." },
+            convention: "amanta month named by the Sun's sidereal sign at the opening new moon",
+          },
+        },
+        day,
+        observanceBasis: OBSERVANCE_BASIS,
+      },
+      200,
+      { "cache-control": requested ? "public, max-age=86400" : "public, max-age=600" },
+    );
+  } catch {
+    return c.json({ error: "Panchanga could not be calculated" }, 500);
+  }
+};
+app.get("/api/panchanga/today", panchangaDay);
+app.get("/api/panchanga/day", panchangaDay);
+
+// A month of panchanga for one place: sunrise/sunset, udaya tithi and
+// nakshatra with end times, lunar month, Sankranti and observances per day.
+app.get("/api/panchanga/month", async (c) => {
+  const limited = await enforceLimit(c, c.env.CALC_RATE_LIMITER);
+  if (limited) return limited;
+  const location = panchangaLocation(c);
+  if (!location) return c.json({ error: "lat, lon and tzOffset are required" }, 400);
+  const year = Number(c.req.query("year")),
+    month = Number(c.req.query("month"));
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    month < 1 ||
+    month > 12 ||
+    year < CALENDAR_YEAR_RANGE.min ||
+    year > CALENDAR_YEAR_RANGE.max
+  )
+    return c.json({ error: `year (${CALENDAR_YEAR_RANGE.min}-${CALENDAR_YEAR_RANGE.max}) and month (1-12) are required` }, 400);
+  const { latitude, longitude, timezoneOffset, timezone } = location;
+  const key = [
+    "month-v2",
+    year,
+    month,
+    latitude.toFixed(3),
+    longitude.toFixed(3),
+    timezone || `utc${timezoneOffset}`,
+  ].join("/");
+  try {
+    return await cachedJson(c, key, 86400, () => ({
+      ...buildCalendarMonth({ year, month, latitude, longitude, timezone, timezoneOffset }),
+      safety: {
+        status: "research-preview",
+        notice: "Traditional calendar data are planning aids, not guarantees.",
+      },
+    }));
   } catch {
     return c.json({ error: "Panchanga could not be calculated" }, 500);
   }

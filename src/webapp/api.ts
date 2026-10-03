@@ -443,3 +443,125 @@ export async function streamChat(
   }
   return { text, summary };
 }
+
+/* ── panchanga calendar (month grid + dated day) ─────────────────────────── */
+
+export type LimbSpan = {
+  index: number;
+  name: string;
+  startIso: string;
+  endIso: string;
+  number?: number;
+  paksha?: "Shukla" | "Krishna";
+};
+
+export type Observance = {
+  id: string;
+  kind: "festival" | "vrata" | "lunar" | "solar";
+  en: string;
+  te: string;
+  rule?: "udaya" | "madhyahna" | "aparahna" | "pradosha" | "nishita";
+};
+
+export type CalendarDay = {
+  date: string;
+  vara: string;
+  offsetHours: number;
+  sunrise: string | null;
+  sunset: string | null;
+  nextSunrise: string | null;
+  tithi: LimbSpan[];
+  nakshatra: LimbSpan[];
+  yoga?: LimbSpan[];
+  karana?: LimbSpan[];
+  moon?: { moonrise: string | null; moonset: string | null };
+  masa: { amanta: string; adhika: boolean; purnimanta: string | null };
+  ritu: string;
+  ayana: string;
+  sunSign: string;
+  sankranti: { sign: string; instantIso: string } | null;
+  observances: Observance[];
+};
+
+export type CalendarMonth = {
+  year: number;
+  month: number;
+  conventions: Record<string, string>;
+  days: CalendarDay[];
+};
+
+export type TimedSegment = JdWindow & { name: string; quality: "favorable" | "mixed" | "avoid" };
+export type Hora = JdWindow & { number: number; period: "day" | "night"; lord: string };
+
+export type DayPanchanga = TodayPanchanga & {
+  choghadiya: { day: TimedSegment[]; night: TimedSegment[] };
+  hora: Hora[];
+  day: CalendarDay;
+  observanceBasis: string;
+};
+
+/** Where the calendar is computed: the birth place or the device's location. */
+export type CalendarPlace = {
+  label: string;
+  latitude: number;
+  longitude: number;
+  timezone?: string;
+  timezoneOffset: number;
+};
+
+function placeQuery(place: CalendarPlace, lang: Lang) {
+  const qs = new URLSearchParams({
+    lat: place.latitude.toFixed(4),
+    lon: place.longitude.toFixed(4),
+    tzOffset: String(place.timezoneOffset),
+    lang,
+  });
+  if (place.timezone) qs.set("tz", place.timezone);
+  return qs;
+}
+
+async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    try {
+      const j = (await res.json()) as { error?: string };
+      if (j?.error) msg = j.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`${res.status}: ${msg}`);
+  }
+  return (await res.json()) as T;
+}
+
+const monthCache = new Map<string, Promise<CalendarMonth>>();
+const dayCache = new Map<string, Promise<DayPanchanga>>();
+
+/** Month grid; memoised per place so flipping back and forth costs nothing. */
+export function fetchCalendarMonth(place: CalendarPlace, year: number, month: number, lang: Lang): Promise<CalendarMonth> {
+  const qs = placeQuery(place, lang);
+  qs.set("year", String(year));
+  qs.set("month", String(month));
+  const url = `/api/panchanga/month?${qs.toString()}`;
+  let hit = monthCache.get(url);
+  if (!hit) {
+    hit = getJson<CalendarMonth>(url);
+    hit.catch(() => monthCache.delete(url));
+    monthCache.set(url, hit);
+  }
+  return hit;
+}
+
+export function fetchPanchangaDay(place: CalendarPlace, date: string, lang: Lang): Promise<DayPanchanga> {
+  const qs = placeQuery(place, lang);
+  qs.set("date", date);
+  const url = `/api/panchanga/day?${qs.toString()}`;
+  let hit = dayCache.get(url);
+  if (!hit) {
+    hit = getJson<DayPanchanga>(url);
+    hit.catch(() => dayCache.delete(url));
+    dayCache.set(url, hit);
+  }
+  return hit;
+}

@@ -8,7 +8,8 @@ export type Route =
   | "onboarding"
   | "dasha"
   | "match"
-  | "remedies";
+  | "remedies"
+  | "calendar";
 
 const ROUTES: Route[] = [
   "today",
@@ -19,6 +20,7 @@ const ROUTES: Route[] = [
   "dasha",
   "match",
   "remedies",
+  "calendar",
 ];
 
 /** The default landing screen — Ask (అడగండి), framed around the jatakam. */

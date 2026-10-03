@@ -3,6 +3,7 @@ import { NAKSHATRAS, SIGNS } from "./constants";
 import type { ChartResult } from "./schema";
 import { findLunarEvents } from "./panchanga";
 import { ACTIVE_LUNAR_MODEL } from "./lunar";
+import { ayanaForSunSign, rituForSunSign } from "./panchangaCalendar";
 
 const VARAS = [
   "Sunday",
@@ -52,7 +53,6 @@ const HORA_SEQUENCE = [
   "Mercury",
   "Moon",
 ];
-const RITUS = ["Vasanta", "Grishma", "Varsha", "Sharad", "Hemanta", "Shishira"];
 const unavailable = (reason: string) => ({ status: "unavailable", reason });
 const window = (start: number, end: number) => ({
   startJulianDay: start,
@@ -231,10 +231,8 @@ export function buildDailyPanchanga(
           "Exact lunar-month boundary solver is pending.",
         ),
       },
-      ritu: RITUS[Math.floor(((sun.sign + 10) % 12) / 2)],
-      ayana: [9, 10, 11, 0, 1, 2].includes(sun.sign)
-        ? "Uttarayana"
-        : "Dakshinayana",
+      ritu: rituForSunSign(sun.sign),
+      ayana: ayanaForSunSign(sun.sign),
       samvatsara: unavailable(
         "Regional epoch and new-year convention must be selected.",
       ),

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import "./base.css";
 import { LangProvider, useLang } from "./lang";
 import { DataProvider, useData } from "./data";
@@ -13,6 +13,9 @@ import { OnboardingScreen } from "./screens/OnboardingScreen";
 import { DashaScreen } from "./screens/DashaScreen";
 import { MatchScreen } from "./screens/MatchScreen";
 import { RemediesScreen } from "./screens/RemediesScreen";
+
+// The panchangam is the largest screen; load it on demand to keep the main bundle lean.
+const CalendarScreen = lazy(() => import("./screens/CalendarScreen").then((m) => ({ default: m.CalendarScreen })));
 
 function Screens() {
   const route = useRoute();
@@ -50,6 +53,12 @@ function Screens() {
       return <MatchScreen />;
     case "remedies":
       return <RemediesScreen />;
+    case "calendar":
+      return (
+        <Suspense fallback={<div className="screen" aria-busy="true" />}>
+          <CalendarScreen />
+        </Suspense>
+      );
     case "today":
     default:
       return <TodayScreen />;

@@ -92,3 +92,41 @@ test("BTR opens a structured, editable three-event review", async ({ page }) => 
   await page.getByRole("button", { name: "Restart" }).click();
   await expect(page.getByText("Event 3", { exact: true })).toBeVisible();
 });
+
+test("the panchangam shows a month, a festival day and navigates by day and keyboard", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "sahadeva.profile.v1",
+      JSON.stringify({
+        name: "Ananya",
+        date: "1992-10-08",
+        time: "14:47",
+        place: "Hyderabad",
+        latitude: 17.385,
+        longitude: 78.4867,
+        timezone: "Asia/Kolkata",
+        timezoneOffset: 5.5,
+        language: "en",
+        methodology: "parashari",
+        focus: "career",
+        birthTimeAccuracyMinutes: 30,
+        houseSystem: "whole-sign",
+      }),
+    ),
+  );
+  await page.goto("/#calendar?d=2026-10-20");
+  await page.reload(); // a hash-only navigation keeps the already-mounted app without a profile
+  await expect(page.getByRole("heading", { name: "Panchangam" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "October 2026", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tuesday, 20 October 2026" })).toBeVisible();
+  await expect(page.locator(".dhobs").getByText("Vijaya Dashami (Dasara)")).toBeVisible();
+  await expect(page.locator(".dhmeta")).toContainText("Sharad");
+  await page.getByRole("button", { name: "Next day" }).click();
+  await expect(page.getByRole("heading", { name: "Wednesday, 21 October 2026" })).toBeVisible();
+  await page.locator('.mcell[data-date="2026-10-21"]').focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("heading", { name: "Wednesday, 28 October 2026" })).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+});

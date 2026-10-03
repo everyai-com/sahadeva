@@ -315,6 +315,19 @@ export function TodayScreen() {
               </section>
             )}
 
+            <button className="calink" type="button" onClick={() => navigate("calendar")}>
+              <span>
+                {t("Full panchangam & calendar", "పూర్తి పంచాంగం, క్యాలెండర్")}
+                <small>
+                  {t(
+                    "Exact tithi and nakshatra end times, choghadiya, hora, festivals",
+                    "తిథి, నక్షత్ర ముగింపు సమయాలు, చౌఘడియ, హోర, పండుగలు",
+                  )}
+                </small>
+              </span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+            </button>
+
             <section style={{ marginTop: "var(--space-5)" }}>
               <details className="more">
                 <summary>{t("More timings", "మరిన్ని సమయాలు")}</summary>
