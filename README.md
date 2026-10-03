@@ -48,7 +48,9 @@ The **Panchangam** tab is a month calendar plus a full day view for the birth pl
 - `GET /api/panchanga/month?lat&lon&tz&tzOffset&year&month` — one month (1800–2050), edge-cached.
 - `GET /api/panchanga/day?lat&lon&tz&tzOffset&date=YYYY-MM-DD` — the daily panchanga plus the limb timeline, masa and observances (`/api/panchanga/today` is the same without `date`).
 
-The calendar engine (`shared/panchangaCalendar.ts`) needs only the Sun and Moon: limb boundaries come from 6-hourly sampling refined by a secant solve and agree with the chart engine's bisection to within seconds; a month costs well under a second of CPU. Durmuhurtam, varjyam and amrita kalam stay unavailable until their rule tables pass source review.
+The calendar engine (`shared/panchangaCalendar.ts`) needs only the Sun and Moon: limb boundaries come from 6-hourly sampling refined by a secant solve and agree with the chart engine's bisection to within seconds; a month costs well under a second of CPU. Durmuhurtam (weekday muhurta table), varjyam and amrita kalam (classical per-nakshatra ghati tables, 4 ghatis scaled to the nakshatra's real length; Mula's two varjyam spells), the lunar month and the samvatsara (Telugu/Kannada cycle turning at Ugadi) are computed for every day and also feed `/api/panchanga/today`, the MCP tools and the AI chat.
+
+**Best times for you** (`POST /api/panchanga/personal`, birth details in the body only, never cached; `shared/personalTiming.ts`): the waking day is cut at every choghadiya, hora, Rahu/Yama/Gulika, durmuhurtam, varjyam, amrita kalam, Abhijit and Moon nakshatra/sign boundary, and each slice is scored with the person's own tara bala and chandra bala at that moment (chandrashtama flagged), the hora lord (benefics and the person's ascendant lord), choghadiya quality, Abhijit and amrita kalam. Rahu kalam, Yamagandam, Gulika, durmuhurtam and varjyam are excluded. Windows come with their reasons and what the hora suits; Today, the Panchangam day view and Ask (including its no-model fallback) all use them.
 
 ## Design language and assets
 

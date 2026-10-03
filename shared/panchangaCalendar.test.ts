@@ -117,6 +117,33 @@ describe("panchanga calendar engine", () => {
     expect(localHour).toBeLessThan(7);
   });
 
+  it("computes durmuhurtam, varjyam, amrita kalam and samvatsara like a Telugu panchangam", () => {
+    const [sat] = buildCalendarRange({ startDate: "2026-10-03", days: 1, ...HYDERABAD, detailed: true });
+    const rise = Date.parse(sat.sunrise!),
+      set = Date.parse(sat.sunset!),
+      muhurta = (set - rise) / 15;
+    // Saturday: the first two day muhurtas.
+    expect(sat.durmuhurtam!.map((w) => Math.round((Date.parse(w.startIso) - rise) / muhurta))).toEqual([0, 1]);
+    // Varjyam / amrita last 4 ghatis = 1/15 of their nakshatra and sit inside it.
+    for (const w of [...sat.varjyam!, ...sat.amritaKalam!]) {
+      const nak = sat.nakshatra.find((n) => n.name === w.nakshatra) ?? null;
+      if (nak) {
+        const length = Date.parse(nak.endIso) - Date.parse(nak.startIso);
+        expect(Math.abs(Date.parse(w.endIso) - Date.parse(w.startIso) - length / 15)).toBeLessThan(2000);
+        expect(Date.parse(w.startIso)).toBeGreaterThanOrEqual(Date.parse(nak.startIso));
+      }
+    }
+    expect(sat.samvatsara).toBe("Parabhava");
+    const [beforeUgadi] = buildCalendarRange({ startDate: "2026-03-18", days: 1, ...HYDERABAD });
+    const [ugadi] = buildCalendarRange({ startDate: "2026-03-19", days: 1, ...HYDERABAD });
+    expect(beforeUgadi.samvatsara).toBe("Vishvavasu");
+    expect(ugadi.samvatsara).toBe("Parabhava");
+    const [sunday] = buildCalendarRange({ startDate: "2026-10-04", days: 1, ...HYDERABAD, detailed: true });
+    const sr = Date.parse(sunday.sunrise!),
+      m = (Date.parse(sunday.sunset!) - sr) / 15;
+    expect(Math.round((Date.parse(sunday.durmuhurtam![0].startIso) - sr) / m)).toBe(13); // 14th muhurta
+  });
+
   it("keeps a month inside the Worker CPU budget", () => {
     buildCalendarMonth({ year: 2026, month: 1, ...HYDERABAD });
     const t = performance.now();

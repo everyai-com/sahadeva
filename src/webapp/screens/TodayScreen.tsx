@@ -22,6 +22,7 @@ import type { JdWindow, Placement } from "../api";
 import { Glyph, type GlyphFamily } from "../glyph";
 import { ErrorNote } from "../states";
 import { prefillAsk } from "../prefill";
+import { BestTimes } from "../bestTimes";
 
 const AXIS_START = 6 * 60; // 6 am
 const AXIS_SPAN = 16 * 60; // to 10 pm
@@ -167,6 +168,8 @@ export function TodayScreen() {
                 </details>
               )}
             </section>
+
+            {profile && <BestTimes profile={profile} place={null} date={null} offset={tz} compact />}
 
             <section style={{ marginTop: "var(--space-6)" }}>
               <p className="sectitle">{t("Times to keep clear today", "ఈ రోజు ఖాళీగా ఉంచవలసిన సమయాలు")}</p>
@@ -353,12 +356,16 @@ export function TodayScreen() {
                     value={td.inauspicious.bhadraVishti.active ? t("active", "ఉంది") : t("not active", "లేదు")}
                   />
                   <TRow label={t("Season · half-year", "ఋతువు · అయనం")} value={`${td.calendar.ritu} · ${td.calendar.ayana}`} />
-                  <p className="unavail">
-                    {t(
-                      "Not shown: durmuhurtam, varjyam and amrita kalam. Sahadeva has the calculation but not a reviewed rule for them yet, so it will not guess.",
-                      "చూపించనివి: దుర్ముహూర్తం, వర్జ్యం, అమృత కాలం. సహదేవ దగ్గర లెక్క ఉంది, కానీ వీటికి సమీక్షించిన నియమం ఇంకా లేదు — కాబట్టి ఊహించి చెప్పదు.",
-                    )}
-                  </p>
+                  {(td.day?.durmuhurtam ?? []).map((w) => (
+                    <TRow key={w.startIso} label={t("Durmuhurtam", "దుర్ముహూర్తం")} value={windowRange(w.startIso, w.endIso, tz)} />
+                  ))}
+                  {(td.day?.varjyam ?? []).map((w) => (
+                    <TRow key={w.startIso} label={t("Varjyam", "వర్జ్యం")} value={windowRange(w.startIso, w.endIso, tz)} />
+                  ))}
+                  {(td.day?.amritaKalam ?? []).map((w) => (
+                    <TRow key={w.startIso} label={t("Amrita kalam", "అమృత కాలం")} value={windowRange(w.startIso, w.endIso, tz)} />
+                  ))}
+                  {td.day && <TRow label={t("Samvatsara", "సంవత్సరం")} value={td.day.samvatsara} />}
                 </div>
               </details>
             </section>

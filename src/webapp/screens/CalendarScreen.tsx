@@ -6,6 +6,7 @@ import { navigate } from "../router";
 import { StatusBar, TabBar } from "../shell";
 import { Glyph } from "../glyph";
 import { MoonPhase } from "../moonPhase";
+import { BestTimes } from "../bestTimes";
 import { ErrorNote } from "../states";
 import { prefillAsk } from "../prefill";
 import { clock, grahaName, nakName, taraBala } from "../format";
@@ -306,7 +307,12 @@ export function CalendarScreen() {
           <ErrorNote error={dayState.error} what={t("This day could not be calculated.", "ఈ రోజు లెక్కించలేకపోయాం.")} onRetry={() => setAttempt((n) => n + 1)} />
         )}
         {dayState.status === "ready" && dayState.data && dayState.data.day && (
-          <DayView data={dayState.data} isToday={selected === today} natalNakshatra={natalMoon?.nakshatra} />
+          <DayView
+            data={dayState.data}
+            isToday={selected === today}
+            natalNakshatra={natalMoon?.nakshatra}
+            personal={profile ? <BestTimes profile={profile} place={device ?? null} date={selected} offset={dayState.data.day.offsetHours} /> : null}
+          />
         )}
 
         {monthObservances.length > 0 && (
@@ -496,7 +502,17 @@ function DayCell({
 
 /* ── day view ────────────────────────────────────────────────────────────── */
 
-function DayView({ data, isToday, natalNakshatra }: { data: DayPanchanga; isToday: boolean; natalNakshatra?: string }) {
+function DayView({
+  data,
+  isToday,
+  natalNakshatra,
+  personal,
+}: {
+  data: DayPanchanga;
+  isToday: boolean;
+  natalNakshatra?: string;
+  personal: React.ReactNode;
+}) {
   const { lang, t } = useLang();
   const day = data.day;
   const off = day.offsetHours;
@@ -535,7 +551,7 @@ function DayView({ data, isToday, natalNakshatra }: { data: DayPanchanga; isToda
           </span>
         </p>
         <p className="dhmeta">
-          {varaName(day.vara, lang)} · {rituName(day.ritu, lang)} · {ayanaName(day.ayana, lang)}
+          {t(`${day.samvatsara} samvatsara`, `${samvatsaraTe(day.samvatsara)} నామ సంవత్సరం`)} · {varaName(day.vara, lang)} · {rituName(day.ritu, lang)} · {ayanaName(day.ayana, lang)}
           {day.masa.purnimanta && day.masa.purnimanta !== day.masa.amanta
             ? t(` · ${day.masa.purnimanta} in the purnimanta reckoning`, ` · పూర్ణిమాంత లెక్కలో ${masaName(day.masa.purnimanta, false, "te")}`)
             : ""}
@@ -561,6 +577,8 @@ function DayView({ data, isToday, natalNakshatra }: { data: DayPanchanga; isToda
           <SunMoon graha="Moon" label={t("Moonset", "చంద్రాస్తమయం")} value={day.moon?.moonset ? when(day.moon.moonset) : t("none today", "ఈ రోజు లేదు")} />
         </div>
       </section>
+
+      {personal}
 
       {/* timeline */}
       <DayTimeline data={data} now={isToday ? now : null} />
@@ -612,15 +630,7 @@ function DayView({ data, isToday, natalNakshatra }: { data: DayPanchanga; isToda
       <Choghadiya data={data} now={isToday ? now : null} range={range} />
       <Horas horas={data.hora} now={isToday ? now : null} range={range} />
 
-      <section className="notes">
-        <p className="sectitle">{t("Not shown, on purpose", "ఉద్దేశపూర్వకంగా చూపనివి")}</p>
-        <p className="small muted">
-          {t(
-            "Durmuhurtam, varjyam and amrita kalam need weekday- and nakshatra-specific rule tables that have not passed source review yet, so Sahadeva does not guess them.",
-            "దుర్ముహూర్తం, వర్జ్యం, అమృత కాలం — వీటికి వార, నక్షత్ర ఆధారిత నియమ పట్టికలు ఇంకా సమీక్ష పూర్తి కాలేదు, కాబట్టి సహదేవ ఊహించి చెప్పదు.",
-          )}
-        </p>
-      </section>
+
     </div>
   );
 }
@@ -711,10 +721,12 @@ function DayTimeline({ data, now }: { data: DayPanchanga; now: number | null }) 
       <div className="tlwrap">
         <div className="tlbar">
           <span className="tlnight" style={{ left: `${sunsetPct}%` }} />
-          {[data.inauspicious.rahuKaal, data.inauspicious.yamaganda, data.inauspicious.gulikaKaal].map((w, i) => (
+          {[data.inauspicious.rahuKaal, data.inauspicious.yamaganda, data.inauspicious.gulikaKaal, ...(day.durmuhurtam ?? []), ...(day.varjyam ?? [])].map((w, i) => (
             <span key={i} className="tlwatch" style={block(w)} />
           ))}
-          <span className="tlgood" style={block(data.auspicious.abhijitMuhurta)} />
+          {[data.auspicious.abhijitMuhurta, ...(day.amritaKalam ?? [])].map((w, i) => (
+            <span key={`g${i}`} className="tlgood" style={block(w)} />
+          ))}
           {nowPct !== null && <span className="tlnow" style={{ left: `${nowPct}%` }} />}
         </div>
         <div className="ribbon" aria-hidden="true">{ribbon(day.tithi, "tithi")}</div>
@@ -728,8 +740,8 @@ function DayTimeline({ data, now }: { data: DayPanchanga; now: number | null }) 
         </div>
       </div>
       <p className="tllegend small muted">
-        <i className="k-watch" /> {t("Rahu · Yama · Gulika", "రాహు · యమ · గుళిక")}
-        <i className="k-good" /> {t("Abhijit", "అభిజిత్")}
+        <i className="k-watch" /> {t("Rahu · Yama · Gulika · Durmuhurtam · Varjyam", "రాహు · యమ · గుళిక · దుర్ముహూర్తం · వర్జ్యం")}
+        <i className="k-good" /> {t("Abhijit · Amrita kalam", "అభిజిత్ · అమృత కాలం")}
         <i className="k-night" /> {t("night", "రాత్రి")}
         <span className="k-rib">{t("ribbons: tithi, then nakshatra", "పట్టీలు: తిథి, నక్షత్రం")}</span>
       </p>
@@ -745,6 +757,18 @@ function Windows({ data, now, range }: { data: DayPanchanga; now: number | null;
     { id: "rahu", glyph: "rahu-kala", good: false, name: t("Rahu kalam", "రాహు కాలం"), sub: t("Traditionally kept free of new starts, signing and travel", "కొత్త పనులు, సంతకాలు, ప్రయాణాలకు సాంప్రదాయంగా వదిలే సమయం"), w: data.inauspicious.rahuKaal },
     { id: "yama", glyph: "yamagandam", good: false, name: t("Yamagandam", "యమగండం"), sub: t("Traditionally avoided for journeys and new ventures", "ప్రయాణాలు, కొత్త ప్రయత్నాలకు సాంప్రదాయంగా వదిలే సమయం"), w: data.inauspicious.yamaganda },
     { id: "gulika", glyph: "gulika", good: false, name: t("Gulika kalam", "గుళిక కాలం"), sub: t("Traditionally avoided for auspicious beginnings", "శుభ కార్యాల ఆరంభానికి సాంప్రదాయంగా వదిలే సమయం"), w: data.inauspicious.gulikaKaal },
+    ...(data.day.durmuhurtam ?? []).map((w, i) => ({
+      id: `durmuhurtam-${i}`, glyph: "durmuhurta", good: false, name: t("Durmuhurtam", "దుర్ముహూర్తం"),
+      sub: t("The weekday's inauspicious muhurta", "వారానికి నిర్ణీతమైన అశుభ ముహూర్తం"), w,
+    })),
+    ...(data.day.varjyam ?? []).map((w, i) => ({
+      id: `varjyam-${i}`, glyph: "rahu-kala", good: false, name: t("Varjyam", "వర్జ్యం"),
+      sub: t(`Tyajya ghatis of ${w.nakshatra ?? "the nakshatra"} — avoided for all good work`, `${w.nakshatra ? nakName(w.nakshatra, "te") : "నక్షత్ర"} త్యాజ్య ఘడియలు — శుభ కార్యాలకు వదలాలి`), w,
+    })),
+    ...(data.day.amritaKalam ?? []).map((w, i) => ({
+      id: `amrita-${i}`, glyph: "abhijit", good: true, name: t("Amrita kalam", "అమృత కాలం"),
+      sub: t(`Nectar ghatis of ${w.nakshatra ?? "the nakshatra"} — very good for any good work`, `${w.nakshatra ? nakName(w.nakshatra, "te") : "నక్షత్ర"} అమృత ఘడియలు — శుభ కార్యాలకు చాలా మంచిది`), w,
+    })),
   ].sort((x, y) => Date.parse(x.w.startIso) - Date.parse(y.w.startIso));
   return (
     <section className="windows">
@@ -831,4 +855,20 @@ function Horas({ horas, now, range }: { horas: Hora[]; now: number | null; range
       </button>
     </section>
   );
+}
+
+const SAMVATSARA_TE: Record<string, string> = {
+  Prabhava: "ప్రభవ", Vibhava: "విభవ", Shukla: "శుక్ల", Pramoduta: "ప్రమోదూత", Prajotpatti: "ప్రజోత్పత్తి", Angirasa: "ఆంగీరస",
+  Shrimukha: "శ్రీముఖ", Bhava: "భావ", Yuva: "యువ", Dhatu: "ధాత", Ishvara: "ఈశ్వర", Bahudhanya: "బహుధాన్య", Pramathi: "ప్రమాథి",
+  Vikrama: "విక్రమ", Vrisha: "వృష", Chitrabhanu: "చిత్రభాను", Svabhanu: "స్వభాను", Tarana: "తారణ", Parthiva: "పార్థివ", Vyaya: "వ్యయ",
+  Sarvajit: "సర్వజిత్", Sarvadhari: "సర్వధారి", Virodhi: "విరోధి", Vikriti: "వికృతి", Khara: "ఖర", Nandana: "నందన", Vijaya: "విజయ",
+  Jaya: "జయ", Manmatha: "మన్మథ", Durmukhi: "దుర్ముఖి", Hevilambi: "హేవిళంబి", Vilambi: "విళంబి", Vikari: "వికారి", Sharvari: "శార్వరి",
+  Plava: "ప్లవ", Shubhakrit: "శుభకృత్", Shobhakrit: "శోభకృత్", Krodhi: "క్రోధి", Vishvavasu: "విశ్వావసు", Parabhava: "పరాభవ",
+  Plavanga: "ప్లవంగ", Kilaka: "కీలక", Saumya: "సౌమ్య", Sadharana: "సాధారణ", Virodhikrit: "విరోధికృత్", Paridhavi: "పరీధావి",
+  Pramadicha: "ప్రమాదీచ", Ananda: "ఆనంద", Rakshasa: "రాక్షస", Nala: "నల", Pingala: "పింగళ", Kalayukti: "కాళయుక్తి",
+  Siddharthi: "సిద్ధార్థి", Raudri: "రౌద్రి", Durmati: "దుర్మతి", Dundubhi: "దుందుభి", Rudhirodgari: "రుధిరోద్గారి",
+  Raktakshi: "రక్తాక్షి", Krodhana: "క్రోధన", Akshaya: "అక్షయ",
+};
+function samvatsaraTe(name: string) {
+  return SAMVATSARA_TE[name] ?? name;
 }

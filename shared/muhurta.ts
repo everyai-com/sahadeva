@@ -1,4 +1,6 @@
 import type { ChartResult } from "./schema";
+import { SIGNS } from "./constants";
+import { lahiriAyanamsa, tropicalAscendant } from "./jyotish";
 
 export const MUHURTA_RULEBOOK = {
   id: "sahadeva-muhurta-seed",
@@ -423,6 +425,28 @@ export function scoreMuhurta(
       (item) =>
         ["rahuKaal", "yamaganda", "gulikaKaal"].includes(item.rule) &&
         item.status === "fail",
+    ),
+  };
+}
+
+/**
+ * The chart a muhurta window is judged from: the day's planetary positions
+ * with the lagna re-cast for the window's midpoint at the place. (Scoring the
+ * person's natal lagna instead would give every window the same lagna.)
+ */
+export function chartForWindow(
+  dayChart: ChartResult,
+  window: { startJulianDay: number; endJulianDay: number },
+  latitude: number,
+  longitude: number,
+): ChartResult {
+  const mid = (window.startJulianDay + window.endJulianDay) / 2;
+  const longitudeDeg = (((tropicalAscendant(mid, latitude, longitude) - lahiriAyanamsa(mid)) % 360) + 360) % 360;
+  const sign = Math.floor(longitudeDeg / 30);
+  return {
+    ...dayChart,
+    placements: dayChart.placements.map((p) =>
+      p.name === "Lagna" ? { ...p, longitude: longitudeDeg, sign, signName: SIGNS[sign], degree: longitudeDeg - sign * 30 } : p,
     ),
   };
 }

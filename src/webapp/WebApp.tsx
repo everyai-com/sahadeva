@@ -4,6 +4,7 @@ import { LangProvider, useLang } from "./lang";
 import { DataProvider, useData } from "./data";
 import { useRoute, navigate, type Route } from "./router";
 import { setOnboardingMode } from "./onboardingMode";
+import { useKeyboardSafeViewport } from "./viewport";
 import { WelcomeScreen } from "./screens/WelcomeScreen";
 import { TodayScreen } from "./screens/TodayScreen";
 import { AskScreen } from "./screens/AskScreen";
@@ -67,6 +68,7 @@ function Screens() {
 
 function Frame() {
   const { lang } = useLang();
+  useKeyboardSafeViewport();
   return (
     <div className="sahadev-web" lang={lang}>
       <div className="phone">

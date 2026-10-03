@@ -205,7 +205,7 @@ export function ChartScreen() {
 
         {/* bottom sheet */}
         <div className={`scrim${openHouse ? " on" : ""}`} onClick={() => setOpenHouse(null)} />
-        <aside className={`sheet${openHouse ? " on" : ""}`} role="dialog" aria-modal="true" aria-label={house && openHouse ? t(`House ${openHouse.house} — ${house.t}`, `${openHouse.house}వ భావం — ${house.tTe}`) : undefined}>
+        <aside className={`sheet${openHouse ? " on" : ""}`} role="dialog" aria-modal="true" inert={!openHouse} onKeyDown={(e) => e.key === "Escape" && setOpenHouse(null)} aria-label={house && openHouse ? t(`House ${openHouse.house} — ${house.t}`, `${openHouse.house}వ భావం — ${house.tTe}`) : undefined}>
           <div className="grabber" aria-hidden="true" />
           {house && sheetSign && openHouse && (
             <>

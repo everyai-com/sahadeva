@@ -127,3 +127,6 @@
 .ask-screen .sendbtn:disabled { opacity: 0.45; cursor: default; }
 .ask-screen .aretry { color: var(--accent); font-weight: 600; border-bottom: 0; }
 .ask-screen .topiccard .tic { color: var(--accent); }
+/* One focus ring on the field, not a second one on the inner input. */
+.ask-screen .cfield input:focus-visible { outline: none; box-shadow: none; }
+.ask-screen .cfield:focus-within { box-shadow: var(--focus-ring); }

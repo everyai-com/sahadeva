@@ -400,6 +400,89 @@ function karmakalaMoment(rule: Karmakala, sunrise: number, sunset: number, nextS
   return sunrise;
 }
 
+/*
+ * Muhurta-level windows used by Telugu panchangams. Tables are the standard
+ * classical ones and agree with independent open implementations:
+ *  - Durmuhurtam: fixed muhurtas (1/15 of day or night) per weekday.
+ *  - Varjyam (tyajyam): starts N ghatis into each nakshatra and lasts 4
+ *    ghatis, where a ghati is 1/60 of that nakshatra's actual duration.
+ *    Mula has two spells (20 and 56 ghatis).
+ *  - Amrita kalam: the same construction with the amrita ghati table.
+ */
+const DURMUHURTA: Array<Array<{ muhurta: number; part: "day" | "night" }>> = [
+  [{ muhurta: 14, part: "day" }], // Sunday
+  [{ muhurta: 9, part: "day" }, { muhurta: 12, part: "day" }], // Monday
+  [{ muhurta: 4, part: "day" }, { muhurta: 7, part: "night" }], // Tuesday
+  [{ muhurta: 8, part: "day" }], // Wednesday
+  [{ muhurta: 6, part: "day" }, { muhurta: 12, part: "day" }], // Thursday
+  [{ muhurta: 4, part: "day" }, { muhurta: 9, part: "day" }], // Friday
+  [{ muhurta: 1, part: "day" }, { muhurta: 2, part: "day" }], // Saturday
+];
+const VARJYAM_GHATI: number[][] = [
+  [50], [24], [30], [40], [14], [21], [30], [20], [32], [30], [20], [18], [21], [20],
+  [14], [14], [10], [14], [20, 56], [24], [20], [10], [10], [18], [16], [24], [30],
+];
+const AMRITA_GHATI = [42, 48, 54, 52, 38, 35, 54, 44, 56, 54, 44, 42, 45, 44, 38, 38, 34, 38, 44, 48, 44, 34, 34, 42, 40, 48, 54];
+
+export type TimeWindow = { startIso: string; endIso: string; startJulianDay: number; endJulianDay: number; nakshatra?: string };
+
+const timeWindow = (start: number, end: number, nakshatra?: string): TimeWindow => ({
+  startJulianDay: start,
+  endJulianDay: end,
+  startIso: jdToIso(start),
+  endIso: jdToIso(end),
+  ...(nakshatra ? { nakshatra } : {}),
+});
+
+export function durmuhurtamWindows(weekday: number, sunrise: number, sunset: number, nextSunrise: number): TimeWindow[] {
+  return DURMUHURTA[weekday].map(({ muhurta, part }) => {
+    const start = part === "day" ? sunrise : sunset,
+      length = ((part === "day" ? sunset : nextSunrise) - start) / 15;
+    return timeWindow(start + (muhurta - 1) * length, start + muhurta * length);
+  });
+}
+
+function nakshatraGhatiWindows(table: (index: number) => number[], spans: LimbSpan[], from: number, to: number) {
+  const out: TimeWindow[] = [];
+  for (const span of spans) {
+    const ghati = (span.endJulianDay - span.startJulianDay) / 60;
+    for (const offset of table(span.index)) {
+      const start = span.startJulianDay + offset * ghati,
+        end = start + 4 * ghati;
+      if (end > from && start < to) out.push(timeWindow(start, end, span.name));
+    }
+  }
+  return out.sort((a, b) => a.startJulianDay - b.startJulianDay);
+}
+
+export const varjyamWindows = (spans: LimbSpan[], from: number, to: number) =>
+  nakshatraGhatiWindows((i) => VARJYAM_GHATI[i], spans, from, to);
+export const amritaKalamWindows = (spans: LimbSpan[], from: number, to: number) =>
+  nakshatraGhatiWindows((i) => [AMRITA_GHATI[i]], spans, from, to);
+
+/*
+ * The 60-year Jovian cycle (samvatsara) as reckoned in the Telugu / Kannada
+ * chandramana calendar: it turns over at Ugadi (Chaitra Shukla Pratipada).
+ * Prabhava began with Ugadi 1987; 2025-26 is Vishvavasu, 2026-27 Parabhava.
+ */
+export const SAMVATSARAS = [
+  "Prabhava", "Vibhava", "Shukla", "Pramoduta", "Prajotpatti", "Angirasa", "Shrimukha", "Bhava", "Yuva", "Dhatu",
+  "Ishvara", "Bahudhanya", "Pramathi", "Vikrama", "Vrisha", "Chitrabhanu", "Svabhanu", "Tarana", "Parthiva", "Vyaya",
+  "Sarvajit", "Sarvadhari", "Virodhi", "Vikriti", "Khara", "Nandana", "Vijaya", "Jaya", "Manmatha", "Durmukhi",
+  "Hevilambi", "Vilambi", "Vikari", "Sharvari", "Plava", "Shubhakrit", "Shobhakrit", "Krodhi", "Vishvavasu", "Parabhava",
+  "Plavanga", "Kilaka", "Saumya", "Sadharana", "Virodhikrit", "Paridhavi", "Pramadicha", "Ananda", "Rakshasa", "Nala",
+  "Pingala", "Kalayukti", "Siddharthi", "Raudri", "Durmati", "Dundubhi", "Rudhirodgari", "Raktakshi", "Krodhana", "Akshaya",
+] as const;
+
+/** Samvatsara for a date given its amanta month (Pushya–Phalguna in Jan–Apr belong to the previous year). */
+export function samvatsaraFor(date: string, amanta: string): string {
+  const year = Number(date.slice(0, 4)),
+    month = Number(date.slice(5, 7)),
+    index = MASAS.indexOf(amanta as (typeof MASAS)[number]);
+  const startYear = index >= 8 && month <= 4 ? year - 1 : year;
+  return SAMVATSARAS[(((startYear - 1987) % 60) + 60) % 60];
+}
+
 export type CalendarDay = {
   date: string;
   vara: string;
@@ -414,6 +497,11 @@ export type CalendarDay = {
   karana?: LimbSpan[];
   /** Detailed view only: moonrise / moonset within the local date. */
   moon?: { moonrise: string | null; moonset: string | null };
+  /** Detailed view only: muhurta-level windows between sunrise and next sunrise. */
+  durmuhurtam?: TimeWindow[];
+  varjyam?: TimeWindow[];
+  amritaKalam?: TimeWindow[];
+  samvatsara: string;
   masa: { amanta: string; adhika: boolean; purnimanta: string | null };
   ritu: string;
   ayana: string;
@@ -585,14 +673,27 @@ export function buildCalendarRange(input: CalendarRangeInput): CalendarDay[] {
         ? MASAS[(MASAS.indexOf(month.name) + 1) % 12]
         : month.name;
     const [y, m, d] = date.split("-").map(Number);
+    const vara = VARAS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
     return {
       date,
-      vara: VARAS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()],
+      vara,
       offsetHours: solarAt(i).offset,
       sunrise: solarAt(i).sunrise === null ? null : jdToIso(solarAt(i).sunrise!),
       sunset: solarAt(i).sunset === null ? null : jdToIso(solarAt(i).sunset!),
       nextSunrise: solarAt(i + 1).sunrise === null ? null : jdToIso(solarAt(i + 1).sunrise!),
-      ...(input.detailed ? { moon: localLunarDay(solarAt(i).midnight, solarAt(i + 1).midnight, input.latitude, input.longitude) } : {}),
+      ...(input.detailed
+        ? {
+            moon: localLunarDay(solarAt(i).midnight, solarAt(i + 1).midnight, input.latitude, input.longitude),
+            durmuhurtam:
+              solarAt(i).sunrise !== null && solarAt(i).sunset !== null && solarAt(i + 1).sunrise !== null
+                ? durmuhurtamWindows(VARAS.indexOf(vara), solarAt(i).sunrise!, solarAt(i).sunset!, solarAt(i + 1).sunrise!)
+                : [],
+            varjyam: varjyamWindows(spans.nakshatra, a, b),
+            amritaKalam: amritaKalamWindows(spans.nakshatra, a, b),
+          }
+        : {}),
+      // Ugadi's new moon can fall after sunrise; the year turns on that day.
+      samvatsara: samvatsaraFor(date, monthAt((a + b) / 2).name),
       tithi: tithis,
       nakshatra: within(spans.nakshatra, a, b),
       ...(input.detailed ? { yoga: within(spans.yoga, a, b), karana: within(spans.karana, a, b) } : {}),

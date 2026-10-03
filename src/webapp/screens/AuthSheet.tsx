@@ -62,7 +62,7 @@ export function AuthSheet({ open, onClose }: { open: boolean; onClose: () => voi
   return (
     <>
       <div className={`authscrim${open ? " on" : ""}`} onClick={() => !busy && onClose()} />
-      <aside className={`authsheet${open ? " on" : ""}`} role="dialog" aria-modal="true" aria-label={t("Account", "ఖాతా")}>
+      <aside className={`authsheet${open ? " on" : ""}`} role="dialog" aria-modal="true" aria-label={t("Account", "ఖాతా")} inert={!open} onKeyDown={(e) => e.key === "Escape" && !busy && onClose()}>
         <div className="grabber" aria-hidden="true" />
         <h3>{mode === "signup" ? t("Create your account", "మీ ఖాతా సృష్టించండి") : t("Welcome back", "మళ్లీ స్వాగతం")}</h3>
         <p className="asub">

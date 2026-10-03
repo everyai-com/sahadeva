@@ -3,7 +3,17 @@ import { NAKSHATRAS, SIGNS } from "./constants";
 import type { ChartResult } from "./schema";
 import { findLunarEvents } from "./panchanga";
 import { ACTIVE_LUNAR_MODEL } from "./lunar";
-import { ayanaForSunSign, rituForSunSign } from "./panchangaCalendar";
+import {
+  amritaKalamWindows,
+  ayanaForSunSign,
+  durmuhurtamWindows,
+  limbSpans,
+  lunarMonthAt,
+  MASAS,
+  rituForSunSign,
+  samvatsaraFor,
+  varjyamWindows,
+} from "./panchangaCalendar";
 
 const VARAS = [
   "Sunday",
@@ -162,6 +172,10 @@ export function buildDailyPanchanga(
         };
       })()
     : null;
+  // Muhurta windows and the lunar month need the Moon's nakshatra spans
+  // between this sunrise and the next.
+  const nakshatraSpans = limbSpans("nakshatra", sunrise, nextSunrise);
+  const lunarMonth = lunarMonthAt(sunrise);
   const lunar = findLunarEvents(
     chart.engine.julianDay,
     chart.input.latitude,
@@ -212,30 +226,36 @@ export function buildDailyPanchanga(
         active: /vishti|bhadra/i.test(chart.panchanga.karana),
         karana: chart.panchanga.karana,
       },
-      durmuhurtam: unavailable(
-        "Weekday-specific Muhurta rule table awaits source review.",
-      ),
-      varjyam: unavailable("Nakshatra-specific offsets await source review."),
+      durmuhurtam: { status: "computed", windows: durmuhurtamWindows(weekday, sunrise, sunset, nextSunrise) },
+      varjyam: { status: "computed", windows: varjyamWindows(nakshatraSpans, sunrise, nextSunrise) },
     },
     auspicious: {
       abhijitMuhurta: window(noon - abhijitHalf, noon + abhijitHalf),
       brahmaMuhurta: window(sunrise - 96 / 1440, brahmaEnd),
-      amritKaal: unavailable("Nakshatra-specific offsets await source review."),
+      amritKaal: { status: "computed", windows: amritaKalamWindows(nakshatraSpans, sunrise, nextSunrise) },
     },
     choghadiya: { day: dayChoghadiya, night: nightChoghadiya },
     hora: [...dayHoras, ...nightHoras],
     calendar: {
       masa: {
-        amanta: unavailable("Exact lunar-month boundary solver is pending."),
-        purnimanta: unavailable(
-          "Exact lunar-month boundary solver is pending.",
-        ),
+        amanta: { status: "computed", name: lunarMonth.name, adhika: lunarMonth.adhika, startIso: lunarMonth.startIso, endIso: lunarMonth.endIso },
+        purnimanta: lunarMonth.adhika
+          ? unavailable("Purnimanta naming of an adhika month is regional.")
+          : {
+              status: "computed",
+              name:
+                chart.panchanga.paksha === "Krishna"
+                  ? MASAS[(MASAS.indexOf(lunarMonth.name) + 1) % 12]
+                  : lunarMonth.name,
+            },
       },
       ritu: rituForSunSign(sun.sign),
       ayana: ayanaForSunSign(sun.sign),
-      samvatsara: unavailable(
-        "Regional epoch and new-year convention must be selected.",
-      ),
+      samvatsara: {
+        status: "computed",
+        name: samvatsaraFor(chart.input.date, lunarMonth.name),
+        convention: "Telugu/Kannada chandramana cycle, turning at Ugadi",
+      },
     },
     personalized,
     festivalFlags,

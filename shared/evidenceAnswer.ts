@@ -14,7 +14,17 @@ export type EvidenceAnswerInput = {
   reading: EverydayReading;
   focusedJudgment?: Pick<TopicJudgment, "title" | "conclusion" | "supportingEvidence" | "opposingEvidence"> | null;
   currentTiming?: { mahadasha?: string | null; antardasha?: string | null } | null;
+  /** Day questions: the person's own best windows, and the local UTC offset to print them in. */
+  bestTimes?: { best: Array<{ startIso: string; endIso: string; grade: string; reasons: string[] }> } | null;
+  utcOffsetHours?: number;
 };
+
+function clock(iso: string, offsetHours: number) {
+  const d = new Date(Date.parse(iso) + offsetHours * 3_600_000);
+  const h = d.getUTCHours(),
+    m = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${h % 12 || 12}:${m} ${h >= 12 ? "pm" : "am"}`;
+}
 
 const MAX_EVIDENCE = 2;
 
@@ -22,9 +32,17 @@ function bullet(evidence: JudgmentEvidence): string {
   return `- **${evidence.label}** — ${evidence.detail}`;
 }
 
-export function composeEvidenceAnswer({ language, reading, focusedJudgment, currentTiming }: EvidenceAnswerInput): string {
+export function composeEvidenceAnswer({ language, reading, focusedJudgment, currentTiming, bestTimes, utcOffsetHours = 0 }: EvidenceAnswerInput): string {
   const te = language === "te";
   const lines: string[] = [];
+  if (bestTimes?.best.length) {
+    lines.push(te ? "### ఈ రోజు మీకు మంచి సమయాలు" : "### Your best times today");
+    for (const w of bestTimes.best)
+      lines.push(
+        `- **${clock(w.startIso, utcOffsetHours)} – ${clock(w.endIso, utcOffsetHours)}**${w.grade === "best" ? (te ? " (అత్యుత్తమం)" : " (best)") : ""} — ${w.reasons.slice(0, 3).join(", ")}`,
+      );
+    lines.push("");
+  }
   // Topic judgments are authored in English; Telugu answers use the localized reading.
   const judgment = te ? null : focusedJudgment;
 

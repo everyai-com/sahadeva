@@ -99,7 +99,13 @@ export type TodayPanchanga = {
     varjyam: Unavail;
   };
   auspicious: { abhijitMuhurta: JdWindow; brahmaMuhurta: JdWindow; amritKaal: Unavail };
-  calendar: { ritu: string; ayana: string; masa: { amanta: Unavail; purnimanta: Unavail } };
+  calendar: {
+    ritu: string;
+    ayana: string;
+    masa: { amanta: Unavail | { status: "computed"; name: string; adhika: boolean }; purnimanta: Unavail | { status: "computed"; name: string } };
+  };
+  /** Sunrise-to-sunrise limbs, muhurta windows and observances (newer servers). */
+  day?: CalendarDay;
 };
 
 /* ── dasha/calendar ────────────────────────────────────────────────────── */
@@ -455,6 +461,8 @@ export type LimbSpan = {
   paksha?: "Shukla" | "Krishna";
 };
 
+export type CalendarWindow = JdWindow & { nakshatra?: string };
+
 export type Observance = {
   id: string;
   kind: "festival" | "vrata" | "lunar" | "solar";
@@ -475,6 +483,10 @@ export type CalendarDay = {
   yoga?: LimbSpan[];
   karana?: LimbSpan[];
   moon?: { moonrise: string | null; moonset: string | null };
+  durmuhurtam?: CalendarWindow[];
+  varjyam?: CalendarWindow[];
+  amritaKalam?: CalendarWindow[];
+  samvatsara: string;
   masa: { amanta: string; adhika: boolean; purnimanta: string | null };
   ritu: string;
   ayana: string;
@@ -562,6 +574,59 @@ export function fetchPanchangaDay(place: CalendarPlace, date: string, lang: Lang
     hit = getJson<DayPanchanga>(url);
     hit.catch(() => dayCache.delete(url));
     dayCache.set(url, hit);
+  }
+  return hit;
+}
+
+/* ── personal best times ─────────────────────────────────────────────────── */
+
+export type TimingReason = { id: string; points: number; label: string; value?: string; count?: number };
+export type BestWindow = {
+  startIso: string;
+  endIso: string;
+  score: number;
+  grade: "best" | "good";
+  peak: { startIso: string; endIso: string };
+  horas: string[];
+  reasons: TimingReason[];
+  suits: string[];
+};
+export type PersonalDay = {
+  status: "computed" | "unavailable";
+  date: string;
+  natal: { nakshatra: string; moonSign: string; ascendant: string; ascendantLord: string };
+  daySummary: { taraAtSunrise: { count: number; name: string; favourable: boolean }; chandrashtama: boolean };
+  best: BestWindow[];
+  fallback: (Omit<BestWindow, "peak" | "horas"> & { hora: string }) | null;
+  avoid: Array<{ startIso: string; endIso: string; reason: string }>;
+  rules: { id: string; version: string; basis: string };
+};
+
+const personalCache = new Map<string, Promise<PersonalDay>>();
+
+/** Birth details travel in the POST body only; results are memoised in memory. */
+export function fetchPersonalDay(profile: Profile, place: CalendarPlace | null, date: string | null): Promise<PersonalDay> {
+  const body = {
+    profile: {
+      name: profile.name,
+      date: profile.date,
+      time: profile.time,
+      place: profile.place,
+      latitude: profile.latitude,
+      longitude: profile.longitude,
+      timezone: profile.timezone,
+      timezoneOffset: profile.timezoneOffset,
+      language: profile.language,
+    },
+    ...(place ? { place: { latitude: place.latitude, longitude: place.longitude, timezone: place.timezone, timezoneOffset: place.timezoneOffset } } : {}),
+    ...(date ? { date } : {}),
+  };
+  const key = JSON.stringify(body);
+  let hit = personalCache.get(key);
+  if (!hit) {
+    hit = postJson<PersonalDay>("/api/panchanga/personal", body);
+    hit.catch(() => personalCache.delete(key));
+    personalCache.set(key, hit);
   }
   return hit;
 }

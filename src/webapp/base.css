@@ -183,6 +183,8 @@ html, body { margin: 0; background: var(--canvas); }
   width: 100%;
   height: 100vh;
   height: 100dvh;
+  /* Follows the visible viewport while the on-screen keyboard is open (viewport.ts). */
+  height: var(--app-h, 100dvh);
   background: var(--bg);
   display: flex;
   flex-direction: column;
@@ -314,6 +316,7 @@ html, body { margin: 0; background: var(--canvas); }
   .phone {
     width: min(1080px, 100%);
     height: calc(100dvh - 48px);
+    height: calc(var(--app-h, 100dvh) - 48px);
     max-height: 1100px;
     border: 1px solid var(--border);
     border-radius: 24px;
@@ -381,3 +384,33 @@ html, body { margin: 0; background: var(--canvas); }
    (overrides the tracked mono labels used across the screens). */
 .sahadev-web[lang=te] *,
 .sahadev-web [lang=te] { letter-spacing: 0 !important; }
+
+/* ── best times for you (Today + Panchangam) ─────────────────────────────── */
+.besttimes { margin-top: var(--space-6); }
+.besttimes .bthead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.besttimes .bthead .sectitle { margin: 0; font-weight: 650; color: var(--fg); font-size: var(--text-base); }
+.besttimes .btsummary { margin: var(--space-2) 0 var(--space-3); color: var(--fg-2); line-height: 1.5; }
+.besttimes .btwin { border: 1px solid var(--border); border-left: 4px solid var(--success); border-radius: var(--radius-md); background: var(--surface); padding: 12px 14px; margin-bottom: var(--space-2); }
+.besttimes .btwin.best { border-left-color: var(--gold); background: color-mix(in oklab, var(--gold), var(--surface) 90%); }
+.besttimes .btwin.live { box-shadow: 0 0 0 2px var(--accent); }
+.besttimes .btwin.past { opacity: 0.55; }
+.besttimes .btrow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.besttimes .bttime { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.besttimes .btgrade { flex: 0 0 auto; font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.02em; padding: 3px 9px; border-radius: var(--radius-pill); border: 1px solid currentColor; color: var(--success); }
+.besttimes .btgrade.best { color: var(--copper); }
+.besttimes .btpeak { margin-top: 2px; color: var(--muted); }
+.besttimes .btsuits { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; font-size: var(--text-sm); color: var(--fg-2); }
+.besttimes .btsuits .glyph { color: var(--accent); }
+.besttimes .btwhy { margin-top: 4px; min-height: 36px; padding: 0; border: 0; background: transparent; color: var(--accent); font-weight: 600; font-size: var(--text-sm); }
+.besttimes .btreasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.besttimes .btreason { font-size: var(--text-xs); border: 1px solid var(--border); background: var(--bg); border-radius: var(--radius-pill); padding: 3px 9px; color: var(--fg-2); }
+.besttimes .btreason b { color: var(--success); font-weight: 700; }
+.besttimes .btavoid { display: flex; flex-direction: column; gap: 4px; margin-top: var(--space-3); padding: 10px 14px; border: 1px dashed var(--border); border-radius: var(--radius-md); }
+.besttimes .btav { font-size: var(--text-sm); color: var(--fg-2); }
+.besttimes .btav b { font-family: var(--font-mono); font-weight: 500; font-size: 13px; margin-right: 6px; }
+.besttimes .btbasis { margin-top: var(--space-3); line-height: 1.55; }
+.besttimes .nowpill { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: var(--radius-pill); font-style: normal; font-size: var(--text-xs); font-weight: 650; background: var(--accent); color: var(--accent-on); vertical-align: 2px; }
+/* While the on-screen keyboard is up on a phone, give its space to the content. */
+@media (max-width: 759px) {
+  :root[data-keyboard=open] .phone > .tabbar { display: none; }
+}

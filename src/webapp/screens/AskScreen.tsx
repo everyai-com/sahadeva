@@ -388,7 +388,7 @@ export function AskScreen() {
 
       {/* chat history drawer (ChatGPT / Claude style) */}
       <div className={`histscrim${historyOpen ? " on" : ""}`} onClick={() => setHistoryOpen(false)} />
-      <aside className={`histdrawer${historyOpen ? " on" : ""}`} role="dialog" aria-modal="true" aria-label={t("Chat history", "చాట్ చరిత్ర")}>
+      <aside className={`histdrawer${historyOpen ? " on" : ""}`} role="dialog" aria-modal="true" aria-label={t("Chat history", "చాట్ చరిత్ర")} inert={!historyOpen} onKeyDown={(e) => e.key === "Escape" && setHistoryOpen(false)}>
         <div className="histhead">
           <h3>{t("Chat history", "చాట్ చరిత్ర")}</h3>
           <button className="histclose" type="button" aria-label={t("Close", "మూసివేయి")} onClick={() => setHistoryOpen(false)}>
